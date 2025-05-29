@@ -1,5 +1,6 @@
-// src/components/AdminDash.tsx
+// src/components/Admin/AdminDash.tsx
 import { useNavigate } from "react-router-dom";
+import logo1 from "../../assets/CliniMedia_Logo1.png";
 
 const AdminDash = () => {
   const navigate = useNavigate();
@@ -10,7 +11,7 @@ const AdminDash = () => {
       <div className="relative flex items-center justify-between mb-10">
         <div className="flex-shrink-0">
           <img
-            src="/CliniMedia_Logo1.png"
+            src={logo1}
             alt="CliniMedia Logo"
             className="w-64 h-auto"
           />
