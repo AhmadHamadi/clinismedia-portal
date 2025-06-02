@@ -210,18 +210,18 @@ const CustomerManagement = () => {
                   onChange={(e) => setNewUsername(e.target.value)}
                 />
                 <input
-                  type="email"
-                  placeholder="Email"
-                  className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                />
-                <input
                   type="password"
                   placeholder="Password"
                   className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
                 />
                 <div className="flex justify-end space-x-4">
                   <button
