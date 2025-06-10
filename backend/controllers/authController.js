@@ -8,7 +8,6 @@ exports.register = async (req, res) => {
   try {
     const { name, username, email, password, role, department } = req.body;
 
-    // Check for existing user by username or email
     const existingUser = await User.findOne({ 
       $or: [{ username }, { email }] 
     });
@@ -59,6 +58,15 @@ exports.login = async (req, res) => {
         department: user.department || null,
       },
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getCustomers = async (req, res) => {
+  try {
+    const customers = await User.find({ role: "customer" }).select("name email");
+    res.json(customers);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

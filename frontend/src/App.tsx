@@ -1,10 +1,11 @@
 import "./App.css";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import Login from "./components/Login";
 
-import AdminDash from "./components/Admin/AdminDash";
+import AdminDash from "./components/Admin/AdminDash/AdminDashPage";
 import MediaDayCalendar from "./components/Admin/MediaDayCalendar";
 import OnboardingTasks from "./components/Admin/OnboardingTasks";
-import ManageCustomers from "./components/Admin/CustomerManagement";
+import CustomerManagementPage from "./components/Admin/CustomerManagement/CustomerManagementPage";
 import ManageEmployees from "./components/Admin/EmployeeManagement";
 import Settings from "./components/Admin/Settings";
 import SidebarMenu from "./components/Admin/SidebarMenu";
@@ -12,25 +13,29 @@ import SidebarMenu from "./components/Admin/SidebarMenu";
 function App() {
   return (
     <div>
-      {/* Main Router for Admin Dashboard */} 
       <Router>
-    <div style={{ display: "flex" }}>
-        <SidebarMenu />
         <Routes>
-          {/* Redirect root path to Admin Dashboard */}
-          <Route path="/" element={<Navigate to="/admin" replace />} />
+          {/* Redirect root path to Login */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          
+          {/* Login Page */}
+          <Route path="/login" element={<Login />} />
 
-          {/* General Dashboard */}
-          <Route path="/admin" element={<AdminDash />} />
-
-          {/* Individual Admin Pages */}
-          <Route path="/admin/media" element={<MediaDayCalendar />} />
-          <Route path="/admin/onboarding" element={<OnboardingTasks />} />
-          <Route path="/admin/customers" element={<ManageCustomers />} />
-          <Route path="/admin/employees" element={<ManageEmployees />} />
-          <Route path="/admin/settings" element={<Settings />} />
+          {/* Protected Admin Routes */}
+          <Route path="/admin/*" element={
+            <div style={{ display: "flex" }}>
+              <SidebarMenu />
+              <Routes>
+                <Route path="/" element={<AdminDash />} />
+                <Route path="/media" element={<MediaDayCalendar />} />
+                <Route path="/onboarding" element={<OnboardingTasks />} />
+                <Route path="/customers" element={<CustomerManagementPage />} />
+                <Route path="/employees" element={<ManageEmployees />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </div>
+          } />
         </Routes>
-    </div>
       </Router>
     </div>
   );
