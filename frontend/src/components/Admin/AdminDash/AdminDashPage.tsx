@@ -1,14 +1,21 @@
-// src/components/Admin/AdminDash.tsx
+// src/components/Admin/AdminDash/AdminDashPage.tsx
 import { useNavigate } from "react-router-dom";
-import logo1 from "../../assets/CliniMedia_Logo1.png";
+import logo1 from "../../../assets/CliniMedia_Logo1.png";
+import { DashboardBox } from "./AdminDashLogic";
 
 const AdminDash = () => {
   const navigate = useNavigate();
 
+  const handleLogout = () => {
+    // Optionally clear any auth tokens here
+    navigate("/login");
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-8 max-w-7xl mx-auto font-sans">
       {/* Header with logo left, title centered */}
-      <div className="relative flex items-center justify-between mb-10">
+      <div className="relative flex items-center justify-between mb-10 bg-gray-100 p-4 rounded">
+        {/* Logo */}
         <div className="flex-shrink-0">
           <img
             src={logo1}
@@ -17,14 +24,21 @@ const AdminDash = () => {
           />
         </div>
 
+        {/* Title */}
         <h1
-          className="absolute left-1/2 transform -translate-x-1/2 text-5xl font-extrabold tracking-tight pointer-events-none select-none"
+          className="text-5xl font-extrabold tracking-tight pointer-events-none select-none mx-auto"
           style={{ color: "#303b45" }}
         >
           Admin Portal
         </h1>
 
-        <div className="w-64" /> {/* Spacer for right */}
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition ml-auto"
+        >
+          Logout
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -57,23 +71,5 @@ const AdminDash = () => {
     </div>
   );
 };
-
-interface DashboardBoxProps {
-  title: string;
-  description: string;
-  onClick: () => void;
-}
-
-const DashboardBox = ({ title, description, onClick }: DashboardBoxProps) => (
-  <div
-    onClick={onClick}
-    className="cursor-pointer rounded-xl bg-white p-6 shadow-md hover:shadow-lg transition flex flex-col justify-center items-center text-center h-48"
-  >
-    <h2 className="text-xl font-semibold mb-2" style={{ color: "#303b45" }}>
-      {title}
-    </h2>
-    <p className="text-sm text-black">{description}</p>
-  </div>
-);
 
 export default AdminDash;

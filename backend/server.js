@@ -1,6 +1,8 @@
+// backend/server.js
 const express = require("express");
 const cors = require("cors");           // Add CORS
 const connectDB = require("./config/db");
+const cors = require("cors");
 require("dotenv").config();
 
 const app = express();
@@ -13,18 +15,15 @@ app.use(cors({
 
 connectDB();
 
+app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 app.use(express.json());
 
 // Import routes
 const authRoutes = require("./routes/auth");
-const userRoutes = require("./routes/users");
+const customerRoutes = require("./routes/customers");
 
-// Mount routes
 app.use("/api/auth", authRoutes);
-console.log("✅ auth routes mounted on /api/auth");
-
-app.use("/api/users", userRoutes);
-console.log("✅ user routes mounted on /api/users");
+app.use("/api/customers", customerRoutes);
 
 // Root route
 app.get("/", (req, res) => {
