@@ -201,7 +201,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="employee">
                 <EmployeePortalLayout title="Settings">
-                  <EmployeeDashboard /> {/* Placeholder for now */}
+                  <EmployeeDashboard /> {/* Reverting to placeholder */}
                 </EmployeePortalLayout>
               </ProtectedRoute>
             }
