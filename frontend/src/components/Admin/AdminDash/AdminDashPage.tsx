@@ -7,7 +7,11 @@ const AdminDash = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    // Optionally clear any auth tokens here
+    // Clear admin tokens and data
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminData");
+    localStorage.removeItem("employeeToken");
+    localStorage.removeItem("employeeData");
     navigate("/login");
   };
 

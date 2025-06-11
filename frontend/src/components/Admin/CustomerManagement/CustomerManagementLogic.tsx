@@ -13,7 +13,7 @@ interface CustomerTableRowProps {
   customer: Customer;
   onEdit: (customer: Customer) => void;
   onDelete: (id: string) => void;
-  onView?: (customer: Customer) => void;
+  onView: (customer: Customer) => void;
 }
 
 export const CustomerTableRow: React.FC<CustomerTableRowProps> = ({
@@ -27,11 +27,9 @@ export const CustomerTableRow: React.FC<CustomerTableRowProps> = ({
     <td className="p-6 text-black">{customer.username || '-'}</td>
     <td className="p-6 text-black">{customer.email}</td>
     <td className="p-6">
-      {onView && (
-        <button className="text-[#98c6d5] hover:underline mr-4" onClick={() => onView(customer)}>
-          View
-        </button>
-      )}
+      <button className="text-[#98c6d5] hover:underline mr-4" onClick={() => onView(customer)}>
+        View
+      </button>
       <button className="text-blue-600 hover:underline mr-4" onClick={() => onEdit(customer)}>
         Edit
       </button>
@@ -65,7 +63,7 @@ export function useCustomerManagement() {
 
   const fetchCustomers = async () => {
     try {
-      const res = await axios.get("http://localhost:5050/api/customers");
+      const res = await axios.get("http://localhost:5000/api/customers");
       setCustomers(res.data);
     } catch (err) {
       console.error("❌ Failed to fetch customers", err);
@@ -92,7 +90,7 @@ export function useCustomerManagement() {
   const handleAddCustomer = async () => {
     if (!validateForm()) return;
     try {
-      await axios.post("http://localhost:5050/api/customers", { ...formData });
+      await axios.post("http://localhost:5000/api/customers", { ...formData });
       setShowModal(false);
       setFormData({ name: "", username: "", email: "", password: "" });
       fetchCustomers();
@@ -108,11 +106,15 @@ export function useCustomerManagement() {
   const handleDeleteCustomer = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this customer?")) return;
     try {
-      await axios.delete(`http://localhost:5050/api/customers/${id}`);
+      await axios.delete(`http://localhost:5000/api/customers/${id}`);
       setCustomers((prev) => prev.filter((cust) => cust._id !== id));
     } catch (err) {
       console.error("❌ Failed to delete customer", err);
     }
+  };
+
+  const handleViewCustomer = (customer: Customer) => {
+    alert(`Customer Details:\n\nName: ${customer.name}\nUsername: ${customer.username || 'N/A'}\nEmail: ${customer.email}`);
   };
 
   const handleEditClick = (customer: Customer) => {
@@ -134,7 +136,7 @@ export function useCustomerManagement() {
     e.preventDefault();
     if (!window.confirm("Are you sure you want to save these changes?")) return;
     try {
-      await axios.put(`http://localhost:5050/api/customers/${editFormData._id}`, editFormData);
+      await axios.put(`http://localhost:5000/api/customers/${editFormData._id}`, editFormData);
       setEditModalOpen(false);
       fetchCustomers();
     } catch (err: any) {
@@ -182,6 +184,7 @@ export function useCustomerManagement() {
     validateForm,
     handleAddCustomer,
     handleDeleteCustomer,
+    handleViewCustomer,
     handleEditClick,
     handleEditInputChange,
     handleEditSubmit,

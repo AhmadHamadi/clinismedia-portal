@@ -1,8 +1,7 @@
-// src/components/Admin/CustomerManagement/CustomerManagementPage.tsx
 import React from "react";
-import { useCustomerManagement, CustomerTableRow } from "./CustomerManagementLogic";
+import { useEmployeeManagement, EmployeeTableRow } from "./EmployeeManagementLogic";
 
-const CustomerManagementPage = () => {
+const EmployeeManagementPage = () => {
   const {
     showModal,
     setShowModal,
@@ -16,34 +15,35 @@ const CustomerManagementPage = () => {
     setEditModalOpen,
     editFormData,
     setEditFormData,
+    departments,
     handleInputChange,
-    handleAddCustomer,
-    handleDeleteCustomer,
-    handleViewCustomer,
+    handleAddEmployee,
+    handleDeleteEmployee,
+    handleViewEmployee,
     handleEditClick,
     handleEditInputChange,
     handleEditSubmit,
-    paginatedCustomers,
+    paginatedEmployees,
     totalPages,
-  } = useCustomerManagement();
+  } = useEmployeeManagement();
 
   return (
     <div className="min-h-screen flex bg-gray-100 font-sans w-full">
       <div className="flex-1 p-6 max-w-full">
         <div className="max-w-6xl mx-auto bg-white rounded-lg p-6 shadow-lg">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-extrabold text-gray-900">Customer Management</h1>
+            <h1 className="text-3xl font-extrabold text-gray-900">Employee Management</h1>
             <button
               onClick={() => setShowModal(true)}
               className="bg-[#98c6d5] hover:bg-blue-700 text-white px-5 py-2 rounded-lg transition"
             >
-              Add Customer
+              Add Employee
             </button>
           </div>
 
           <input
             type="text"
-            placeholder="Search customers..."
+            placeholder="Search employees..."
             className="w-full mb-6 p-4 rounded-lg border border-gray-300 text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
             value={searchTerm}
             onChange={(e) => {
@@ -59,22 +59,23 @@ const CustomerManagementPage = () => {
                   <th className="p-6 text-left font-semibold text-gray-700">Name</th>
                   <th className="p-6 text-left font-semibold text-black">Username</th>
                   <th className="p-6 text-left font-semibold text-black">Email</th>
+                  <th className="p-6 text-left font-semibold text-black">Department</th>
                   <th className="p-6 text-left font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedCustomers.length === 0 ? (
+                {paginatedEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-gray-500">No customers found.</td>
+                    <td colSpan={5} className="p-8 text-center text-gray-500">No employees found.</td>
                   </tr>
                 ) : (
-                  paginatedCustomers.map((customer) => (
-                    <CustomerTableRow
-                      key={customer._id}
-                      customer={customer}
-                      onView={handleViewCustomer}
+                  paginatedEmployees.map((employee) => (
+                    <EmployeeTableRow
+                      key={employee._id}
+                      employee={employee}
+                      onView={handleViewEmployee}
                       onEdit={handleEditClick}
-                      onDelete={handleDeleteCustomer}
+                      onDelete={handleDeleteEmployee}
                     />
                   ))
                 )}
@@ -118,17 +119,17 @@ const CustomerManagementPage = () => {
           {showModal && (
             <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
               <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg">
-                <h2 className="text-2xl font-semibold mb-4">Add New Customer</h2>
+                <h2 className="text-2xl font-semibold mb-4">Add New Employee</h2>
                 <form
                   onSubmit={e => {
                     e.preventDefault();
-                    handleAddCustomer();
+                    handleAddEmployee();
                   }}
                 >
                   <input
                     type="text"
                     name="name"
-                    placeholder="Customer Name"
+                    placeholder="Employee Name"
                     value={formData.name}
                     onChange={handleInputChange}
                     className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
@@ -157,6 +158,19 @@ const CustomerManagementPage = () => {
                     onChange={handleInputChange}
                     className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
                   />
+                  <select
+                    name="department"
+                    value={formData.department}
+                    onChange={handleInputChange}
+                    className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept.charAt(0).toUpperCase() + dept.slice(1)}
+                      </option>
+                    ))}
+                  </select>
                   <div className="flex justify-end space-x-4">
                     <button
                       type="button"
@@ -169,7 +183,7 @@ const CustomerManagementPage = () => {
                       type="submit"
                       className="px-6 py-2 rounded-lg bg-[#98c6d5] text-white hover:bg-blue-700"
                     >
-                      Add Customer
+                      Add Employee
                     </button>
                   </div>
                 </form>
@@ -180,12 +194,12 @@ const CustomerManagementPage = () => {
           {editModalOpen && (
             <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
               <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg">
-                <h2 className="text-2xl font-semibold mb-4">Edit Customer</h2>
+                <h2 className="text-2xl font-semibold mb-4">Edit Employee</h2>
                 <form onSubmit={handleEditSubmit}>
                   <input
                     type="text"
                     name="name"
-                    placeholder="Customer Name"
+                    placeholder="Employee Name"
                     value={editFormData.name}
                     onChange={handleEditInputChange}
                     className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black"
@@ -214,6 +228,19 @@ const CustomerManagementPage = () => {
                     onChange={handleEditInputChange}
                     className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black"
                   />
+                  <select
+                    name="department"
+                    value={editFormData.department}
+                    onChange={handleEditInputChange}
+                    className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black"
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept.charAt(0).toUpperCase() + dept.slice(1)}
+                      </option>
+                    ))}
+                  </select>
                   <div className="flex justify-end space-x-4">
                     <button
                       type="button"
@@ -224,7 +251,7 @@ const CustomerManagementPage = () => {
                     </button>
                     <button
                       type="submit"
-                      className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                      className="px-6 py-2 rounded-lg bg-[#98c6d5] text-white hover:bg-blue-700"
                     >
                       Save Changes
                     </button>
@@ -239,4 +266,4 @@ const CustomerManagementPage = () => {
   );
 };
 
-export default CustomerManagementPage;
+export default EmployeeManagementPage; 

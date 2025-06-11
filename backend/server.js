@@ -8,7 +8,7 @@ const app = express();
 
 // Enable CORS for your frontend origin (adjust port if needed)
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: ["http://localhost:5173", "http://localhost:5174"],
   credentials: true,
 }));
 
@@ -19,9 +19,11 @@ app.use(express.json());
 // Import routes
 const authRoutes = require("./routes/auth");
 const customerRoutes = require("./routes/customers");
+const employeeRoutes = require("./routes/employees");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/employees", employeeRoutes);
 
 // Root route
 app.get("/", (req, res) => {

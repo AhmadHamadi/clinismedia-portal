@@ -3,21 +3,60 @@ import { FaFingerprint } from "react-icons/fa";
 import { FaRegEye, FaRegEyeSlash } from "react-icons/fa";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import logo from "../assets/CliniMedia_Logo.png";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
   const navigate = useNavigate();
 
   const togglePasswordView = () => setShowPassword(!showPassword);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // For now, we'll just navigate to the admin dashboard
-    // Later we'll add actual authentication logic here
-    navigate("/admin");
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await axios.post("http://localhost:5000/api/auth/login", {
+        username,
+        password,
+      });
+
+      const { token, user } = response.data;
+
+      // Store token and user data based on role
+      if (user.role === "admin") {
+        localStorage.setItem("adminToken", token);
+        localStorage.setItem("adminData", JSON.stringify(user));
+        navigate("/admin");
+      } else if (user.role === "customer") {
+        localStorage.setItem("customerToken", token);
+        localStorage.setItem("customerData", JSON.stringify(user));
+        navigate("/customer/dashboard");
+      } else if (user.role === "employee") {
+        // For now, redirect employees to admin dashboard
+        // You can create a separate employee portal later
+        localStorage.setItem("employeeToken", token);
+        localStorage.setItem("employeeData", JSON.stringify(user));
+        navigate("/admin");
+      } else {
+        setError("Invalid user role");
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      if (err.response && err.response.data && err.response.data.message) {
+        setError(err.response.data.message);
+      } else {
+        setError("Login failed. Please check your credentials.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,7 +71,12 @@ const Login = () => {
 
         <h1 className="text-lg md:text-xl font-semibold text-white">Welcome Back</h1>
 
-        {/* Removed the sign up text */}
+        {/* Error message */}
+        {error && (
+          <div className="w-full bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3 mt-2">
           {/* Username input */}
@@ -44,6 +88,7 @@ const Login = () => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="bg-transparent border-0 w-full outline-none text-sm md:text-base text-white placeholder-gray-500"
+              disabled={loading}
             />
           </div>
 
@@ -56,6 +101,7 @@ const Login = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="bg-transparent border-0 w-full outline-none text-sm md:text-base text-white placeholder-gray-500"
+              disabled={loading}
             />
             {showPassword ? (
               <FaRegEyeSlash
@@ -72,9 +118,10 @@ const Login = () => {
 
           <button 
             type="submit"
-            className="w-full p-2 bg-blue-600 rounded-xl mt-3 hover:bg-blue-700 text-sm md:text-base text-white font-semibold"
+            disabled={loading}
+            className="w-full p-2 bg-blue-600 rounded-xl mt-3 hover:bg-blue-700 text-sm md:text-base text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Login
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 

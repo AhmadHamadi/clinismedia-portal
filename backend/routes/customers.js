@@ -5,6 +5,39 @@ const bcrypt = require("bcryptjs");
 const router = express.Router();
 const User = require("../models/User");
 const validator = require("validator"); // npm install validator
+const jwt = require("jsonwebtoken");
+
+// Middleware to verify JWT token
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "Access token required" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: "Invalid or expired token" });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// GET customer profile (authenticated)
+router.get("/profile", authenticateToken, async (req, res) => {
+  try {
+    const customer = await User.findById(req.user.id).select("-password");
+    if (!customer || customer.role !== "customer") {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+    res.status(200).json(customer);
+  } catch (err) {
+    console.error("❌ Failed to fetch customer profile:", err.message);
+    res.status(500).json({ error: "Server error fetching customer profile" });
+  }
+});
 
 // GET all customers
 router.get("/", async (req, res) => {
