@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const router = express.Router();
 const User = require("../models/User");
 const validator = require("validator");
+const authenticateToken = require("../middleware/authenticateToken");
 
 // GET all employees
 router.get("/", async (req, res) => {
@@ -106,6 +107,20 @@ router.put("/:id", async (req, res) => {
   } catch (err) {
     console.error("❌ Failed to update employee:", err.message);
     res.status(500).json({ error: "Server error updating employee" });
+  }
+});
+
+// GET authenticated employee's profile
+router.get("/profile", authenticateToken, async (req, res) => {
+  try {
+    const employee = await User.findById(req.user.id).select("-password");
+    if (!employee || employee.role !== "employee") {
+      return res.status(404).json({ error: "Employee not found or unauthorized" });
+    }
+    res.status(200).json(employee);
+  } catch (err) {
+    console.error("❌ Failed to fetch employee profile:", err.message);
+    res.status(500).json({ error: "Server error fetching employee profile" });
   }
 });
 

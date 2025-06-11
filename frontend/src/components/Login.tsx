@@ -39,11 +39,9 @@ const Login = () => {
         localStorage.setItem("customerData", JSON.stringify(user));
         navigate("/customer/dashboard");
       } else if (user.role === "employee") {
-        // For now, redirect employees to admin dashboard
-        // You can create a separate employee portal later
         localStorage.setItem("employeeToken", token);
         localStorage.setItem("employeeData", JSON.stringify(user));
-        navigate("/admin");
+        navigate("/employee/dashboard");
       } else {
         setError("Invalid user role");
       }

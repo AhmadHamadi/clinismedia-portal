@@ -1,34 +1,29 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import logo1 from "../../assets/CliniMedia_Logo1.png";
-import NotificationCenter from "./NotificationCenter";
+import NotificationCenter from "../Customer/NotificationCenter";
 
-interface Customer {
+interface Employee {
   _id: string;
   name: string;
   email: string;
   username: string;
-  customerSettings?: {
-    displayName?: string;
-    logoUrl?: string;
-  };
+  department: string;
 }
 
-const CustomerDashboard = () => {
-  const [customer, setCustomer] = useState<Customer | null>(null);
+const EmployeeDashboard = () => {
+  const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchCustomerData();
+    fetchEmployeeData();
   }, []);
 
-  const fetchCustomerData = async () => {
+  const fetchEmployeeData = async () => {
     try {
-      // Get the token from localStorage (assuming it's stored there after login)
-      const token = localStorage.getItem("customerToken");
+      const token = localStorage.getItem("employeeToken");
       
       if (!token) {
         setError("No authentication token found. Please log in again.");
@@ -36,26 +31,19 @@ const CustomerDashboard = () => {
         return;
       }
 
-      // Fetch customer data using the token
-      const response = await axios.get("http://localhost:5000/api/customers/profile", {
+      const response = await axios.get("http://localhost:5000/api/employees/profile", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      setCustomer(response.data);
+      setEmployee(response.data);
       setLoading(false);
     } catch (err: any) {
-      console.error("Failed to fetch customer data:", err);
-      setError("Failed to load customer data. Please try again.");
+      console.error("Failed to fetch employee data:", err);
+      setError("Failed to load employee data. Please try again.");
       setLoading(false);
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("customerToken");
-    localStorage.removeItem("customerData");
-    navigate("/login");
   };
 
   if (loading) {
@@ -87,11 +75,11 @@ const CustomerDashboard = () => {
     );
   }
 
-  if (!customer) {
+  if (!employee) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">No customer data found.</p>
+          <p className="text-gray-600 mb-4">No employee data found.</p>
           <button
             onClick={() => navigate("/login")}
             className="bg-[#98c6d5] hover:bg-blue-700 text-white px-4 py-2 rounded"
@@ -108,14 +96,14 @@ const CustomerDashboard = () => {
       {/* Welcome Section */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <h2 className="text-3xl font-bold text-gray-900 mb-2">
-          Welcome back, {customer.name}! 👋
+          Welcome back, {employee.name}! 👋
         </h2>
         <p className="text-gray-600">
-          Here's your personalized dashboard where you can manage your projects and view your media assets.
+          Here's your personalized dashboard for the {employee.department} department.
         </p>
       </div>
 
-      {/* Customer Info Cards */}
+      {/* Employee Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center">
@@ -126,7 +114,7 @@ const CustomerDashboard = () => {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-semibold text-gray-900">Profile</h3>
-              <p className="text-gray-600">{customer.email}</p>
+              <p className="text-gray-600">{employee.email}</p>
             </div>
           </div>
         </div>
@@ -139,8 +127,8 @@ const CustomerDashboard = () => {
               </svg>
             </div>
             <div className="ml-4">
-              <h3 className="text-lg font-semibold text-gray-900">Status</h3>
-              <p className="text-green-600 font-medium">Active</p>
+              <h3 className="text-lg font-semibold text-gray-900">Department</h3>
+              <p className="text-green-600 font-medium">{employee.department.charAt(0).toUpperCase() + employee.department.slice(1)}</p>
             </div>
           </div>
         </div>
@@ -160,14 +148,15 @@ const CustomerDashboard = () => {
         </div>
       </div>
 
-      {/* Notification Center moved here */}
+      {/* Notification Center */}
       <NotificationCenter />
 
       {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="bg-white rounded-lg shadow-md p-6 mt-8">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+
+          <button onClick={() => navigate("/employee/media-day-calendar")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
             <div className="flex items-center">
               <div className="p-2 bg-pink-100 rounded-lg mr-3">
                 <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -175,111 +164,41 @@ const CustomerDashboard = () => {
                 </svg>
               </div>
               <div>
-                <h4 className="font-medium text-gray-900">Media Day Booking</h4>
-                <p className="text-sm text-gray-600">Schedule your media day</p>
+                <h4 className="font-medium text-gray-900">View Media Day Calendar</h4>
+                <p className="text-sm text-gray-600">See your scheduled media days</p>
               </div>
             </div>
           </button>
 
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+          <button onClick={() => navigate("/employee/edit-availability")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
             <div className="flex items-center">
               <div className="p-2 bg-orange-100 rounded-lg mr-3">
                 <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div>
-                <h4 className="font-medium text-gray-900">Onboarding Tasks</h4>
-                <p className="text-sm text-gray-600">Complete your onboarding process</p>
+                <h4 className="font-medium text-gray-900">Edit Availability</h4>
+                <p className="text-sm text-gray-600">Update your work schedule</p>
               </div>
             </div>
           </button>
 
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
-            <div className="flex items-center">
-              <div className="p-2 bg-red-100 rounded-lg mr-3">
-                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.007 12.007 0 002.92 12c0 3.072 1.07 5.927 2.92 8.288l2.946-2.946m9.618 4.016A11.955 11.955 0 0012 21.056a11.955 11.955 0 008.618-3.04A12.007 12.007 0 0021.08 12c0-3.072-1.07-5.927-2.92-8.288l-2.946 2.946" />
-                </svg>
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-900">Google Integration</h4>
-                <p className="text-sm text-gray-600">Connect your Google account</p>
-              </div>
-            </div>
-          </button>
-
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+          <button onClick={() => navigate("/employee/tasks")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
             <div className="flex items-center">
               <div className="p-2 bg-blue-100 rounded-lg mr-3">
                 <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                </svg>
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-900">Facebook Integration</h4>
-                <p className="text-sm text-gray-600">Connect your Facebook page</p>
-              </div>
-            </div>
-          </button>
-
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
-            <div className="flex items-center">
-              <div className="p-2 bg-gray-100 rounded-lg mr-3">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-900">Create a Ticket</h4>
-                <p className="text-sm text-gray-600">Get support for your issues</p>
-              </div>
-            </div>
-          </button>
-
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
-            <div className="flex items-center">
-              <div className="p-2 bg-teal-100 rounded-lg mr-3">
-                <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                 </svg>
               </div>
               <div>
-                <h4 className="font-medium text-gray-900">Recently Completed Tasks</h4>
-                <p className="text-sm text-gray-600">View your finished tasks</p>
+                <h4 className="font-medium text-gray-900">Tasks</h4>
+                <p className="text-sm text-gray-600">Manage your assigned tasks</p>
               </div>
             </div>
           </button>
 
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
-            <div className="flex items-center">
-              <div className="p-2 bg-indigo-100 rounded-lg mr-3">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-900">View Your Invoice</h4>
-                <p className="text-sm text-gray-600">Access your billing details</p>
-              </div>
-            </div>
-          </button>
-
-          <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg mr-3">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-900">View Gallery</h4>
-                <p className="text-sm text-gray-600">Browse your media assets</p>
-              </div>
-            </div>
-          </button>
-
-          <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+          <button onClick={() => navigate("/employee/messages")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
             <div className="flex items-center">
               <div className="p-2 bg-yellow-100 rounded-lg mr-3">
                 <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -293,7 +212,21 @@ const CustomerDashboard = () => {
             </div>
           </button>
 
-          <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+          <button onClick={() => navigate("/employee/payment-receipt")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg mr-3">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="font-medium text-gray-900">Payment Receipt</h4>
+                <p className="text-sm text-gray-600">View your payment details</p>
+              </div>
+            </div>
+          </button>
+
+          <button onClick={() => navigate("/employee/settings")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
             <div className="flex items-center">
               <div className="p-2 bg-purple-100 rounded-lg mr-3">
                 <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -307,10 +240,11 @@ const CustomerDashboard = () => {
               </div>
             </div>
           </button>
+
         </div>
       </div>
     </div>
   );
 };
 
-export default CustomerDashboard; 
+export default EmployeeDashboard; 
