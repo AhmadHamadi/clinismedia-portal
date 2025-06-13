@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../../utils/api';
 
 interface Employee {
   _id: string;
@@ -49,7 +50,7 @@ const AdminTasksPage = () => {
 
       try {
         // Fetch Employees
-        const employeesResponse = await axios.get('http://localhost:5000/api/employees', {
+        const employeesResponse = await axios.get(`${API_BASE_URL}/employees`, {
           headers: {
             Authorization: `Bearer ${adminToken}`,
           },
@@ -57,7 +58,7 @@ const AdminTasksPage = () => {
         setEmployees(employeesResponse.data);
 
         // Fetch Tasks
-        const tasksResponse = await axios.get('http://localhost:5000/api/tasks', {
+        const tasksResponse = await axios.get(`${API_BASE_URL}/tasks`, {
           headers: {
             Authorization: `Bearer ${adminToken}`,
           },
@@ -90,7 +91,7 @@ const AdminTasksPage = () => {
     }
 
     try {
-      const response = await axios.post('http://localhost:5000/api/tasks', newTask, {
+      const response = await axios.post(`${API_BASE_URL}/tasks`, newTask, {
         headers: {
           Authorization: `Bearer ${adminToken}`,
         },

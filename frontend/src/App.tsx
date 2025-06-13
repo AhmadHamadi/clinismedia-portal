@@ -4,9 +4,9 @@ import Login from "./components/Login";
 
 import AdminLayout from "./components/Admin/AdminLayout";
 
-import CustomerDashboard from "./components/Customer/CustomerDashboard";
+import CustomerDashboard from "./components/Customer/CustomerDash/CustomerDashPage";
 import ProtectedRoute from "./components/Customer/ProtectedRoute";
-import EmployeeDashboard from "./components/Employee/EmployeeDashboard";
+import EmployeeDashboard from "./components/Employee/EmployeeDash/EmployeeDashPage";
 import NotificationPage from "./components/Customer/NotificationPage";
 import CustomerPortalLayout from "./components/Customer/CustomerPortalLayout";
 import EmployeePortalLayout from "./components/Employee/EmployeePortalLayout";

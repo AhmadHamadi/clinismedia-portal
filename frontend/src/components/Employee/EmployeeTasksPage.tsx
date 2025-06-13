@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../../utils/api';
 
 interface Employee {
   _id: string;
@@ -43,7 +44,7 @@ const EmployeeTasksPage = () => {
         const parsedEmployeeData = JSON.parse(employeeData);
         const employeeId = parsedEmployeeData._id;
 
-        const tasksResponse = await axios.get(`http://localhost:5000/api/tasks/employee/${employeeId}`, {
+        const tasksResponse = await axios.get(`${API_BASE_URL}/tasks/employee/${employeeId}`, {
           headers: {
             Authorization: `Bearer ${employeeToken}`,
           },
@@ -70,7 +71,7 @@ const EmployeeTasksPage = () => {
     }
 
     try {
-      const response = await axios.put(`http://localhost:5000/api/tasks/${taskId}/status`, { status: newStatus }, {
+      const response = await axios.put(`${API_BASE_URL}/tasks/${taskId}/status`, { status: newStatus }, {
         headers: {
           Authorization: `Bearer ${employeeToken}`,
         },

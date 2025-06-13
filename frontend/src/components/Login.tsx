@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import logo from "../assets/CliniMedia_Logo.png";
+import { API_BASE_URL } from '../utils/api';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -22,7 +23,7 @@ const Login = () => {
     setError("");
 
     try {
-      const response = await axios.post("http://localhost:5000/api/auth/login", {
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
         username,
         password,
       });

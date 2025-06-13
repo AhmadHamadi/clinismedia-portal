@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, ChangeEvent } from "react";
 import axios from "axios";
+import { API_BASE_URL } from '../../../utils/api';
 
 // Example: If you have a CustomerTableRow component
 export interface Customer {
@@ -63,7 +64,7 @@ export function useCustomerManagement() {
 
   const fetchCustomers = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/customers");
+      const res = await axios.get(`${API_BASE_URL}/customers`);
       setCustomers(res.data);
     } catch (err) {
       console.error("❌ Failed to fetch customers", err);
@@ -90,7 +91,7 @@ export function useCustomerManagement() {
   const handleAddCustomer = async () => {
     if (!validateForm()) return;
     try {
-      await axios.post("http://localhost:5000/api/customers", { ...formData });
+      await axios.post(`${API_BASE_URL}/customers`, { ...formData });
       setShowModal(false);
       setFormData({ name: "", username: "", email: "", password: "" });
       fetchCustomers();
@@ -106,7 +107,7 @@ export function useCustomerManagement() {
   const handleDeleteCustomer = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this customer?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/customers/${id}`);
+      await axios.delete(`${API_BASE_URL}/customers/${id}`);
       setCustomers((prev) => prev.filter((cust) => cust._id !== id));
     } catch (err) {
       console.error("❌ Failed to delete customer", err);
@@ -136,7 +137,7 @@ export function useCustomerManagement() {
     e.preventDefault();
     if (!window.confirm("Are you sure you want to save these changes?")) return;
     try {
-      await axios.put(`http://localhost:5000/api/customers/${editFormData._id}`, editFormData);
+      await axios.put(`${API_BASE_URL}/customers/${editFormData._id}`, editFormData);
       setEditModalOpen(false);
       fetchCustomers();
     } catch (err: any) {

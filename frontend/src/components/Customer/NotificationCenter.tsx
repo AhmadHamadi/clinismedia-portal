@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { IoNotificationsOutline } from 'react-icons/io5'; // For the notification icon
 import { useNavigate, useLocation } from "react-router-dom"; // Import useNavigate and useLocation
 import axios from 'axios';
+import { API_BASE_URL } from '../../utils/api';
 
 interface Notification {
   _id: string; // Changed from id to _id to match MongoDB convention
@@ -52,7 +53,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ navigateTo }) =
 
       try {
         console.log("Fetching general notifications for user ID:", userData.id, "with role:", role);
-        const generalNotificationsResponse = await axios.get(`http://localhost:5000/api/notifications`, {
+        const generalNotificationsResponse = await axios.get(`${API_BASE_URL}/notifications`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -64,7 +65,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ navigateTo }) =
         // Fetch new tasks count if the user is an employee
         if (role === 'employee') {
           console.log("Fetching new tasks for employee ID:", userData.id);
-          const newTasksResponse = await axios.get(`http://localhost:5000/api/tasks/employee/${userData.id}/new-count`, {
+          const newTasksResponse = await axios.get(`${API_BASE_URL}/tasks/employee/${userData.id}/new-count`, {
             headers: {
               Authorization: `Bearer ${token}`,
             },

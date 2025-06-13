@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../../utils/api';
 
 interface Notification {
   _id: string;
@@ -37,7 +38,7 @@ const EmployeeNotificationPage: React.FC = () => {
       }
 
       try {
-        const response = await axios.get(`http://localhost:5000/api/notifications`, {
+        const response = await axios.get(`${API_BASE_URL}/notifications`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -67,7 +68,7 @@ const EmployeeNotificationPage: React.FC = () => {
       }
 
       try {
-        await axios.put(`http://localhost:5000/api/notifications/mark-all-read`, {},
+        await axios.put(`${API_BASE_URL}/notifications/mark-all-read`, {},
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -98,7 +99,7 @@ const EmployeeNotificationPage: React.FC = () => {
 
     try {
       await axios.put(
-        `http://localhost:5000/api/notifications/${notificationId}/read`,
+        `${API_BASE_URL}/notifications/${notificationId}/read`,
         {},
         {
           headers: {

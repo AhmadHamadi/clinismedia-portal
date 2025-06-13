@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios'; // Import axios
+import { API_BASE_URL } from '../../utils/api';
 
 interface Notification {
   _id: string; // Changed id to _id to match MongoDB convention
@@ -37,7 +38,7 @@ const NotificationPage: React.FC = () => {
       }
 
       try {
-        const response = await axios.get(`http://localhost:5000/api/notifications`, {
+        const response = await axios.get(`${API_BASE_URL}/notifications`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -67,7 +68,7 @@ const NotificationPage: React.FC = () => {
       }
 
       try {
-        await axios.put(`http://localhost:5000/api/notifications/mark-all-read`, {},
+        await axios.put(`${API_BASE_URL}/notifications/mark-all-read`, {},
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -99,7 +100,7 @@ const NotificationPage: React.FC = () => {
     try {
       // Mark notification as read in the database
       await axios.put(
-        `http://localhost:5000/api/notifications/${notificationId}/read`,
+        `${API_BASE_URL}/notifications/${notificationId}/read`,
         {},
         {
           headers: {

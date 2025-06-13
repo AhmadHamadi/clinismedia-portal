@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, ChangeEvent } from "react";
 import axios from "axios";
+import { API_BASE_URL } from '../../../utils/api';
 
 export interface Employee {
   _id: string;
@@ -68,7 +69,7 @@ export function useEmployeeManagement() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/employees");
+      const res = await axios.get(`${API_BASE_URL}/employees`);
       setEmployees(res.data);
     } catch (err) {
       console.error("❌ Failed to fetch employees", err);
@@ -95,7 +96,7 @@ export function useEmployeeManagement() {
   const handleAddEmployee = async () => {
     if (!validateForm()) return;
     try {
-      await axios.post("http://localhost:5000/api/employees", formData);
+      await axios.post(`${API_BASE_URL}/employees`, formData);
       setShowModal(false);
       setFormData({ name: "", username: "", email: "", password: "", department: "" });
       fetchEmployees();
@@ -111,7 +112,7 @@ export function useEmployeeManagement() {
   const handleDeleteEmployee = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this employee?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/employees/${id}`);
+      await axios.delete(`${API_BASE_URL}/employees/${id}`);
       setEmployees((prev) => prev.filter((emp) => emp._id !== id));
     } catch (err) {
       console.error("❌ Failed to delete employee", err);
@@ -143,7 +144,7 @@ export function useEmployeeManagement() {
     e.preventDefault();
     if (!window.confirm("Are you sure you want to save these changes?")) return;
     try {
-      await axios.put(`http://localhost:5000/api/employees/${editFormData._id}`, editFormData);
+      await axios.put(`${API_BASE_URL}/employees/${editFormData._id}`, editFormData);
       setEditModalOpen(false);
       fetchEmployees();
     } catch (err: any) {

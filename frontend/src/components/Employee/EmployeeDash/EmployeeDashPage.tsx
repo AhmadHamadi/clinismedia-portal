@@ -1,49 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import NotificationCenter from "../Customer/NotificationCenter";
-
-interface Employee {
-  _id: string;
-  name: string;
-  email: string;
-  username: string;
-  department: string;
-}
+import NotificationCenter from "../../Customer/NotificationCenter";
+import { useEmployeeDashboard, Employee } from "./EmployeeDashLogic";
 
 const EmployeeDashboard = () => {
-  const [employee, setEmployee] = useState<Employee | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { employee, loading, error, handleLogout } = useEmployeeDashboard();
 
-  useEffect(() => {
-    fetchEmployeeData();
-  }, []);
-
-  const fetchEmployeeData = async () => {
-    try {
-      const token = localStorage.getItem("employeeToken");
-      
-      if (!token) {
-        setError("No authentication token found. Please log in again.");
-        setLoading(false);
-        return;
-      }
-
-      const response = await axios.get("http://localhost:5000/api/employees/profile", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      setEmployee(response.data);
-      setLoading(false);
-    } catch (err: any) {
-      console.error("Failed to fetch employee data:", err);
-      setError("Failed to load employee data. Please try again.");
-      setLoading(false);
-    }
+  const handleLogoutAndNavigate = () => {
+    handleLogout();
+    navigate("/login");
   };
 
   if (loading) {
@@ -155,7 +121,6 @@ const EmployeeDashboard = () => {
       <div className="bg-white rounded-lg shadow-md p-6 mt-8">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-
           <button onClick={() => navigate("/employee/media-day-calendar")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
             <div className="flex items-center">
               <div className="p-2 bg-pink-100 rounded-lg mr-3">
@@ -240,7 +205,6 @@ const EmployeeDashboard = () => {
               </div>
             </div>
           </button>
-
         </div>
       </div>
     </div>
