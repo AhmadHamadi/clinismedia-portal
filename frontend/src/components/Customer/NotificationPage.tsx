@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios'; // Import axios
 
 interface Notification {
-  id: string;
-  type: string; // e.g., 'booking', 'onboarding', 'upload', 'invoice', 'support'
+  _id: string; // Changed id to _id to match MongoDB convention
+  type: string; // e.g., 'booking', 'onboarding', 'upload', 'invoice', 'support', 'task'
   message: string;
   read: boolean;
   link: string; // URL to navigate to
@@ -15,66 +16,107 @@ const NotificationPage: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Mock fetching notifications - replace with actual API call later
-    const fetchedNotifications: Notification[] = [
-      {
-        id: '1',
-        type: 'booking',
-        message: 'New booking confirmed for 2024-08-15.',
-        read: false,
-        link: '/customer/bookings',
-        timestamp: '2024-07-20T10:00:00Z',
-      },
-      {
-        id: '2',
-        type: 'onboarding',
-        message: 'Your onboarding task "Upload ID" is due soon.',
-        read: false,
-        link: '/customer/onboarding',
-        timestamp: '2024-07-19T14:30:00Z',
-      },
-      {
-        id: '3',
-        type: 'upload',
-        message: 'Your latest content upload has been reviewed.',
-        read: true,
-        link: '/customer/gallery',
-        timestamp: '2024-07-18T09:15:00Z',
-      },
-      {
-        id: '4',
-        type: 'invoice',
-        message: 'Invoice #CLNM202407001 is now available.',
-        read: false,
-        link: '/customer/invoices',
-        timestamp: '2024-07-17T11:00:00Z',
-      },
-      {
-        id: '5',
-        type: 'support',
-        message: 'Your support request #1234 has been updated.',
-        read: false,
-        link: '/customer/support',
-        timestamp: '2024-07-16T16:00:00Z',
-      },
-      {
-        id: '6',
-        type: 'booking',
-        message: 'Reminder: Media day scheduled for next week.',
-        read: false,
-        link: '/customer/bookings',
-        timestamp: '2024-07-21T09:00:00Z',
-      },
-    ];
-    setNotifications(fetchedNotifications);
+    const fetchNotifications = async () => {
+      let token = null;
+      let userData = null;
+
+      if (localStorage.getItem('adminToken')) {
+        token = localStorage.getItem('adminToken');
+        userData = JSON.parse(localStorage.getItem('adminData') || '{}');
+      } else if (localStorage.getItem('customerToken')) {
+        token = localStorage.getItem('customerToken');
+        userData = JSON.parse(localStorage.getItem('customerData') || '{}');
+      } else if (localStorage.getItem('employeeToken')) {
+        token = localStorage.getItem('employeeToken');
+        userData = JSON.parse(localStorage.getItem('employeeData') || '{}');
+      }
+
+      if (!token || !userData || !userData.id) {
+        console.error("Authentication token or user data not found.");
+        return;
+      }
+
+      try {
+        const response = await axios.get(`http://localhost:5000/api/notifications`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setNotifications(response.data);
+      } catch (error) {
+        console.error("Failed to fetch notifications:", error);
+      }
+    };
+
+    fetchNotifications();
+
+    const markAllAsRead = async () => {
+      let token = null;
+
+      if (localStorage.getItem('adminToken')) {
+        token = localStorage.getItem('adminToken');
+      } else if (localStorage.getItem('customerToken')) {
+        token = localStorage.getItem('customerToken');
+      } else if (localStorage.getItem('employeeToken')) {
+        token = localStorage.getItem('employeeToken');
+      }
+
+      if (!token) {
+        console.error("Authentication token not found for marking all notifications as read.");
+        return;
+      }
+
+      try {
+        await axios.put(`http://localhost:5000/api/notifications/mark-all-read`, {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        // No need to update state here, as fetchNotifications will re-fetch and update
+      } catch (error) {
+        console.error("Failed to mark all notifications as read:", error);
+      }
+    };
+
+    // Mark all as read after fetching, to ensure the latest count is accurate for the bell
+    markAllAsRead();
   }, []);
 
-  const handleNotificationClick = (notificationId: string, link: string) => {
-    // Mark as read (for now, just in local state)
-    setNotifications(prev =>
-      prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
-    );
-    navigate(link);
+  const handleNotificationClick = async (notificationId: string, link: string) => {
+    const token = 
+      localStorage.getItem('adminToken') || 
+      localStorage.getItem('customerToken') || 
+      localStorage.getItem('employeeToken');
+
+    if (!token) {
+      console.error("No authentication token found for marking notification as read.");
+      navigate(link);
+      return;
+    }
+
+    try {
+      // Mark notification as read in the database
+      await axios.put(
+        `http://localhost:5000/api/notifications/${notificationId}/read`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      // Update local state to reflect the change
+      setNotifications(prev =>
+        prev.map(n => (n._id === notificationId ? { ...n, read: true } : n))
+      );
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error);
+    } finally {
+      navigate(link);
+    }
   };
 
   return (
@@ -89,8 +131,8 @@ const NotificationPage: React.FC = () => {
         <div className="space-y-4">
           {notifications.map((notification) => (
             <button
-              key={notification.id}
-              onClick={() => handleNotificationClick(notification.id, notification.link)}
+              key={notification._id}
+              onClick={() => handleNotificationClick(notification._id, notification.link)}
               className={`block w-full text-left p-4 rounded-lg transition-all duration-200 ease-in-out ${
                 notification.read ? 'bg-gray-50 text-gray-500' : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
               }`}

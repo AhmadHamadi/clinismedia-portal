@@ -2,13 +2,7 @@ import "./App.css";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./components/Login";
 
-import AdminDash from "./components/Admin/AdminDash/AdminDashPage";
-import MediaDayCalendar from "./components/Admin/MediaDayCalendar";
-import OnboardingTasks from "./components/Admin/OnboardingTasks";
-import CustomerManagementPage from "./components/Admin/CustomerManagement/CustomerManagementPage";
-import EmployeeManagementPage from "./components/Admin/EmployeeManagement/EmployeeManagementPage";
-import Settings from "./components/Admin/Settings";
-import SidebarMenu from "./components/Admin/SidebarMenu";
+import AdminLayout from "./components/Admin/AdminLayout";
 
 import CustomerDashboard from "./components/Customer/CustomerDashboard";
 import ProtectedRoute from "./components/Customer/ProtectedRoute";
@@ -17,6 +11,7 @@ import NotificationPage from "./components/Customer/NotificationPage";
 import CustomerPortalLayout from "./components/Customer/CustomerPortalLayout";
 import EmployeePortalLayout from "./components/Employee/EmployeePortalLayout";
 import EmployeeNotificationPage from "./components/Employee/EmployeeNotificationPage";
+import EmployeeTasksPage from "./components/Employee/EmployeeTasksPage";
 
 function App() {
   return (
@@ -168,7 +163,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="employee">
                 <EmployeePortalLayout title="Tasks">
-                  <EmployeeDashboard /> {/* Placeholder for now */}
+                  <EmployeeTasksPage />
                 </EmployeePortalLayout>
               </ProtectedRoute>
             }
@@ -223,17 +218,7 @@ function App() {
             path="/admin/*" 
             element={
               <ProtectedRoute requiredRole="admin">
-                <div style={{ display: "flex" }}>
-                  <SidebarMenu />
-                  <Routes>
-                    <Route path="/" element={<AdminDash />} />
-                    <Route path="/media" element={<MediaDayCalendar />} />
-                    <Route path="/onboarding" element={<OnboardingTasks />} />
-                    <Route path="/customers" element={<CustomerManagementPage />} />
-                    <Route path="/employees" element={<EmployeeManagementPage />} />
-                    <Route path="/settings" element={<Settings />} />
-                  </Routes>
-                </div>
+                <AdminLayout />
               </ProtectedRoute>
             } 
           />
