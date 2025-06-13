@@ -161,7 +161,7 @@ const CustomerDashboard = () => {
       </div>
 
       {/* Notification Center moved here */}
-      <NotificationCenter />
+      <NotificationCenter navigateTo="/customer/notifications"/>
 
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow-md p-6">

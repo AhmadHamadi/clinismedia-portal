@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { IoNotificationsOutline } from 'react-icons/io5'; // For the notification icon
-import { useNavigate } from "react-router-dom"; // Import useNavigate
+import { useNavigate, useLocation } from "react-router-dom"; // Import useNavigate and useLocation
+import axios from 'axios';
 
 interface Notification {
-  id: string;
+  _id: string; // Changed from id to _id to match MongoDB convention
   type: string; // e.g., 'booking', 'onboarding', 'upload', 'invoice', 'support'
   message: string;
   read: boolean;
@@ -11,62 +12,87 @@ interface Notification {
   timestamp: string;
 }
 
-const NotificationCenter: React.FC = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState<number>(0);
+interface NotificationCenterProps {
+  navigateTo?: string; // Optional prop for custom navigation
+}
+
+const NotificationCenter: React.FC<NotificationCenterProps> = ({ navigateTo }) => {
+  const [generalUnreadCount, setGeneralUnreadCount] = useState<number>(0);
+  const [newTasksCount, setNewTasksCount] = useState<number>(0);
   const navigate = useNavigate(); // Initialize navigate
+  const location = useLocation(); // Initialize useLocation
 
   useEffect(() => {
-    // Mock fetching notifications - replace with actual API call later
-    const fetchedNotifications: Notification[] = [
-      {
-        id: '1',
-        type: 'booking',
-        message: 'New booking confirmed for 2024-08-15.',
-        read: false,
-        link: '/customer/bookings',
-        timestamp: '2024-07-20T10:00:00Z',
-      },
-      {
-        id: '2',
-        type: 'onboarding',
-        message: 'Your onboarding task "Upload ID" is due soon.',
-        read: false,
-        link: '/customer/onboarding',
-        timestamp: '2024-07-19T14:30:00Z',
-      },
-      {
-        id: '3',
-        type: 'upload',
-        message: 'Your latest content upload has been reviewed.',
-        read: true,
-        link: '/customer/gallery',
-        timestamp: '2024-07-18T09:15:00Z',
-      },
-      {
-        id: '4',
-        type: 'invoice',
-        message: 'Invoice #CLNM202407001 is now available.',
-        read: false,
-        link: '/customer/invoices',
-        timestamp: '2024-07-17T11:00:00Z',
-      },
-      {
-        id: '5',
-        type: 'support',
-        message: 'Your support request #1234 has been updated.',
-        read: false,
-        link: '/customer/support',
-        timestamp: '2024-07-16T16:00:00Z',
-      },
-    ];
-    setNotifications(fetchedNotifications);
-    setUnreadCount(fetchedNotifications.filter(n => !n.read).length);
-  }, []);
+    const fetchCounts = async () => {
+      let token = null;
+      let userData = null;
+      let role = null;
+
+      // Determine the user's role and get the appropriate token and user data
+      if (localStorage.getItem('adminToken')) {
+        token = localStorage.getItem('adminToken');
+        userData = JSON.parse(localStorage.getItem('adminData') || '{}');
+        role = 'admin';
+      } else if (localStorage.getItem('customerToken')) {
+        token = localStorage.getItem('customerToken');
+        userData = JSON.parse(localStorage.getItem('customerData') || '{}');
+        role = 'customer';
+      } else if (localStorage.getItem('employeeToken')) {
+        token = localStorage.getItem('employeeToken');
+        userData = JSON.parse(localStorage.getItem('employeeData') || '{}');
+        role = 'employee';
+      }
+
+      if (!token || !userData || !userData.id) {
+        console.error("Authentication token or user data not found.");
+        console.log("Token:", token, "User Data:", userData);
+        // Optionally, navigate to login or show an error
+        return;
+      }
+
+      try {
+        console.log("Fetching general notifications for user ID:", userData.id, "with role:", role);
+        const generalNotificationsResponse = await axios.get(`http://localhost:5000/api/notifications`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        console.log("General Notifications API Response Data:", generalNotificationsResponse.data);
+        setGeneralUnreadCount(generalNotificationsResponse.data.filter((n: Notification) => !n.read).length);
+        console.log("Calculated General Unread Count:", generalNotificationsResponse.data.filter((n: Notification) => !n.read).length);
+
+        // Fetch new tasks count if the user is an employee
+        if (role === 'employee') {
+          console.log("Fetching new tasks for employee ID:", userData.id);
+          const newTasksResponse = await axios.get(`http://localhost:5000/api/tasks/employee/${userData.id}/new-count`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          console.log("New Tasks API Response Data:", newTasksResponse.data);
+          setNewTasksCount(newTasksResponse.data.count);
+          console.log("Calculated New Tasks Count:", newTasksResponse.data.count);
+        }
+
+      } catch (error) {
+        console.error("Failed to fetch counts:", error);
+      }
+    };
+
+    fetchCounts();
+
+    // Poll for new notifications/tasks every 30 seconds (adjust as needed)
+    const interval = setInterval(fetchCounts, 30000);
+    return () => clearInterval(interval);
+
+  }, [location.pathname]); // Add location.pathname to dependencies
+
+  const totalUnreadCount = generalUnreadCount + newTasksCount;
+  console.log("Final Total Unread Count:", totalUnreadCount);
 
   return (
     <button
-      onClick={() => navigate('/customer/notifications')}
+      onClick={() => navigate(navigateTo || '/customer/notifications')}
       className="w-full bg-gradient-to-r from-[#98c6d5] to-[#a0d2eb] rounded-lg shadow-md mb-8 p-4 flex items-center justify-between relative overflow-hidden cursor-pointer transition-all duration-200 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-[#98c6d5]"
     >
       <div className="flex items-center">
@@ -77,10 +103,10 @@ const NotificationCenter: React.FC = () => {
 
       <div className="relative">
         <div className="p-2 rounded-full bg-white bg-opacity-20">
-          <IoNotificationsOutline className="h-6 w-6 text-white" />
-          {unreadCount > 0 && (
-            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
-              {unreadCount}
+          <IoNotificationsOutline className={`h-6 w-6 ${totalUnreadCount > 0 ? 'text-red-500' : 'text-white'}`} />
+          {totalUnreadCount > 0 && (
+            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-3 py-1.5 text-sm font-bold leading-none text-red-100 bg-red-600 rounded-full">
+              {totalUnreadCount}
             </span>
           )}
         </div>

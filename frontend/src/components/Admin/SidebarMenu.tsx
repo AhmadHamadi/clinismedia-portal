@@ -1,37 +1,44 @@
 // src/components/SidebarMenu.tsx
 import { FaBars } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import logo1 from "../../assets/CliniMedia_Logo1.png";
-
 
 const SidebarMenu = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
   const currentPath = window.location.pathname;
 
-  if (currentPath === "/admin") return null;
+  // Emit custom event when sidebar state changes
+  useEffect(() => {
+    const event = new CustomEvent('sidebarToggle', { 
+      detail: { isOpen: sidebarOpen } 
+    });
+    window.dispatchEvent(event);
+  }, [sidebarOpen]);
 
   const navItems = [
     { label: "Dashboard", path: "/admin" },
-    { label: "Media Day", path: "/admin/media" },
-    { label: "Onboarding", path: "/admin/onboarding" },
-    { label: "Customers", path: "/admin/customers" },
-    { label: "Employees", path: "/admin/employees" },
+    { label: "Media Day Calendar", path: "/admin/media" },
+    { label: "Onboarding Tasks", path: "/admin/onboarding" },
+    { label: "Tasks", path: "/admin/tasks" },
+    { label: "Manage Customers", path: "/admin/customers" },
+    { label: "Manage Employees", path: "/admin/employees" },
+    { label: "Notifications", path: "/admin/notifications" },
     { label: "Settings", path: "/admin/settings" },
   ];
 
   const getButtonClasses = (path: string) => {
     const baseClasses =
-      "text-left w-full p-2 rounded transition hover:bg-blue-100 text-[#303b45]";
-    const activeClasses = "bg-[#98c6d5] text-white";
+      "text-left w-full p-3 rounded-lg transition-all duration-200 hover:bg-blue-100 text-gray-700 font-medium";
+    const activeClasses = "bg-blue-600 text-white shadow-md";
     return currentPath === path ? `${baseClasses} ${activeClasses}` : baseClasses;
   };
 
   return (
-    <div className={`bg-white shadow-md ${sidebarOpen ? "w-64" : "w-16"} transition-all`}>
+    <div className={`fixed left-0 top-0 h-full bg-white shadow-lg border-r border-gray-200 z-50 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"}`}>
       {/* Top: Logo left, hamburger right */}
-      <div className="p-4 flex items-center justify-between">
+      <div className="p-4 flex items-center justify-between border-b border-gray-200">
         {sidebarOpen && (
           <img
             src={logo1}
@@ -39,21 +46,43 @@ const SidebarMenu = () => {
             className="h-20 object-contain"
           />
         )}
-        <FaBars onClick={() => setSidebarOpen(!sidebarOpen)} className="cursor-pointer" />
+        <button 
+          onClick={() => setSidebarOpen(!sidebarOpen)} 
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <FaBars className="text-gray-600" />
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="p-4 space-y-3 text-sm">
+      <nav className="p-4 space-y-2 mt-4">
         {navItems.map(({ label, path }) => (
           <button
             key={path}
             onClick={() => navigate(path)}
             className={getButtonClasses(path)}
+            title={!sidebarOpen ? label : undefined}
           >
-            {label}
+            {sidebarOpen ? label : label.charAt(0)}
           </button>
         ))}
       </nav>
+
+      {/* Logout Button at bottom */}
+      <div className="absolute bottom-4 left-4 right-4">
+        <button
+          onClick={() => {
+            localStorage.removeItem("adminToken");
+            localStorage.removeItem("adminData");
+            localStorage.removeItem("employeeToken");
+            localStorage.removeItem("employeeData");
+            navigate("/login");
+          }}
+          className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg transition-colors font-medium"
+        >
+          {sidebarOpen ? "Logout" : "X"}
+        </button>
+      </div>
     </div>
   );
 };

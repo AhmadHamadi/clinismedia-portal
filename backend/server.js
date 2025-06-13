@@ -20,10 +20,14 @@ app.use(express.json());
 const authRoutes = require("./routes/auth");
 const customerRoutes = require("./routes/customers");
 const employeeRoutes = require("./routes/employees");
+const notificationRoutes = require("./routes/notifications");
+const taskRoutes = require("./routes/tasks");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/employees", employeeRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/tasks", taskRoutes);
 
 // Root route
 app.get("/", (req, res) => {
