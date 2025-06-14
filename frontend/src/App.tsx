@@ -1,17 +1,15 @@
 import "./App.css";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./components/Login";
-
 import AdminLayout from "./components/Admin/AdminLayout";
-
 import CustomerDashboard from "./components/Customer/CustomerDash/CustomerDashPage";
 import ProtectedRoute from "./components/Customer/ProtectedRoute";
 import EmployeeDashboard from "./components/Employee/EmployeeDash/EmployeeDashPage";
 import NotificationPage from "./components/Customer/NotificationPage";
 import CustomerPortalLayout from "./components/Customer/CustomerPortalLayout";
 import EmployeePortalLayout from "./components/Employee/EmployeePortalLayout";
-import EmployeeNotificationPage from "./components/Employee/EmployeeNotificationPage";
 import EmployeeTasksPage from "./components/Employee/EmployeeTasksPage";
+import CustomerMediaDayBookingPage from "./components/Customer/CustomerMediaDayBooking/CustomerMediaDayBookingPage";
 
 function App() {
   return (
@@ -23,6 +21,16 @@ function App() {
           
           {/* Login Page */}
           <Route path="/login" element={<Login />} />
+
+          {/* Admin Routes */}
+          <Route 
+            path="/admin/*" 
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminLayout />
+              </ProtectedRoute>
+            } 
+          />
 
           {/* Customer Routes */}
           <Route 
@@ -52,7 +60,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="customer">
                 <CustomerPortalLayout title="Media Day Booking">
-                  <CustomerDashboard />
+                  <CustomerMediaDayBookingPage />
                 </CustomerPortalLayout>
               </ProtectedRoute>
             }
@@ -118,7 +126,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="customer">
                 <CustomerPortalLayout title="View Your Invoice">
-                  <CustomerDashboard /> {/* Placeholder for now */}
+                  <CustomerDashboard />
                 </CustomerPortalLayout>
               </ProtectedRoute>
             }
@@ -141,7 +149,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="employee">
                 <EmployeePortalLayout title="View Media Day Calendar">
-                  <EmployeeDashboard /> {/* Placeholder for now */}
+                  <EmployeeDashboard />
                 </EmployeePortalLayout>
               </ProtectedRoute>
             }
@@ -152,7 +160,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="employee">
                 <EmployeePortalLayout title="Edit Availability">
-                  <EmployeeDashboard /> {/* Placeholder for now */}
+                  <EmployeeDashboard />
                 </EmployeePortalLayout>
               </ProtectedRoute>
             }
@@ -174,7 +182,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="employee">
                 <EmployeePortalLayout title="Messages">
-                  <EmployeeDashboard /> {/* Placeholder for now */}
+                  <EmployeeDashboard />
                 </EmployeePortalLayout>
               </ProtectedRoute>
             }
@@ -185,7 +193,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="employee">
                 <EmployeePortalLayout title="Payment Receipt">
-                  <EmployeeDashboard /> {/* Placeholder for now */}
+                  <EmployeeDashboard />
                 </EmployeePortalLayout>
               </ProtectedRoute>
             }
@@ -196,31 +204,10 @@ function App() {
             element={
               <ProtectedRoute requiredRole="employee">
                 <EmployeePortalLayout title="Settings">
-                  <EmployeeDashboard /> {/* Reverting to placeholder */}
+                  <EmployeeDashboard />
                 </EmployeePortalLayout>
               </ProtectedRoute>
             }
-          />
-
-          <Route
-            path="/employee/notifications"
-            element={
-              <ProtectedRoute requiredRole="employee">
-                <EmployeePortalLayout title="Notifications">
-                  <EmployeeNotificationPage />
-                </EmployeePortalLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Protected Admin Routes */}
-          <Route 
-            path="/admin/*" 
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminLayout />
-              </ProtectedRoute>
-            } 
           />
         </Routes>
       </Router>
