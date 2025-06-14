@@ -22,12 +22,16 @@ const customerRoutes = require("./routes/customers");
 const employeeRoutes = require("./routes/employees");
 const notificationRoutes = require("./routes/notifications");
 const taskRoutes = require("./routes/tasks");
+const bookingRoutes = require("./routes/bookings");
+const blockedDateRoutes = require("./routes/blockedDates");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/tasks", taskRoutes);
+app.use("/api/bookings", bookingRoutes);
+app.use("/api/blocked-dates", blockedDateRoutes);
 
 // Root route
 app.get("/", (req, res) => {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import SidebarMenu from './SidebarMenu';
 import AdminDash from './AdminDash/AdminDashPage';
-import MediaDayCalendar from './MediaDayCalendar';
+import AdminMediaDayBookingPage from './AdminMediaDayBooking/AdminMediaDayBookingPage';
 import OnboardingTasks from './OnboardingTasks';
 import CustomerManagementPage from './CustomerManagement/CustomerManagementPage';
 import EmployeeManagementPage from './EmployeeManagement/EmployeeManagementPage';
@@ -33,7 +33,7 @@ const AdminLayout = () => {
       >
         <Routes>
           <Route path="/" element={<AdminDash />} />
-          <Route path="/media" element={<MediaDayCalendar />} />
+          <Route path="/media" element={<AdminMediaDayBookingPage />} />
           <Route path="/onboarding" element={<OnboardingTasks />} />
           <Route path="/customers" element={<CustomerManagementPage />} />
           <Route path="/employees" element={<EmployeeManagementPage />} />

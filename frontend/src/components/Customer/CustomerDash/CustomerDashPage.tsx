@@ -121,7 +121,7 @@ const CustomerDashboard = () => {
       <div className="bg-white rounded-lg shadow-md p-6">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+          <button onClick={() => navigate("/customer/media-day-booking")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
             <div className="flex items-center">
               <div className="p-2 bg-pink-100 rounded-lg mr-3">
                 <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
