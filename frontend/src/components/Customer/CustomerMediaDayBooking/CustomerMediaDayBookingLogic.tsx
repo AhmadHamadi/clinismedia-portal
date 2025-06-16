@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import { API_BASE_URL } from '../../../utils/api';
 
 export interface TimeSlot {
   id: string;
@@ -6,11 +8,51 @@ export interface TimeSlot {
   isAvailable: boolean;
 }
 
+export interface Booking {
+  _id: string;
+  date: string;
+  notes?: string;
+  status: 'pending' | 'accepted' | 'declined';
+}
+
 export const useMediaDayBooking = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [isTimeModalOpen, setIsTimeModalOpen] = useState(false);
   const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(true);
+
+  // Fetch customer's bookings
+  const fetchBookings = async () => {
+    try {
+      const token = localStorage.getItem('customerToken');
+      if (!token) {
+        throw new Error('You must be logged in to view bookings');
+      }
+
+      const response = await axios.get(`${API_BASE_URL}/bookings/my-bookings`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      setBookings(response.data);
+    } catch (err: any) {
+      console.error('Error fetching bookings:', err);
+      setError('Failed to load bookings');
+    } finally {
+      setIsLoadingBookings(false);
+    }
+  };
+
+  // Fetch bookings on component mount
+  useEffect(() => {
+    fetchBookings();
+  }, []);
 
   // Generate time slots from 8 AM to 4 PM
   const timeSlots = [
@@ -32,26 +74,75 @@ export const useMediaDayBooking = () => {
     
     setSelectedDate(date);
     setIsTimeModalOpen(true);
+    setError(null);
+    setSuccess(null);
   };
 
   const handleTimeSelect = (time: string) => {
     setSelectedTime(time);
+    setError(null);
   };
 
-  const handleSubmit = () => {
-    if (selectedDate && selectedTime) {
-      // Here you would typically make an API call to save the booking
-      console.log('Booking submitted:', {
-        date: selectedDate,
-        time: selectedTime,
-        notes: notes.trim() || undefined // Only include notes if they're not empty
+  const handleSubmit = async () => {
+    if (!selectedDate || !selectedTime) {
+      setError('Please select both a date and time');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // Get the customer token
+      const token = localStorage.getItem('customerToken');
+      if (!token) {
+        throw new Error('You must be logged in to create a booking');
+      }
+
+      // Combine date and time into a single datetime
+      const [hours, minutes, period] = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/)?.slice(1) || [];
+      const hour = parseInt(hours) + (period === 'PM' && hours !== '12' ? 12 : 0);
+      const bookingDate = new Date(selectedDate);
+      bookingDate.setHours(hour, parseInt(minutes), 0, 0);
+
+      // Create the booking data
+      const bookingData = {
+        date: bookingDate.toISOString(),
+        notes: notes.trim() || undefined
+      };
+
+      console.log('Sending booking request:', bookingData);
+
+      const response = await axios.post(`${API_BASE_URL}/bookings`, bookingData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
+
+      console.log('Booking created:', response.data);
+      setSuccess('Booking created successfully!');
       
       // Reset form
       setSelectedDate(null);
       setSelectedTime(null);
       setNotes('');
       setIsTimeModalOpen(false);
+
+      // Refresh bookings list
+      await fetchBookings();
+    } catch (err: any) {
+      console.error('Error creating booking:', err);
+      if (err.response) {
+        setError(err.response.data.message || 'Failed to create booking');
+      } else if (err.request) {
+        setError('No response from server. Please check if the server is running.');
+      } else {
+        setError(err.message || 'Failed to create booking');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -61,6 +152,11 @@ export const useMediaDayBooking = () => {
     isTimeModalOpen,
     timeSlots,
     notes,
+    isSubmitting,
+    error,
+    success,
+    bookings,
+    isLoadingBookings,
     handleDateSelect,
     handleTimeSelect,
     handleSubmit,

@@ -62,12 +62,45 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     isTimeModalOpen,
     timeSlots,
     notes,
+    isSubmitting,
+    error,
+    success,
+    bookings,
+    isLoadingBookings,
     handleDateSelect,
     handleTimeSelect,
     handleSubmit,
     setIsTimeModalOpen,
     setNotes
   } = useMediaDayBooking();
+
+  // Function to format the date and time
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+  };
+
+  // Function to get status color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'accepted':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'declined':
+        return 'bg-red-100 text-red-800 border-red-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -81,6 +114,20 @@ const CustomerMediaDayBookingPage: React.FC = () => {
             Select your preferred date and time for your media day. We'll confirm your booking and send you all the details.
           </p>
         </div>
+        
+        {/* Success Message */}
+        {success && (
+          <div className="mb-8 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+            {success}
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-8 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            {error}
+          </div>
+        )}
         
         {/* Calendar Container */}
         <div className="bg-white rounded-xl shadow-xl p-8 mb-8 transform transition-all duration-300 hover:shadow-2xl">
@@ -114,6 +161,47 @@ const CustomerMediaDayBookingPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Booking Requests Section */}
+        <div className="bg-white rounded-xl shadow-xl p-8 mb-8">
+          <h2 className="text-2xl font-bold text-[#303b45] mb-6">Your Booking Requests</h2>
+          
+          {isLoadingBookings ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#98c6d5] mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading your bookings...</p>
+            </div>
+          ) : bookings.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-600">You haven't made any booking requests yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {bookings.map((booking) => (
+                <div
+                  key={booking._id}
+                  className="border rounded-lg p-6 transition-all duration-200 hover:shadow-md"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-lg font-semibold text-[#303b45]">
+                        {formatDateTime(booking.date)}
+                      </h3>
+                      {booking.notes && (
+                        <p className="mt-2 text-gray-600">
+                          Notes: {booking.notes}
+                        </p>
+                      )}
+                    </div>
+                    <div className={`px-4 py-2 rounded-full text-sm font-medium border ${getStatusColor(booking.status)}`}>
+                      {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Time Selection Modal */}
         {isTimeModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -141,11 +229,12 @@ const CustomerMediaDayBookingPage: React.FC = () => {
                   <button
                     key={slot.id}
                     onClick={() => handleTimeSelect(slot.time)}
+                    disabled={isSubmitting}
                     className={`p-4 rounded-lg text-center transition-all duration-200 transform hover:scale-105 ${
                       selectedTime === slot.time
                         ? 'bg-[#98c6d5] text-white shadow-lg'
                         : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
-                    }`}
+                    } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {slot.time}
                   </button>
@@ -162,7 +251,10 @@ const CustomerMediaDayBookingPage: React.FC = () => {
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#98c6d5] focus:border-[#98c6d5] transition-colors resize-none text-gray-900"
+                  disabled={isSubmitting}
+                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#98c6d5] focus:border-[#98c6d5] transition-colors resize-none text-gray-900 ${
+                    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                   placeholder="Add any additional information or special requests..."
                 />
               </div>
@@ -170,20 +262,23 @@ const CustomerMediaDayBookingPage: React.FC = () => {
               <div className="flex justify-end space-x-4">
                 <button
                   onClick={() => setIsTimeModalOpen(false)}
-                  className="px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors font-medium"
+                  disabled={isSubmitting}
+                  className={`px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors font-medium ${
+                    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={!selectedTime}
+                  disabled={!selectedTime || isSubmitting}
                   className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
-                    selectedTime
+                    selectedTime && !isSubmitting
                       ? 'bg-[#98c6d5] text-white hover:bg-[#7ab4c3] shadow-lg'
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   }`}
                 >
-                  Confirm Booking
+                  {isSubmitting ? 'Creating Booking...' : 'Confirm Booking'}
                 </button>
               </div>
             </div>
