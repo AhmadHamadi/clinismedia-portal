@@ -23,9 +23,6 @@ const blockedDateSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient date queries
-blockedDateSchema.index({ date: 1 });
-
 const BlockedDate = mongoose.model('BlockedDate', blockedDateSchema);
 
 module.exports = BlockedDate; 

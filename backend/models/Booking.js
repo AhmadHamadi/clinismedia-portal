@@ -31,10 +31,7 @@ const bookingSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient date queries
-bookingSchema.index({ date: 1 });
-
-// Prevent double bookings
+// Prevent double bookings with a compound index
 bookingSchema.index({ date: 1, status: 1 }, { 
   unique: true,
   partialFilterExpression: { status: { $in: ['pending', 'accepted'] } }

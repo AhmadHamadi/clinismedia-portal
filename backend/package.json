@@ -9,5 +9,13 @@
     "mongodb": "^6.16.0",
     "mongoose": "^8.15.0",
     "validator": "^13.15.15"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4",
+    "mongodb-memory-server": "^9.1.6"
+  },
+  "scripts": {
+    "test": "jest --detectOpenHandles"
   }
 }
