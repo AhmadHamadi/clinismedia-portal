@@ -26,6 +26,7 @@ router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
 router.get('/my-bookings', authenticateToken, authorizeRole('customer'), async (req, res) => {
   try {
     const bookings = await Booking.find({ customer: req.user._id })
+      .populate('customer', 'name email')
       .sort({ date: 1 });
     
     res.json(bookings);
@@ -62,7 +63,12 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
     });
 
     const savedBooking = await booking.save();
-    res.status(201).json(savedBooking);
+    
+    // Populate customer details before sending response
+    const populatedBooking = await Booking.findById(savedBooking._id)
+      .populate('customer', 'name email');
+    
+    res.status(201).json(populatedBooking);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -88,7 +94,11 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
     booking.status = status;
     const updatedBooking = await booking.save();
     
-    res.json(updatedBooking);
+    // Populate customer details before sending response
+    const populatedBooking = await Booking.findById(updatedBooking._id)
+      .populate('customer', 'name email');
+    
+    res.json(populatedBooking);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
