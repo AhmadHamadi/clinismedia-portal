@@ -1,17 +1,18 @@
-import React from 'react';
-import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format } from 'date-fns';
-import { parse } from 'date-fns';
-import { startOfWeek } from 'date-fns';
-import { getDay } from 'date-fns';
+import React, { useMemo } from 'react';
+import { Calendar, dateFnsLocalizer, Event } from 'react-big-calendar';
+import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useMediaDayBooking } from './CustomerMediaDayBookingLogic';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
-const locales = {
-  'en-US': enUS,
-};
+// Types
+interface MediaDayEvent extends Event {
+  status: 'pending' | 'accepted' | 'declined';
+}
+
+// Constants
+const locales = { 'en-US': enUS };
 
 const localizer = dateFnsLocalizer({
   format,
@@ -21,39 +22,45 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-// Custom toolbar component for the calendar
-const CustomToolbar = (toolbar: any) => {
-  const goToPreviousMonth = () => {
-    toolbar.onNavigate('PREV');
-  };
+// Status colors mapping
+const STATUS_COLORS = {
+  pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  accepted: 'bg-green-100 text-green-800 border-green-200',
+  declined: 'bg-red-100 text-red-800 border-red-200',
+  default: 'bg-gray-100 text-gray-800 border-gray-200',
+} as const;
 
-  const goToNextMonth = () => {
-    toolbar.onNavigate('NEXT');
-  };
+// Event colors mapping
+const EVENT_COLORS = {
+  pending: '#fbbf24', // Yellow
+  accepted: '#22c55e', // Green
+  declined: '#f87171', // Red
+  blocked: '#303b45', // Dark grey
+} as const;
 
-  return (
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center space-x-4">
-        <button
-          onClick={goToPreviousMonth}
-          className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-        >
-          <ChevronLeftIcon className="w-6 h-6 text-[#303b45]" />
-        </button>
-        <button
-          onClick={goToNextMonth}
-          className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-        >
-          <ChevronRightIcon className="w-6 h-6 text-[#303b45]" />
-        </button>
-      </div>
-      <h2 className="text-2xl font-semibold text-[#303b45]">
-        {format(toolbar.date, 'MMMM yyyy')}
-      </h2>
-      <div className="w-24" /> {/* Spacer for balance */}
+// Custom toolbar component
+const CustomToolbar: React.FC<any> = (toolbar) => (
+  <div className="flex items-center justify-between mb-6">
+    <div className="flex items-center space-x-4">
+      <button
+        onClick={() => toolbar.onNavigate('PREV')}
+        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+      >
+        <ChevronLeftIcon className="w-6 h-6 text-[#303b45]" />
+      </button>
+      <button
+        onClick={() => toolbar.onNavigate('NEXT')}
+        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+      >
+        <ChevronRightIcon className="w-6 h-6 text-[#303b45]" />
+      </button>
     </div>
-  );
-};
+    <h2 className="text-2xl font-semibold text-[#303b45]">
+      {format(toolbar.date, 'MMMM yyyy')}
+    </h2>
+    <div className="w-24" />
+  </div>
+);
 
 const CustomerMediaDayBookingPage: React.FC = () => {
   const {
@@ -67,15 +74,18 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     success,
     bookings,
     isLoadingBookings,
+    hasPendingBooking,
+    blockedDates,
     handleDateSelect,
     handleTimeSelect,
     handleSubmit,
     setIsTimeModalOpen,
-    setNotes
+    setNotes,
+    setTemporaryError,
   } = useMediaDayBooking();
 
-  // Function to format the date and time
-  const formatDateTime = (dateString: string) => {
+  // Utility functions
+  const formatDateTime = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
       weekday: 'long',
@@ -88,80 +98,157 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     });
   };
 
-  // Function to get status color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'accepted':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'declined':
-        return 'bg-red-100 text-red-800 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+  const getStatusColor = (status: string): string => {
+    return STATUS_COLORS[status as keyof typeof STATUS_COLORS] || STATUS_COLORS.default;
+  };
+
+  // Date checking functions
+  const isBlocked = (date: Date): boolean => {
+    return blockedDates.some(blocked => {
+      const blockedDate = new Date(blocked);
+      return blockedDate.getFullYear() === date.getFullYear() &&
+        blockedDate.getMonth() === date.getMonth() &&
+        blockedDate.getDate() === date.getDate();
+    });
+  };
+
+  const isDeclined = (date: Date): boolean => {
+    return bookings.some(booking => {
+      if (booking.status !== 'declined') return false;
+      const bookingDate = new Date(booking.date);
+      return bookingDate.getFullYear() === date.getFullYear() &&
+        bookingDate.getMonth() === date.getMonth() &&
+        bookingDate.getDate() === date.getDate();
+    });
+  };
+
+  const isDateUnavailable = (date: Date): boolean => {
+    return isBlocked(date) || isDeclined(date);
+  };
+
+  // Event handlers
+  const handleCalendarSelect = ({ start }: { start: Date }): void => {
+    if (isBlocked(start)) {
+      setTemporaryError('This date is blocked and cannot be booked.');
+      return;
     }
+    if (isDeclined(start)) {
+      setTemporaryError('You have a declined booking on this date and cannot book again.');
+      return;
+    }
+    handleDateSelect(start);
+  };
+
+  // Computed values
+  const calendarEvents = useMemo(() => 
+    bookings.map(booking => {
+      const date = new Date(booking.date);
+      return {
+        id: booking._id,
+        title: booking.status === 'accepted' ? '  Media Day!' : 
+               booking.status === 'declined' ? 'Declined' : 'Pending Media Day Request',
+        start: date,
+        end: new Date(date.getTime() + 60 * 60 * 1000),
+        status: booking.status
+      };
+    }), [bookings]
+  );
+
+  const blockedDateEvents = useMemo(() => 
+    blockedDates.map(dateStr => {
+      const date = new Date(dateStr);
+      return {
+        id: `blocked-${dateStr}`,
+        title: 'Date Blocked',
+        start: date,
+        end: new Date(date.getTime() + 60 * 60 * 1000),
+        status: 'blocked',
+        isBlocked: true,
+      };
+    }), [blockedDates]
+  );
+
+  const combinedEvents = useMemo(() => 
+    [...calendarEvents, ...blockedDateEvents], 
+    [calendarEvents, blockedDateEvents]
+  );
+
+  // Event styling
+  const eventStyleGetter = (event: any) => {
+    const backgroundColor = EVENT_COLORS[event.status as keyof typeof EVENT_COLORS] || EVENT_COLORS.pending;
+    
+    return {
+      style: {
+        backgroundColor,
+        borderRadius: '4px',
+        opacity: 0.9,
+        color: 'white',
+        border: '0px',
+        display: 'block',
+        textAlign: 'center' as const,
+        padding: '2px 0',
+        fontWeight: event.isBlocked ? 700 : 500,
+        fontSize: event.isBlocked ? '1rem' : undefined,
+      }
+    };
+  };
+
+  // Day prop getter for calendar
+  const dayPropGetter = (date: Date) => {
+    const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+    const unavailable = isDateUnavailable(date);
+    
+    return {
+      className: `${isPast ? 'rbc-off-range' : ''} ${unavailable ? 'bg-gray-200 cursor-not-allowed' : ''}`,
+      onClick: unavailable ? (e: React.MouseEvent) => e.preventDefault() : undefined
+    };
   };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
-        {/* Header Section */}
+        {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-[#303b45] mb-4">
-            Book Your Media Day
-          </h1>
+          <h1 className="text-4xl font-bold text-[#303b45] mb-4">Book Your Media Day</h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Select your preferred date and time for your media day. We'll confirm your booking and send you all the details.
           </p>
         </div>
         
-        {/* Success Message */}
+        {/* Messages */}
         {success && (
           <div className="mb-8 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
             {success}
           </div>
         )}
-
-        {/* Error Message */}
         {error && (
           <div className="mb-8 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
             {error}
           </div>
         )}
         
-        {/* Calendar Container */}
+        {/* Calendar */}
         <div className="bg-white rounded-xl shadow-xl p-8 mb-8 transform transition-all duration-300 hover:shadow-2xl">
-          <div className="mb-6">
-          </div>
           <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-bg]:transition-colors [&_.rbc-day-bg:hover]:bg-[#98c6d5] [&_.rbc-day-bg:hover]:bg-opacity-20 [&_.rbc-day-bg.rbc-off-range]:opacity-50 [&_.rbc-day-bg.rbc-off-range]:cursor-not-allowed [&_.rbc-day-bg.rbc-off-range]:hover:bg-transparent">
             <Calendar
               localizer={localizer}
-              events={[]}
+              events={combinedEvents}
               startAccessor="start"
               endAccessor="end"
               style={{ height: 600 }}
-              onSelectSlot={({ start }) => handleDateSelect(start)}
+              onSelectSlot={handleCalendarSelect}
               selectable
               views={['month']}
               className="rounded-lg"
-              components={{
-                toolbar: CustomToolbar
-              }}
-              formats={{
-                monthHeaderFormat: () => '' // Hide default month header
-              }}
-              dayPropGetter={(date) => {
-                const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
-                return {
-                  className: isPast ? 'rbc-off-range' : '',
-                  onClick: isPast ? (e: React.MouseEvent) => e.preventDefault() : undefined
-                };
-              }}
+              components={{ toolbar: CustomToolbar }}
+              formats={{ monthHeaderFormat: () => '' }}
+              eventPropGetter={eventStyleGetter}
+              dayPropGetter={dayPropGetter}
             />
           </div>
         </div>
 
-        {/* Booking Requests Section */}
+        {/* Booking Requests */}
         <div className="bg-white rounded-xl shadow-xl p-8 mb-8">
           <h2 className="text-2xl font-bold text-[#303b45] mb-6">Your Booking Requests</h2>
           
@@ -177,19 +264,17 @@ const CustomerMediaDayBookingPage: React.FC = () => {
           ) : (
             <div className="space-y-4">
               {bookings.map((booking) => (
-                <div
-                  key={booking._id}
-                  className="border rounded-lg p-6 transition-all duration-200 hover:shadow-md"
-                >
+                <div key={booking._id} className="border rounded-lg p-6 transition-all duration-200 hover:shadow-md">
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="text-lg font-semibold text-[#303b45]">
                         {formatDateTime(booking.date)}
                       </h3>
                       {booking.notes && (
-                        <p className="mt-2 text-gray-600">
-                          Notes: {booking.notes}
-                        </p>
+                        <p className="mt-2 text-gray-600">Notes: {booking.notes}</p>
+                      )}
+                      {booking.status === 'declined' && booking.denialReason && (
+                        <p className="mt-2 text-red-600">Reason for decline: {booking.denialReason}</p>
                       )}
                     </div>
                     <div className={`px-4 py-2 rounded-full text-sm font-medium border ${getStatusColor(booking.status)}`}>
@@ -209,9 +294,7 @@ const CustomerMediaDayBookingPage: React.FC = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-semibold text-[#303b45]">
                   Select Time for {selectedDate?.toLocaleDateString('en-US', { 
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
+                    month: 'long', day: 'numeric', year: 'numeric'
                   })}
                 </h2>
                 <button
@@ -241,7 +324,6 @@ const CustomerMediaDayBookingPage: React.FC = () => {
                 ))}
               </div>
 
-              {/* Additional Notes Section */}
               <div className="mb-8">
                 <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
                   Additional Notes (Optional)

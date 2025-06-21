@@ -19,6 +19,10 @@ const bookingSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  denialReason: {
+    type: String,
+    trim: true
+  },
   createdAt: {
     type: Date,
     default: Date.now

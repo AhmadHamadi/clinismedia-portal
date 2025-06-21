@@ -74,6 +74,54 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
   }
 });
 
+// Create a booking for a customer (Admin only)
+router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const { customerId, date, notes } = req.body;
+
+    if (!customerId || !date) {
+      return res.status(400).json({ message: 'Customer ID and date are required' });
+    }
+
+    // Check if date is blocked
+    const blockedDate = await BlockedDate.findOne({ date });
+    if (blockedDate) {
+      return res.status(400).json({ message: 'This date is not available' });
+    }
+
+    // Check if date is already booked
+    const existingBooking = await Booking.findOne({
+      date,
+      status: { $in: ['pending', 'accepted'] }
+    });
+
+    if (existingBooking) {
+      return res.status(400).json({ message: 'This date is already booked' });
+    }
+
+    const booking = new Booking({
+      customer: customerId,
+      date,
+      notes,
+      status: 'accepted' // Admin-created bookings are automatically accepted
+    });
+
+    const savedBooking = await booking.save();
+    
+    // Populate customer details before sending response
+    const populatedBooking = await Booking.findById(savedBooking._id)
+      .populate('customer', 'name email');
+    
+    res.status(201).json(populatedBooking);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 // Update booking status (Admin only)
 router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
@@ -81,7 +129,7 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const { status } = req.body;
+    const { status, denialReason } = req.body;
     if (!['accepted', 'declined'].includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
     }
@@ -92,6 +140,10 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
     }
 
     booking.status = status;
+    if (status === 'declined' && denialReason) {
+      booking.denialReason = denialReason;
+    }
+    
     const updatedBooking = await booking.save();
     
     // Populate customer details before sending response

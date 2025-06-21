@@ -1,21 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../utils/api';
 
-export interface TimeSlot {
-  id: string;
-  time: string;
-  isAvailable: boolean;
-}
-
+// Types
 export interface Booking {
   _id: string;
   date: string;
   notes?: string;
   status: 'pending' | 'accepted' | 'declined';
+  denialReason?: string;
 }
 
+export interface TimeSlot {
+  id: number;
+  time: string;
+}
+
+// Constants
+const TIME_SLOTS: TimeSlot[] = [
+  { id: 1, time: '10:00 AM' },
+  { id: 2, time: '11:00 AM' },
+  { id: 3, time: '12:00 PM' },
+  { id: 4, time: '1:00 PM' },
+  { id: 5, time: '2:00 PM' },
+];
+
+const ERROR_MESSAGES = {
+  LOGIN_REQUIRED: 'You must be logged in to perform this action',
+  PENDING_BOOKING_EXISTS: 'You already have a pending booking request. Please wait for a response before making another request.',
+  DATE_TIME_REQUIRED: 'Please select both a date and time',
+  SERVER_ERROR: 'No response from server. Please check if the server is running.',
+  FETCH_ERROR: 'Failed to load bookings',
+  CREATE_ERROR: 'Failed to create booking',
+  DATE_BLOCKED: 'This date is blocked and cannot be booked.',
+  DATE_DECLINED: 'You have a declined booking on this date and cannot book again.',
+} as const;
+
 export const useMediaDayBooking = () => {
+  // State
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [isTimeModalOpen, setIsTimeModalOpen] = useState(false);
@@ -25,142 +47,181 @@ export const useMediaDayBooking = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
+  const [blockedDates, setBlockedDates] = useState<string[]>([]);
 
-  // Fetch customer's bookings
-  const fetchBookings = async () => {
+  // Computed values
+  const hasPendingBooking = useMemo(() => 
+    bookings.some(booking => booking.status === 'pending'), 
+    [bookings]
+  );
+
+  const getAuthToken = useCallback(() => {
+    const token = localStorage.getItem('customerToken');
+    if (!token) {
+      throw new Error(ERROR_MESSAGES.LOGIN_REQUIRED);
+    }
+    return token;
+  }, []);
+
+  const clearMessages = useCallback(() => {
+    setError(null);
+    setSuccess(null);
+  }, []);
+
+  const setTemporaryError = useCallback((message: string, duration: number = 3000) => {
+    setError(message);
+    setTimeout(() => setError(null), duration);
+  }, []);
+
+  const resetForm = useCallback(() => {
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setNotes('');
+    setIsTimeModalOpen(false);
+  }, []);
+
+  // API calls
+  const fetchBookings = useCallback(async () => {
     try {
-      const token = localStorage.getItem('customerToken');
-      if (!token) {
-        throw new Error('You must be logged in to view bookings');
-      }
-
+      const token = getAuthToken();
       const response = await axios.get(`${API_BASE_URL}/bookings/my-bookings`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
       setBookings(response.data);
     } catch (err: any) {
-      console.error('Error fetching bookings:', err);
-      setError('Failed to load bookings');
+      setError(ERROR_MESSAGES.FETCH_ERROR);
     } finally {
       setIsLoadingBookings(false);
     }
-  };
+  }, [getAuthToken]);
 
-  // Fetch bookings on component mount
-  useEffect(() => {
-    fetchBookings();
-  }, []);
-
-  // Generate time slots from 8 AM to 4 PM
-  const timeSlots = [
-    { id: 1, time: '10:00 AM' },
-    { id: 2, time: '11:00 AM' },
-    { id: 3, time: '12:00 PM' },
-    { id: 4, time: '1:00 PM' },
-    { id: 5, time: '2:00 PM' },
-  ];
-
-  const handleDateSelect = (date: Date) => {
-    // Check if the date is in the past
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
-    
-    if (date < today) {
-      return; // Don't allow selection of past dates
+  const fetchBlockedDates = useCallback(async () => {
+    try {
+      const token = getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/blocked-dates`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setBlockedDates(response.data.map((block: any) => block.date));
+    } catch (err) {
+      // Silently fail for blocked dates as it's not critical
+      // Could optionally set a non-critical error state here
     }
+  }, [getAuthToken]);
+
+  // Event handlers
+  const handleDateSelect = useCallback((date: Date) => {
+    if (hasPendingBooking) {
+      setTemporaryError(ERROR_MESSAGES.PENDING_BOOKING_EXISTS);
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (date < today) return;
     
     setSelectedDate(date);
     setIsTimeModalOpen(true);
-    setError(null);
-    setSuccess(null);
-  };
+    clearMessages();
+  }, [hasPendingBooking, setTemporaryError, clearMessages]);
 
-  const handleTimeSelect = (time: string) => {
+  const handleTimeSelect = useCallback((time: string) => {
     setSelectedTime(time);
-    setError(null);
-  };
+    clearMessages();
+  }, [clearMessages]);
 
-  const handleSubmit = async () => {
+  const parseTimeToDate = useCallback((time: string, date: Date): Date => {
+    const timeMatch = time.match(/(\d+):(\d+)\s*(AM|PM)/);
+    if (!timeMatch) {
+      throw new Error('Invalid time format');
+    }
+
+    const [, hours, minutes, period] = timeMatch;
+    let hour = parseInt(hours);
+    
+    if (period === 'PM' && hour !== 12) {
+      hour += 12;
+    } else if (period === 'AM' && hour === 12) {
+      hour = 0;
+    }
+
+    const bookingDate = new Date(date);
+    bookingDate.setHours(hour, parseInt(minutes), 0, 0);
+    return bookingDate;
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
     if (!selectedDate || !selectedTime) {
-      setError('Please select both a date and time');
+      setError(ERROR_MESSAGES.DATE_TIME_REQUIRED);
+      return;
+    }
+
+    if (hasPendingBooking) {
+      setError(ERROR_MESSAGES.PENDING_BOOKING_EXISTS);
       return;
     }
 
     setIsSubmitting(true);
-    setError(null);
-    setSuccess(null);
+    clearMessages();
 
     try {
-      // Get the customer token
-      const token = localStorage.getItem('customerToken');
-      if (!token) {
-        throw new Error('You must be logged in to create a booking');
-      }
+      const token = getAuthToken();
+      const bookingDate = parseTimeToDate(selectedTime, selectedDate);
 
-      // Combine date and time into a single datetime
-      const [hours, minutes, period] = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/)?.slice(1) || [];
-      const hour = parseInt(hours) + (period === 'PM' && hours !== '12' ? 12 : 0);
-      const bookingDate = new Date(selectedDate);
-      bookingDate.setHours(hour, parseInt(minutes), 0, 0);
-
-      // Create the booking data
       const bookingData = {
         date: bookingDate.toISOString(),
         notes: notes.trim() || undefined
       };
 
-      console.log('Sending booking request:', bookingData);
-
-      const response = await axios.post(`${API_BASE_URL}/bookings`, bookingData, {
+      await axios.post(`${API_BASE_URL}/bookings`, bookingData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
-      console.log('Booking created:', response.data);
       setSuccess('Booking created successfully!');
-      
-      // Reset form
-      setSelectedDate(null);
-      setSelectedTime(null);
-      setNotes('');
-      setIsTimeModalOpen(false);
-
-      // Refresh bookings list
+      resetForm();
       await fetchBookings();
     } catch (err: any) {
-      console.error('Error creating booking:', err);
-      if (err.response) {
-        setError(err.response.data.message || 'Failed to create booking');
-      } else if (err.request) {
-        setError('No response from server. Please check if the server is running.');
-      } else {
-        setError(err.message || 'Failed to create booking');
-      }
+      const errorMessage = err.response?.data?.message || 
+                          err.request ? ERROR_MESSAGES.SERVER_ERROR : 
+                          err.message || ERROR_MESSAGES.CREATE_ERROR;
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [selectedDate, selectedTime, hasPendingBooking, notes, getAuthToken, parseTimeToDate, clearMessages, resetForm, fetchBookings]);
+
+  // Effects
+  useEffect(() => {
+    fetchBookings();
+    fetchBlockedDates();
+  }, [fetchBookings, fetchBlockedDates]);
 
   return {
+    // State
     selectedDate,
     selectedTime,
     isTimeModalOpen,
-    timeSlots,
     notes,
     isSubmitting,
     error,
     success,
     bookings,
     isLoadingBookings,
+    hasPendingBooking,
+    blockedDates,
+    
+    // Constants
+    timeSlots: TIME_SLOTS,
+    
+    // Handlers
     handleDateSelect,
     handleTimeSelect,
     handleSubmit,
     setIsTimeModalOpen,
-    setNotes
+    setNotes,
+    setTemporaryError,
   };
 };
