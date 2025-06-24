@@ -19,7 +19,6 @@ interface NotificationCenterProps {
 
 const NotificationCenter: React.FC<NotificationCenterProps> = ({ navigateTo }) => {
   const [generalUnreadCount, setGeneralUnreadCount] = useState<number>(0);
-  const [newTasksCount, setNewTasksCount] = useState<number>(0);
   const navigate = useNavigate(); // Initialize navigate
   const location = useLocation(); // Initialize useLocation
 
@@ -62,19 +61,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ navigateTo }) =
         setGeneralUnreadCount(generalNotificationsResponse.data.filter((n: Notification) => !n.read).length);
         console.log("Calculated General Unread Count:", generalNotificationsResponse.data.filter((n: Notification) => !n.read).length);
 
-        // Fetch new tasks count if the user is an employee
-        if (role === 'employee') {
-          console.log("Fetching new tasks for employee ID:", userData.id);
-          const newTasksResponse = await axios.get(`${API_BASE_URL}/tasks/employee/${userData.id}/new-count`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          console.log("New Tasks API Response Data:", newTasksResponse.data);
-          setNewTasksCount(newTasksResponse.data.count);
-          console.log("Calculated New Tasks Count:", newTasksResponse.data.count);
-        }
-
       } catch (error) {
         console.error("Failed to fetch counts:", error);
       }
@@ -88,7 +74,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ navigateTo }) =
 
   }, [location.pathname]); // Add location.pathname to dependencies
 
-  const totalUnreadCount = generalUnreadCount + newTasksCount;
+  const totalUnreadCount = generalUnreadCount;
   console.log("Final Total Unread Count:", totalUnreadCount);
 
   return (

@@ -21,7 +21,6 @@ const SidebarMenu = () => {
     { label: "Dashboard", path: "/admin" },
     { label: "Media Day Calendar", path: "/admin/media" },
     { label: "Onboarding Tasks", path: "/admin/onboarding" },
-    { label: "Tasks", path: "/admin/tasks" },
     { label: "Manage Customers", path: "/admin/customers" },
     { label: "Manage Employees", path: "/admin/employees" },
     { label: "Notifications", path: "/admin/notifications" },
@@ -30,8 +29,8 @@ const SidebarMenu = () => {
 
   const getButtonClasses = (path: string) => {
     const baseClasses =
-      "text-left w-full p-3 rounded-lg transition-all duration-200 hover:bg-blue-100 text-gray-700 font-medium";
-    const activeClasses = "bg-blue-600 text-white shadow-md";
+      "text-left w-full p-3 rounded-lg transition-all duration-200 hover:bg-[#a0d2eb] text-gray-700 font-medium";
+    const activeClasses = "bg-[#98c6d5] text-white shadow-md";
     return currentPath === path ? `${baseClasses} ${activeClasses}` : baseClasses;
   };
 

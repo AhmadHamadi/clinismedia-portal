@@ -48,11 +48,6 @@ const AdminDash = () => {
           onClick={() => navigate("/admin/onboarding")}
         />
         <DashboardBox
-          title="Tasks"
-          description="Manage all tasks across the portal"
-          onClick={() => navigate("/admin/tasks")}
-        />
-        <DashboardBox
           title="Manage Customers"
           description="Add, edit, and view customers"
           onClick={() => navigate("/admin/customers")}

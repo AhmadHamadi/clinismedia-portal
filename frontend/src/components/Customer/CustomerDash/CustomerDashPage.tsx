@@ -143,20 +143,6 @@ const CustomerDashboard = () => {
                 </svg>
               </div>
               <div>
-                <h4 className="font-medium text-gray-900">Onboarding Tasks</h4>
-                <p className="text-sm text-gray-600">Complete your onboarding process</p>
-              </div>
-            </div>
-          </button>
-
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
-            <div className="flex items-center">
-              <div className="p-2 bg-red-100 rounded-lg mr-3">
-                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.007 12.007 0 002.92 12c0 3.072 1.07 5.927 2.92 8.288l2.946-2.946m9.618 4.016A11.955 11.955 0 0012 21.056a11.955 11.955 0 008.618-3.04A12.007 12.007 0 0021.08 12c0-3.072-1.07-5.927-2.92-8.288l-2.946 2.946" />
-                </svg>
-              </div>
-              <div>
                 <h4 className="font-medium text-gray-900">Google Integration</h4>
                 <p className="text-sm text-gray-600">Connect your Google account</p>
               </div>
@@ -191,16 +177,44 @@ const CustomerDashboard = () => {
             </div>
           </button>
 
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+          <button onClick={() => navigate("/customer/invoices")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
             <div className="flex items-center">
-              <div className="p-2 bg-teal-100 rounded-lg mr-3">
-                <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              <div className="p-2 bg-green-100 rounded-lg mr-3">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-6 4h6a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
               <div>
-                <h4 className="font-medium text-gray-900">Recently Completed Tasks</h4>
-                <p className="text-sm text-gray-600">View your finished tasks</p>
+                <h4 className="font-medium text-gray-900">View Your Invoice</h4>
+                <p className="text-sm text-gray-600">See your billing details</p>
+              </div>
+            </div>
+          </button>
+
+          <button onClick={() => navigate("/customer/gallery")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+            <div className="flex items-center">
+              <div className="p-2 bg-purple-100 rounded-lg mr-3">
+                <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3h-1a2 2 0 00-2 2v1H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-4V5a2 2 0 00-2-2h-1" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="font-medium text-gray-900">View Gallery</h4>
+                <p className="text-sm text-gray-600">Browse your media assets</p>
+              </div>
+            </div>
+          </button>
+
+          <button onClick={() => navigate("/customer/onboarding-tasks")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7M5 7h14M5 11h14M5 17h14" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="font-medium text-gray-900">Onboarding Tasks</h4>
+                <p className="text-sm text-gray-600">Complete your onboarding checklist</p>
               </div>
             </div>
           </button>
