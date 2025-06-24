@@ -34,7 +34,17 @@ const ERROR_MESSAGES = {
   CREATE_ERROR: 'Failed to create booking',
   DATE_BLOCKED: 'This date is blocked and cannot be booked.',
   DATE_DECLINED: 'You have a declined booking on this date and cannot book again.',
+  DATE_ACCEPTED: 'Media day already scheduled for the selected date',
 } as const;
+
+// Utility functions
+const formatDateString = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+const isSameDate = (date1: Date, date2: Date): boolean => {
+  return formatDateString(date1) === formatDateString(date2);
+};
 
 export const useMediaDayBooking = () => {
   // State
@@ -55,6 +65,12 @@ export const useMediaDayBooking = () => {
     [bookings]
   );
 
+  const acceptedBookings = useMemo(() => 
+    bookings.filter(booking => booking.status === 'accepted'),
+    [bookings]
+  );
+
+  // Utility functions
   const getAuthToken = useCallback(() => {
     const token = localStorage.getItem('customerToken');
     if (!token) {
@@ -101,12 +117,29 @@ export const useMediaDayBooking = () => {
       const response = await axios.get(`${API_BASE_URL}/blocked-dates`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setBlockedDates(response.data.map((block: any) => block.date));
+      
+      // Filter out blocked dates that correspond to this customer's own accepted bookings
+      const filteredBlockedDates = response.data.filter((block: any) => {
+        // If it's a booking-based block, check if it's the customer's own booking
+        if (block.bookingId && block.bookingId.customer) {
+          // Check if this blocked date corresponds to one of their own accepted bookings
+          const isOwnBooking = acceptedBookings.some(booking => 
+            booking._id === block.bookingId._id
+          );
+          
+          // Only include the blocked date if it's NOT their own booking
+          return !isOwnBooking;
+        }
+        
+        // Include manual blocks (they affect everyone)
+        return true;
+      });
+      
+      setBlockedDates(filteredBlockedDates.map((block: any) => block.date));
     } catch (err) {
       // Silently fail for blocked dates as it's not critical
-      // Could optionally set a non-critical error state here
     }
-  }, [getAuthToken]);
+  }, [getAuthToken, acceptedBookings]);
 
   // Event handlers
   const handleDateSelect = useCallback((date: Date) => {
@@ -196,8 +229,11 @@ export const useMediaDayBooking = () => {
   // Effects
   useEffect(() => {
     fetchBookings();
+  }, [fetchBookings]);
+
+  useEffect(() => {
     fetchBlockedDates();
-  }, [fetchBookings, fetchBlockedDates]);
+  }, [fetchBlockedDates]);
 
   return {
     // State

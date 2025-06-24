@@ -101,6 +101,12 @@ const AdminMediaDayBookingPage: React.FC = () => {
     customers,
     isCreatingBooking,
     createBookingForCustomer,
+    isUnblockModalOpen,
+    setIsUnblockModalOpen,
+    selectedBlockedDates,
+    setSelectedBlockedDates,
+    isUnblocking,
+    unblockDates,
   } = useAdminMediaDayBooking();
 
   // Local state
@@ -153,7 +159,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
     });
   };
 
-  const isDateAvailableForBooking = (date: Date): boolean => {
+  const isDateAvailableForBooking = (date: Date, blockedDatesEvents: any[], bookings: any[]): boolean => {
     const isBlocked = blockedDatesEvents.some(block => {
       const blockDate = new Date(block.date);
       return blockDate.getFullYear() === date.getFullYear() &&
@@ -174,7 +180,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
 
   // Event handlers
   const handleCalendarSelect = ({ start }: { start: Date }): void => {
-    if (isDateAvailableForBooking(start)) {
+    if (isDateAvailableForBooking(start, blockedDatesEvents, bookings)) {
       setSelectedDateForBooking(start);
       setIsCreateBookingModalOpen(true);
     }
@@ -185,6 +191,28 @@ const AdminMediaDayBookingPage: React.FC = () => {
       addBlockedDates(blockedDates);
       setBlockedDates([]);
       setIsBlockModalOpen(false);
+    }
+  };
+
+  const handleConfirmUnblock = (): void => {
+    if (selectedBlockedDates.length > 0) {
+      unblockDates(selectedBlockedDates);
+    }
+  };
+
+  const handleBlockedDateToggle = (dateId: string): void => {
+    setSelectedBlockedDates(prev => 
+      prev.includes(dateId) 
+        ? prev.filter(id => id !== dateId)
+        : [...prev, dateId]
+    );
+  };
+
+  const handleSelectAllBlockedDates = (): void => {
+    if (selectedBlockedDates.length === blockedDatesEvents.length) {
+      setSelectedBlockedDates([]);
+    } else {
+      setSelectedBlockedDates(blockedDatesEvents.map(block => block.id));
     }
   };
 
@@ -310,6 +338,104 @@ const AdminMediaDayBookingPage: React.FC = () => {
           </div>
         )}
 
+        {/* Unblock Dates Modal */}
+        {isUnblockModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-8 max-w-lg w-full max-h-[80vh] overflow-y-auto">
+              <h2 className="text-2xl font-bold text-[#303b45] mb-6">Unblock Dates</h2>
+              
+              {blockedDatesEvents.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-600 mb-4">No blocked dates to unblock</p>
+                  <button
+                    onClick={() => setIsUnblockModalOpen(false)}
+                    className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedBlockedDates.length === blockedDatesEvents.length}
+                        onChange={handleSelectAllBlockedDates}
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Select All ({blockedDatesEvents.length} dates)
+                      </span>
+                    </label>
+                  </div>
+                  
+                  <div className="mb-6 space-y-2 max-h-64 overflow-y-auto">
+                    {blockedDatesEvents.map((block) => (
+                      <label key={block.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedBlockedDates.includes(block.id)}
+                          onChange={() => handleBlockedDateToggle(block.id)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">
+                            {new Date(block.date).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </span>
+                          {block.booking && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Booked by: {block.booking.customer.name} ({block.booking.status})
+                            </div>
+                          )}
+                          {block.isManualBlock && !block.booking && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Manually blocked
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">
+                      {selectedBlockedDates.length} of {blockedDatesEvents.length} dates selected
+                    </span>
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => {
+                          setIsUnblockModalOpen(false);
+                          setSelectedBlockedDates([]);
+                        }}
+                        className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleConfirmUnblock}
+                        disabled={selectedBlockedDates.length === 0 || isUnblocking}
+                        className={`px-4 py-2 rounded-lg transition-colors ${
+                          selectedBlockedDates.length > 0 && !isUnblocking
+                            ? 'bg-red-600 text-white hover:bg-red-700'
+                            : 'bg-red-200 text-red-400 cursor-not-allowed'
+                        }`}
+                      >
+                        {isUnblocking ? 'Unblocking...' : `Unblock ${selectedBlockedDates.length} Date${selectedBlockedDates.length !== 1 ? 's' : ''}`}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Calendar Section */}
         <div className="bg-white rounded-xl shadow-xl p-8 mb-8 transform transition-all duration-300 hover:shadow-2xl">
           <div className="mb-6 flex justify-between items-center">
@@ -317,12 +443,22 @@ const AdminMediaDayBookingPage: React.FC = () => {
               <h2 className="text-2xl font-semibold text-[#303b45] mb-2">Scheduled Media Days</h2>
               <p className="text-gray-600">View all scheduled and pending media day requests</p>
             </div>
-            <button
-              onClick={() => setIsBlockModalOpen(true)}
-              className="px-6 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-semibold shadow"
-            >
-              Block Dates
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsBlockModalOpen(true)}
+                className="px-6 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-semibold shadow"
+              >
+                Block Dates
+              </button>
+              {blockedDatesEvents.length > 0 && (
+                <button
+                  onClick={() => setIsUnblockModalOpen(true)}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold shadow"
+                >
+                  Unblock Dates
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Legend */}
@@ -395,13 +531,13 @@ const AdminMediaDayBookingPage: React.FC = () => {
           ) : (
             <div className="space-y-6">
               {bookings.map((booking) => (
-                <div key={booking._id} className="bg-gray-50 rounded-lg p-6">
-                  <div className="flex justify-between items-start">
+                <div key={booking._id} className="bg-gray-50 rounded-lg p-6 relative min-h-[180px] flex flex-col justify-between">
+                  <div className="flex justify-between items-center">
                     <div>
                       <h3 className="text-lg font-semibold text-[#303b45]">{booking.customer.name}</h3>
                       <p className="text-gray-600">{booking.customer.email}</p>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex flex-col items-center gap-3 min-w-[7rem]">
                       {booking.status === 'pending' && (
                         <>
                           <button
@@ -419,14 +555,29 @@ const AdminMediaDayBookingPage: React.FC = () => {
                         </>
                       )}
                       {booking.status === 'accepted' && (
-                        <span className="px-4 py-2 bg-green-100 text-green-800 rounded-lg">
+                        <span className="inline-flex items-center justify-center w-28 h-10 bg-green-100 text-green-800 rounded-lg font-semibold text-center">
                           Accepted
                         </span>
                       )}
                       {booking.status === 'declined' && (
-                        <span className="px-4 py-2 bg-red-100 text-red-800 rounded-lg">
+                        <span className="inline-flex items-center justify-center w-28 h-10 bg-red-100 text-red-800 rounded-lg font-semibold text-center">
                           Declined
                         </span>
+                      )}
+                      {(booking.status === 'accepted' || booking.status === 'declined') && (
+                        <button
+                          onClick={() =>
+                            booking.status === 'accepted'
+                              ? openDenyModal(booking)
+                              : (setSelectedBooking(booking), setIsAcceptModalOpen(true))
+                          }
+                          className={`inline-flex items-center justify-center w-28 h-10 rounded-lg transition-colors font-semibold
+                            ${booking.status === 'accepted'
+                              ? 'bg-red-500 text-white hover:bg-red-600'
+                              : 'bg-green-500 text-white hover:bg-green-600'}`}
+                        >
+                          Overturn
+                        </button>
                       )}
                     </div>
                   </div>
@@ -441,16 +592,6 @@ const AdminMediaDayBookingPage: React.FC = () => {
                       </p>
                     )}
                   </div>
-                  {booking.status === 'accepted' && (
-                    <div className="mt-4 flex justify-end">
-                      <button
-                        onClick={() => openDenyModal(booking)}
-                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                      >
-                        Overturn
-                      </button>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -496,7 +637,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
                       : 'bg-red-200 text-red-400 cursor-not-allowed'
                   }`}
                 >
-                  {selectedBooking.status === 'accepted' ? 'Confirm Overturn' : 'Confirm Decline'}
+                  {selectedBooking.status === 'accepted' ? 'Decline Request' : 'Confirm Decline'}
                 </button>
               </div>
             </div>
@@ -507,9 +648,13 @@ const AdminMediaDayBookingPage: React.FC = () => {
         {isAcceptModalOpen && selectedBooking && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <div className="bg-white rounded-xl p-8 max-w-md w-full">
-              <h3 className="text-xl font-semibold text-[#303b45] mb-4">Accept Request</h3>
+              <h3 className="text-xl font-semibold text-[#303b45] mb-4">
+                {selectedBooking.status === 'declined' ? 'Revert Declined Request' : 'Accept Request'}
+              </h3>
               <p className="text-gray-600 mb-4">
-                Are you sure you want to accept this request for {selectedBooking.customer.name}?
+                {selectedBooking.status === 'declined'
+                  ? `Are you sure you want to revert this declined request and accept the booking for ${selectedBooking.customer.name}?`
+                  : `Are you sure you want to accept this request for ${selectedBooking.customer.name}?`}
               </p>
               <div className="text-gray-600 mb-4">
                 <p><span className="font-semibold">Date & Time:</span> {formatDateTime(selectedBooking.date)}</p>
@@ -531,7 +676,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
                   onClick={() => handleAcceptRequest(selectedBooking._id)}
                   className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
                 >
-                  Confirm Acceptance
+                  {selectedBooking.status === 'declined' ? 'Accept Request' : 'Confirm Acceptance'}
                 </button>
               </div>
             </div>
@@ -548,28 +693,21 @@ const AdminMediaDayBookingPage: React.FC = () => {
           <div className="p-6 bg-white">
             <h2 className="text-xl font-semibold mb-4 text-gray-900">Create Booking for Customer</h2>
             <p className="text-gray-700 mb-4">
-              Select a customer to create a booking for {selectedDateForBooking?.toLocaleDateString()}
+              Select a customer to create a booking for{' '}
+              <strong className="text-gray-900">{selectedDateForBooking?.toLocaleDateString()}</strong>
             </p>
-            
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-900 mb-2">
                 Select Customer
               </label>
-              <select
-                value={selectedCustomerForBooking?.value || ''}
-                onChange={(e) => {
-                  const customer = customerOptions.find(c => c.value === e.target.value);
-                  setSelectedCustomerForBooking(customer);
-                }}
-                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-              >
-                <option value="">Select a customer...</option>
-                {customerOptions.map(customer => (
-                  <option key={customer.value} value={customer.value}>
-                    {customer.label}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={selectedCustomerForBooking}
+                onChange={setSelectedCustomerForBooking}
+                options={customerOptions}
+                placeholder="Choose a customer..."
+                className="text-gray-900"
+              />
             </div>
 
             <div className="mb-4">

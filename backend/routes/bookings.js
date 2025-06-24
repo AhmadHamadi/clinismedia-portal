@@ -5,13 +5,58 @@ const BlockedDate = require('../models/BlockedDate');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 
+// Utility functions
+const checkDateAvailability = async (date) => {
+  // Check if date is blocked
+  const blockedDate = await BlockedDate.findOne({ date });
+  if (blockedDate) {
+    throw new Error('This date is not available');
+  }
+
+  // Check if date is already booked
+  const existingBooking = await Booking.findOne({
+    date,
+    status: { $in: ['pending', 'accepted'] }
+  });
+
+  if (existingBooking) {
+    throw new Error('This date is already booked');
+  }
+};
+
+const handleBlockedDateForBooking = async (booking, isAccepted) => {
+  if (isAccepted) {
+    // Create or update blocked date for accepted booking
+    try {
+      await BlockedDate.create({
+        date: booking.date,
+        bookingId: booking._id,
+        isManualBlock: false
+      });
+    } catch (error) {
+      // If blocked date already exists, update it to link to this booking
+      if (error.code === 11000) { // Duplicate key error
+        await BlockedDate.findOneAndUpdate(
+          { date: booking.date },
+          { bookingId: booking._id, isManualBlock: false }
+        );
+      } else {
+        throw error;
+      }
+    }
+  } else {
+    // Remove blocked date when booking is no longer accepted
+    await BlockedDate.deleteOne({ bookingId: booking._id });
+  }
+};
+
+const populateBookingWithCustomer = async (bookingId) => {
+  return await Booking.findById(bookingId).populate('customer', 'name email');
+};
+
 // Get all bookings (Admin only)
 router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
     const bookings = await Booking.find()
       .populate('customer', 'name email')
       .sort({ date: 1 });
@@ -40,21 +85,7 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
   try {
     const { date, notes } = req.body;
 
-    // Check if date is blocked
-    const blockedDate = await BlockedDate.findOne({ date });
-    if (blockedDate) {
-      return res.status(400).json({ message: 'This date is not available' });
-    }
-
-    // Check if date is already booked
-    const existingBooking = await Booking.findOne({
-      date,
-      status: { $in: ['pending', 'accepted'] }
-    });
-
-    if (existingBooking) {
-      return res.status(400).json({ message: 'This date is already booked' });
-    }
+    await checkDateAvailability(date);
 
     const booking = new Booking({
       customer: req.user._id,
@@ -63,10 +94,7 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
     });
 
     const savedBooking = await booking.save();
-    
-    // Populate customer details before sending response
-    const populatedBooking = await Booking.findById(savedBooking._id)
-      .populate('customer', 'name email');
+    const populatedBooking = await populateBookingWithCustomer(savedBooking._id);
     
     res.status(201).json(populatedBooking);
   } catch (error) {
@@ -77,31 +105,13 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
 // Create a booking for a customer (Admin only)
 router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
     const { customerId, date, notes } = req.body;
 
     if (!customerId || !date) {
       return res.status(400).json({ message: 'Customer ID and date are required' });
     }
 
-    // Check if date is blocked
-    const blockedDate = await BlockedDate.findOne({ date });
-    if (blockedDate) {
-      return res.status(400).json({ message: 'This date is not available' });
-    }
-
-    // Check if date is already booked
-    const existingBooking = await Booking.findOne({
-      date,
-      status: { $in: ['pending', 'accepted'] }
-    });
-
-    if (existingBooking) {
-      return res.status(400).json({ message: 'This date is already booked' });
-    }
+    await checkDateAvailability(date);
 
     const booking = new Booking({
       customer: customerId,
@@ -112,10 +122,10 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
 
     const savedBooking = await booking.save();
     
-    // Populate customer details before sending response
-    const populatedBooking = await Booking.findById(savedBooking._id)
-      .populate('customer', 'name email');
+    // Create blocked date for accepted booking
+    await handleBlockedDateForBooking(savedBooking, true);
     
+    const populatedBooking = await populateBookingWithCustomer(savedBooking._id);
     res.status(201).json(populatedBooking);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -125,10 +135,6 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
 // Update booking status (Admin only)
 router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
     const { status, denialReason } = req.body;
     if (!['accepted', 'declined'].includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
@@ -139,17 +145,24 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
       return res.status(404).json({ message: 'Booking not found' });
     }
 
+    const oldStatus = booking.status;
     booking.status = status;
+    
     if (status === 'declined' && denialReason) {
       booking.denialReason = denialReason;
     }
     
     const updatedBooking = await booking.save();
     
-    // Populate customer details before sending response
-    const populatedBooking = await Booking.findById(updatedBooking._id)
-      .populate('customer', 'name email');
+    // Handle automatic blocked date creation/removal
+    const isNowAccepted = status === 'accepted' && oldStatus !== 'accepted';
+    const wasAcceptedNowDeclined = status === 'declined' && oldStatus === 'accepted';
     
+    if (isNowAccepted || wasAcceptedNowDeclined) {
+      await handleBlockedDateForBooking(updatedBooking, isNowAccepted);
+    }
+    
+    const populatedBooking = await populateBookingWithCustomer(updatedBooking._id);
     res.json(populatedBooking);
   } catch (error) {
     res.status(400).json({ message: error.message });

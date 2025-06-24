@@ -122,6 +122,16 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     });
   };
 
+  const isAccepted = (date: Date): boolean => {
+    return bookings.some(booking => {
+      if (booking.status !== 'accepted') return false;
+      const bookingDate = new Date(booking.date);
+      return bookingDate.getFullYear() === date.getFullYear() &&
+        bookingDate.getMonth() === date.getMonth() &&
+        bookingDate.getDate() === date.getDate();
+    });
+  };
+
   const isDateUnavailable = (date: Date): boolean => {
     return isBlocked(date) || isDeclined(date);
   };
@@ -134,6 +144,10 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     }
     if (isDeclined(start)) {
       setTemporaryError('You have a declined booking on this date and cannot book again.');
+      return;
+    }
+    if (isAccepted(start)) {
+      setTemporaryError('Media day already scheduled for the selected date');
       return;
     }
     handleDateSelect(start);
@@ -227,6 +241,26 @@ const CustomerMediaDayBookingPage: React.FC = () => {
           </div>
         )}
         
+        {/* Booking Legend */}
+        <div className="mb-6 flex flex-wrap gap-4 items-center justify-center">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-yellow-400"></div>
+            <span className="text-sm text-gray-700">Pending</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-green-500"></div>
+            <span className="text-sm text-gray-700">Accepted</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-red-500"></div>
+            <span className="text-sm text-gray-700">Declined</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-gray-800"></div>
+            <span className="text-sm text-gray-700">Blocked</span>
+          </div>
+        </div>
+
         {/* Calendar */}
         <div className="bg-white rounded-xl shadow-xl p-8 mb-8 transform transition-all duration-300 hover:shadow-2xl">
           <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-bg]:transition-colors [&_.rbc-day-bg:hover]:bg-[#98c6d5] [&_.rbc-day-bg:hover]:bg-opacity-20 [&_.rbc-day-bg.rbc-off-range]:opacity-50 [&_.rbc-day-bg.rbc-off-range]:cursor-not-allowed [&_.rbc-day-bg.rbc-off-range]:hover:bg-transparent">

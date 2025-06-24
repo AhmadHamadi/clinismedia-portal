@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../../../utils/api';
 import type { DateObject } from 'react-multi-date-picker';
 
 // Types
-interface Booking {
+export interface Booking {
   _id: string;
   date: string;
   notes: string;
@@ -15,14 +15,23 @@ interface Booking {
   };
 }
 
-interface BlockedDateEvent {
+export interface BlockedDateEvent {
   id: string;
   date: string;
   customers: { label: string; value: string }[];
   allCustomers: boolean;
+  bookingId?: string;
+  isManualBlock: boolean;
+  booking?: {
+    customer: {
+      name: string;
+      email: string;
+    };
+    status: string;
+  };
 }
 
-interface Customer {
+export interface Customer {
   _id: string;
   name: string;
   email: string;
@@ -37,7 +46,19 @@ const ERROR_MESSAGES = {
   DECLINE_BOOKING_ERROR: 'Failed to decline booking',
   CREATE_BOOKING_ERROR: 'Failed to create booking',
   FETCH_CUSTOMERS_ERROR: 'Failed to fetch customers',
+  UNBLOCK_DATES_ERROR: 'Failed to unblock dates',
+  BLOCK_DATES_ERROR: 'Failed to block dates',
 } as const;
+
+// Utility functions
+const formatDateString = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+const isDateAlreadyBlocked = (date: Date, blockedDates: BlockedDateEvent[]): boolean => {
+  const dateString = formatDateString(date);
+  return blockedDates.some(block => formatDateString(new Date(block.date)) === dateString);
+};
 
 export const useAdminMediaDayBooking = () => {
   // State
@@ -52,6 +73,9 @@ export const useAdminMediaDayBooking = () => {
   const [blockedDatesEvents, setBlockedDatesEvents] = useState<BlockedDateEvent[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isCreatingBooking, setIsCreatingBooking] = useState(false);
+  const [isUnblockModalOpen, setIsUnblockModalOpen] = useState(false);
+  const [selectedBlockedDates, setSelectedBlockedDates] = useState<string[]>([]);
+  const [isUnblocking, setIsUnblocking] = useState(false);
 
   // Utility functions
   const getAuthToken = useCallback(() => {
@@ -92,12 +116,33 @@ export const useAdminMediaDayBooking = () => {
       const response = await axios.get(`${API_BASE_URL}/blocked-dates`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      // Filter out blocked dates that correspond to accepted bookings
+      // Admin should see accepted bookings as accepted, not as blocked dates
+      const filteredBlockedDates = response.data.filter((block: any) => {
+        // If it's a booking-based block, check if the booking is accepted
+        if (block.bookingId && block.bookingId.status) {
+          // Only include blocked dates for non-accepted bookings (like declined bookings)
+          // or manual blocks
+          return block.bookingId.status !== 'accepted';
+        }
+        
+        // Include manual blocks (they affect everyone)
+        return true;
+      });
+      
       setBlockedDatesEvents(
-        response.data.map((block: any) => ({
+        filteredBlockedDates.map((block: any) => ({
           id: block._id,
           date: block.date,
           customers: [],
           allCustomers: true,
+          bookingId: block.bookingId,
+          isManualBlock: block.isManualBlock,
+          booking: block.bookingId ? {
+            customer: block.bookingId.customer,
+            status: block.bookingId.status
+          } : undefined,
         }))
       );
     } catch (err) {
@@ -124,7 +169,20 @@ export const useAdminMediaDayBooking = () => {
   const addBlockedDates = useCallback(async (dates: DateObject[]) => {
     try {
       const token = getAuthToken();
-      for (const date of dates) {
+      
+      // Check for dates that are already blocked
+      const datesToBlock = dates.filter(date => !isDateAlreadyBlocked(date.toDate(), blockedDatesEvents));
+      
+      if (datesToBlock.length === 0) {
+        setError('All selected dates are already blocked');
+        return;
+      }
+      
+      if (datesToBlock.length < dates.length) {
+        setError(`Some dates were already blocked. Only ${datesToBlock.length} new date(s) will be blocked.`);
+      }
+      
+      for (const date of datesToBlock) {
         await axios.post(
           `${API_BASE_URL}/blocked-dates`,
           { date: date.toDate().toISOString() },
@@ -133,7 +191,30 @@ export const useAdminMediaDayBooking = () => {
       }
       await fetchBlockedDates();
     } catch (err) {
-      setError('Failed to block dates');
+      setError(ERROR_MESSAGES.BLOCK_DATES_ERROR);
+    }
+  }, [getAuthToken, fetchBlockedDates, blockedDatesEvents]);
+
+  const unblockDates = useCallback(async (dateIds: string[]) => {
+    try {
+      setIsUnblocking(true);
+      const token = getAuthToken();
+      
+      // Delete each blocked date individually
+      for (const dateId of dateIds) {
+        await axios.delete(
+          `${API_BASE_URL}/blocked-dates/${dateId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+      
+      await fetchBlockedDates();
+      setSelectedBlockedDates([]);
+      setIsUnblockModalOpen(false);
+    } catch (err) {
+      setError(ERROR_MESSAGES.UNBLOCK_DATES_ERROR);
+    } finally {
+      setIsUnblocking(false);
     }
   }, [getAuthToken, fetchBlockedDates]);
 
@@ -246,6 +327,13 @@ export const useAdminMediaDayBooking = () => {
       }), [bookings]
   );
 
+  const customerOptions = useMemo(() => 
+    customers.map(customer => ({
+      value: customer._id,
+      label: customer.name
+    })), [customers]
+  );
+
   // Effects
   useEffect(() => {
     fetchBookings();
@@ -269,7 +357,13 @@ export const useAdminMediaDayBooking = () => {
     setShowPriorRequests,
     blockedDatesEvents,
     customers,
+    customerOptions,
     isCreatingBooking,
+    isUnblockModalOpen,
+    setIsUnblockModalOpen,
+    selectedBlockedDates,
+    setSelectedBlockedDates,
+    isUnblocking,
     
     // Handlers
     handleAcceptRequest,
@@ -279,6 +373,7 @@ export const useAdminMediaDayBooking = () => {
     setIsDenyModalOpen,
     setIsAcceptModalOpen,
     addBlockedDates,
+    unblockDates,
     createBookingForCustomer,
   };
 };
