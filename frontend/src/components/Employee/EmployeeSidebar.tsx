@@ -17,7 +17,6 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
     { label: "Notifications", path: "/employee/notifications" },
     { label: "View Media Day Calendar", path: "/employee/media-day-calendar" },
     { label: "Edit Availability", path: "/employee/edit-availability" },
-    { label: "Tasks", path: "/employee/tasks" },
     { label: "Messages", path: "/employee/messages" },
     { label: "Payment Receipt", path: "/employee/payment-receipt" },
     { label: "Settings", path: "/employee/settings" },

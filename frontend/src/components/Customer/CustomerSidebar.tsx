@@ -20,7 +20,6 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ sidebarOpen, setSideb
     { label: "Google Integration", path: "/customer/google-integration" },
     { label: "Facebook Integration", path: "/customer/facebook-integration" },
     { label: "Create a Ticket", path: "/customer/create-ticket" },
-    { label: "Recently Completed Tasks", path: "/customer/completed-tasks" },
     { label: "View Your Invoice", path: "/customer/invoices" },
     { label: "View Gallery", path: "/customer/gallery" },
     { label: "Messages", path: "/customer/messages" },

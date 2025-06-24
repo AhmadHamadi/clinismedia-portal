@@ -8,8 +8,8 @@ import EmployeeDashboard from "./components/Employee/EmployeeDash/EmployeeDashPa
 import NotificationPage from "./components/Customer/NotificationPage";
 import CustomerPortalLayout from "./components/Customer/CustomerPortalLayout";
 import EmployeePortalLayout from "./components/Employee/EmployeePortalLayout";
-import EmployeeTasksPage from "./components/Employee/EmployeeTasksPage";
 import CustomerMediaDayBookingPage from "./components/Customer/CustomerMediaDayBooking/CustomerMediaDayBookingPage";
+import CustomerOnboardingTasks from "./components/Customer/CustomerOnboardingTasks";
 
 function App() {
   return (
@@ -67,17 +67,6 @@ function App() {
           />
 
           <Route 
-            path="/customer/onboarding-tasks"
-            element={
-              <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="Onboarding Tasks">
-                  <CustomerDashboard />
-                </CustomerPortalLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route 
             path="/customer/google-integration"
             element={
               <ProtectedRoute requiredRole="customer">
@@ -111,22 +100,22 @@ function App() {
           />
 
           <Route 
-            path="/customer/completed-tasks"
+            path="/customer/invoices"
             element={
               <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="Recently Completed Tasks">
+                <CustomerPortalLayout title="View Your Invoice">
                   <CustomerDashboard />
                 </CustomerPortalLayout>
               </ProtectedRoute>
             }
           />
 
-          <Route
-            path="/customer/invoices"
+          <Route 
+            path="/customer/onboarding-tasks"
             element={
               <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="View Your Invoice">
-                  <CustomerDashboard />
+                <CustomerPortalLayout title="Onboarding Tasks">
+                  <CustomerOnboardingTasks />
                 </CustomerPortalLayout>
               </ProtectedRoute>
             }
@@ -161,17 +150,6 @@ function App() {
               <ProtectedRoute requiredRole="employee">
                 <EmployeePortalLayout title="Edit Availability">
                   <EmployeeDashboard />
-                </EmployeePortalLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route 
-            path="/employee/tasks"
-            element={
-              <ProtectedRoute requiredRole="employee">
-                <EmployeePortalLayout title="Tasks">
-                  <EmployeeTasksPage />
                 </EmployeePortalLayout>
               </ProtectedRoute>
             }

@@ -8,7 +8,6 @@ import CustomerManagementPage from './CustomerManagement/CustomerManagementPage'
 import EmployeeManagementPage from './EmployeeManagement/EmployeeManagementPage';
 import Settings from './Settings';
 import AdminNotificationPage from './AdminNotificationPage';
-import AdminTasksPage from './AdminTasksPage';
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -39,7 +38,6 @@ const AdminLayout = () => {
           <Route path="/employees" element={<EmployeeManagementPage />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/notifications" element={<AdminNotificationPage />} />
-          <Route path="/tasks" element={<AdminTasksPage />} />
         </Routes>
       </div>
     </div>
