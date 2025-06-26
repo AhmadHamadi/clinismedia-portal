@@ -10,6 +10,7 @@ import CustomerPortalLayout from "./components/Customer/CustomerPortalLayout";
 import EmployeePortalLayout from "./components/Employee/EmployeePortalLayout";
 import CustomerMediaDayBookingPage from "./components/Customer/CustomerMediaDayBooking/CustomerMediaDayBookingPage";
 import CustomerOnboardingTasks from "./components/Customer/CustomerOnboardingTasks";
+import FacebookIntegrationPage from "./components/Customer/FacebookIntegrationPage";
 
 function App() {
   return (
@@ -82,7 +83,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="customer">
                 <CustomerPortalLayout title="Facebook Integration">
-                  <CustomerDashboard />
+                  <FacebookIntegrationPage />
                 </CustomerPortalLayout>
               </ProtectedRoute>
             }

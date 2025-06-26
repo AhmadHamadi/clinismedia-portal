@@ -37,6 +37,22 @@ const userSchema = new mongoose.Schema({
     displayName: String,
     logoUrl: String,
   },
+  facebookPageId: {
+    type: String,
+    default: null,
+  },
+  facebookPageName: {
+    type: String,
+    default: null,
+  },
+  facebookAccessToken: {
+    type: String,
+    default: null,
+  },
+  facebookTokenExpiry: {
+    type: Date,
+    default: null,
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model("User", userSchema);
