@@ -46,6 +46,33 @@ const isSameDate = (date1: Date, date2: Date): boolean => {
   return formatDateString(date1) === formatDateString(date2);
 };
 
+const getHourFromTimeString = (time: string): number => {
+  // Expects '10:00 AM', '1:00 PM', etc.
+  const [raw, period] = time.split(' ');
+  let [hour, minute] = raw.split(':').map(Number);
+  if (period === 'PM' && hour !== 12) hour += 12;
+  if (period === 'AM' && hour === 12) hour = 0;
+  return hour;
+};
+
+const getHourFromDate = (date: string): number => {
+  return new Date(date).getHours();
+};
+
+// Utility function to check if a time is allowed for the selected date
+const isTimeAllowedForSelectedDate = (date: Date | null, time: string | null, acceptedBookings: Booking[]): boolean => {
+  if (!date || !time) return false;
+  if (acceptedBookings.length === 0) return true;
+  const acceptedHours = acceptedBookings.map(b => getHourFromDate(b.date));
+  const takenHours = new Set(acceptedHours);
+  const slotHour = getHourFromTimeString(time);
+  if (takenHours.has(slotHour)) return false;
+  for (const acceptedHour of acceptedHours) {
+    if (Math.abs(slotHour - acceptedHour) < 3) return false;
+  }
+  return true;
+};
+
 export const useMediaDayBooking = () => {
   // State
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -58,6 +85,7 @@ export const useMediaDayBooking = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  const [acceptedBookingsForDate, setAcceptedBookingsForDate] = useState<Booking[]>([]);
 
   // Computed values
   const hasPendingBooking = useMemo(() => 
@@ -69,6 +97,51 @@ export const useMediaDayBooking = () => {
     bookings.filter(booking => booking.status === 'accepted'),
     [bookings]
   );
+
+  // Fetch all accepted bookings for the selected date
+  const fetchAcceptedBookingsForDate = useCallback(async (date: Date | null) => {
+    if (!date) {
+      setAcceptedBookingsForDate([]);
+      return;
+    }
+    try {
+      const token = localStorage.getItem('customerToken');
+      const dateString = date.toISOString().split('T')[0];
+      const response = await axios.get(`${API_BASE_URL}/bookings/accepted?date=${dateString}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAcceptedBookingsForDate(response.data);
+    } catch (err) {
+      setAcceptedBookingsForDate([]);
+    }
+  }, []);
+
+  // Fetch accepted bookings whenever selectedDate changes
+  useEffect(() => {
+    fetchAcceptedBookingsForDate(selectedDate);
+  }, [selectedDate, fetchAcceptedBookingsForDate]);
+
+  // Filtered time slots for the selected date
+  const filteredTimeSlots = useMemo(() => {
+    if (!selectedDate) return TIME_SLOTS;
+    if (acceptedBookingsForDate.length === 0) {
+      // No accepted bookings, all slots available
+      return TIME_SLOTS;
+    }
+    // Get hours of accepted bookings (local time)
+    const acceptedHours = acceptedBookingsForDate.map(b => getHourFromDate(b.date));
+    const takenHours = new Set(acceptedHours);
+    // Only allow slots that are not already taken and not within 3 hours of any accepted booking
+    return TIME_SLOTS.filter(slot => {
+      const slotHour = getHourFromTimeString(slot.time);
+      if (takenHours.has(slotHour)) return false;
+      // If slot is within 3 hours (before or after) of any accepted booking, block it
+      for (const acceptedHour of acceptedHours) {
+        if (Math.abs(slotHour - acceptedHour) < 3) return false;
+      }
+      return true;
+    });
+  }, [selectedDate, acceptedBookingsForDate]);
 
   // Utility functions
   const getAuthToken = useCallback(() => {
@@ -118,28 +191,13 @@ export const useMediaDayBooking = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Filter out blocked dates that correspond to this customer's own accepted bookings
-      const filteredBlockedDates = response.data.filter((block: any) => {
-        // If it's a booking-based block, check if it's the customer's own booking
-        if (block.bookingId && block.bookingId.customer) {
-          // Check if this blocked date corresponds to one of their own accepted bookings
-          const isOwnBooking = acceptedBookings.some(booking => 
-            booking._id === block.bookingId._id
-          );
-          
-          // Only include the blocked date if it's NOT their own booking
-          return !isOwnBooking;
-        }
-        
-        // Include manual blocks (they affect everyone)
-        return true;
-      });
-      
-      setBlockedDates(filteredBlockedDates.map((block: any) => block.date));
+      // Only treat manual blocks as full-day blocks
+      const manualBlockedDates = response.data.filter((block: any) => block.isManualBlock);
+      setBlockedDates(manualBlockedDates.map((block: any) => block.date));
     } catch (err) {
       // Silently fail for blocked dates as it's not critical
     }
-  }, [getAuthToken, acceptedBookings]);
+  }, [getAuthToken]);
 
   // Event handlers
   const handleDateSelect = useCallback((date: Date) => {
@@ -188,31 +246,30 @@ export const useMediaDayBooking = () => {
       setError(ERROR_MESSAGES.DATE_TIME_REQUIRED);
       return;
     }
-
     if (hasPendingBooking) {
       setError(ERROR_MESSAGES.PENDING_BOOKING_EXISTS);
       return;
     }
-
+    // Enforce 3-hour rule before submitting
+    if (!isTimeAllowedForSelectedDate(selectedDate, selectedTime, acceptedBookingsForDate)) {
+      setError('This time slot is not available due to another accepted booking. Please select a different time.');
+      return;
+    }
     setIsSubmitting(true);
     clearMessages();
-
     try {
       const token = getAuthToken();
       const bookingDate = parseTimeToDate(selectedTime, selectedDate);
-
       const bookingData = {
         date: bookingDate.toISOString(),
         notes: notes.trim() || undefined
       };
-
       await axios.post(`${API_BASE_URL}/bookings`, bookingData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-
       setSuccess('Booking created successfully!');
       resetForm();
       await fetchBookings();
@@ -224,7 +281,7 @@ export const useMediaDayBooking = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedDate, selectedTime, hasPendingBooking, notes, getAuthToken, parseTimeToDate, clearMessages, resetForm, fetchBookings]);
+  }, [selectedDate, selectedTime, hasPendingBooking, notes, getAuthToken, parseTimeToDate, clearMessages, resetForm, fetchBookings, acceptedBookingsForDate]);
 
   // Effects
   useEffect(() => {
@@ -248,9 +305,11 @@ export const useMediaDayBooking = () => {
     isLoadingBookings,
     hasPendingBooking,
     blockedDates,
+    acceptedBookingsForDate,
     
     // Constants
-    timeSlots: TIME_SLOTS,
+    timeSlots: filteredTimeSlots,
+    allTimeSlots: TIME_SLOTS,
     
     // Handlers
     handleDateSelect,

@@ -60,6 +60,14 @@ const isDateAlreadyBlocked = (date: Date, blockedDates: BlockedDateEvent[]): boo
   return blockedDates.some(block => formatDateString(new Date(block.date)) === dateString);
 };
 
+const TIME_SLOTS = [
+  { id: 1, time: '10:00 AM' },
+  { id: 2, time: '11:00 AM' },
+  { id: 3, time: '12:00 PM' },
+  { id: 4, time: '1:00 PM' },
+  { id: 5, time: '2:00 PM' },
+];
+
 export const useAdminMediaDayBooking = () => {
   // State
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -76,6 +84,10 @@ export const useAdminMediaDayBooking = () => {
   const [isUnblockModalOpen, setIsUnblockModalOpen] = useState(false);
   const [selectedBlockedDates, setSelectedBlockedDates] = useState<string[]>([]);
   const [isUnblocking, setIsUnblocking] = useState(false);
+  const [acceptedBookingsForDate, setAcceptedBookingsForDate] = useState<any[]>([]);
+  const [selectedDateForBooking, setSelectedDateForBooking] = useState<Date | null>(null);
+  const [selectedCustomerForBooking, setSelectedCustomerForBooking] = useState<any>(null);
+  const [selectedTimeForBooking, setSelectedTimeForBooking] = useState<string | null>(null);
 
   // Utility functions
   const getAuthToken = useCallback(() => {
@@ -218,16 +230,74 @@ export const useAdminMediaDayBooking = () => {
     }
   }, [getAuthToken, fetchBlockedDates]);
 
-  const createBookingForCustomer = useCallback(async (customerId: string, date: Date, notes?: string) => {
+  const fetchAcceptedBookingsForDate = useCallback(async (date: Date | null) => {
+    if (!date) {
+      setAcceptedBookingsForDate([]);
+      return;
+    }
+    try {
+      const token = getAuthToken();
+      const dateString = date.toISOString().split('T')[0];
+      const response = await axios.get(`${API_BASE_URL}/bookings/accepted?date=${dateString}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAcceptedBookingsForDate(response.data);
+    } catch (err) {
+      setAcceptedBookingsForDate([]);
+    }
+  }, [getAuthToken]);
+
+  const getHourFromTimeString = (time: string): number => {
+    const [raw, period] = time.split(' ');
+    let [hour, minute] = raw.split(':').map(Number);
+    if (period === 'PM' && hour !== 12) hour += 12;
+    if (period === 'AM' && hour === 12) hour = 0;
+    return hour;
+  };
+
+  const getHourFromDate = (date: string): number => new Date(date).getHours();
+
+  const timeSlots = useMemo(() => {
+    if (!selectedDateForBooking) return TIME_SLOTS;
+    if (acceptedBookingsForDate.length === 0) return TIME_SLOTS;
+    const acceptedHours = acceptedBookingsForDate.map(b => getHourFromDate(b.date));
+    const takenHours = new Set(acceptedHours);
+    return TIME_SLOTS.filter(slot => {
+      const slotHour = getHourFromTimeString(slot.time);
+      if (takenHours.has(slotHour)) return false;
+      for (const acceptedHour of acceptedHours) {
+        if (Math.abs(slotHour - acceptedHour) < 3) return false;
+      }
+      return true;
+    });
+  }, [selectedDateForBooking, acceptedBookingsForDate]);
+
+  useEffect(() => {
+    fetchBookings();
+    fetchBlockedDates();
+    fetchCustomers();
+  }, [fetchBookings, fetchBlockedDates, fetchCustomers]);
+
+  useEffect(() => {
+    fetchAcceptedBookingsForDate(selectedDateForBooking);
+  }, [selectedDateForBooking, fetchAcceptedBookingsForDate]);
+
+  const createBookingForCustomer = useCallback(async (customerId: string, date: Date, time: string, notes?: string) => {
     try {
       setIsCreatingBooking(true);
       const token = getAuthToken();
-
+      // Combine date and time
+      const [raw, period] = time.split(' ');
+      let [hour, minute] = raw.split(':').map(Number);
+      if (period === 'PM' && hour !== 12) hour += 12;
+      if (period === 'AM' && hour === 12) hour = 0;
+      const bookingDate = new Date(date);
+      bookingDate.setHours(hour, minute, 0, 0);
       const response = await axios.post(
         `${API_BASE_URL}/bookings/admin-create`,
         {
           customerId,
-          date: date.toISOString(),
+          date: bookingDate.toISOString(),
           notes: notes || ''
         },
         {
@@ -236,7 +306,6 @@ export const useAdminMediaDayBooking = () => {
           }
         }
       );
-
       await fetchBookings();
       return response.data;
     } catch (err) {
@@ -334,13 +403,6 @@ export const useAdminMediaDayBooking = () => {
     })), [customers]
   );
 
-  // Effects
-  useEffect(() => {
-    fetchBookings();
-    fetchBlockedDates();
-    fetchCustomers();
-  }, [fetchBookings, fetchBlockedDates, fetchCustomers]);
-
   return {
     // State
     bookings: filteredBookings,
@@ -364,6 +426,15 @@ export const useAdminMediaDayBooking = () => {
     selectedBlockedDates,
     setSelectedBlockedDates,
     isUnblocking,
+    acceptedBookingsForDate,
+    selectedDateForBooking,
+    setSelectedDateForBooking,
+    selectedCustomerForBooking,
+    setSelectedCustomerForBooking,
+    selectedTimeForBooking,
+    setSelectedTimeForBooking,
+    timeSlots,
+    allTimeSlots: TIME_SLOTS,
     
     // Handlers
     handleAcceptRequest,

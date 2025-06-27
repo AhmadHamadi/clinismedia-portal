@@ -68,6 +68,8 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     selectedTime,
     isTimeModalOpen,
     timeSlots,
+    allTimeSlots,
+    acceptedBookingsForDate,
     notes,
     isSubmitting,
     error,
@@ -342,20 +344,25 @@ const CustomerMediaDayBookingPage: React.FC = () => {
               </div>
               
               <div className="grid grid-cols-3 gap-4 mb-8">
-                {timeSlots.map((slot) => (
-                  <button
-                    key={slot.id}
-                    onClick={() => handleTimeSelect(slot.time)}
-                    disabled={isSubmitting}
-                    className={`p-4 rounded-lg text-center transition-all duration-200 transform hover:scale-105 ${
-                      selectedTime === slot.time
-                        ? 'bg-[#98c6d5] text-white shadow-lg'
-                        : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
-                    } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    {slot.time}
-                  </button>
-                ))}
+                {allTimeSlots.map((slot) => {
+                  const isAvailable = timeSlots.some(ts => ts.time === slot.time);
+                  return (
+                    <button
+                      key={slot.id}
+                      onClick={() => isAvailable && handleTimeSelect(slot.time)}
+                      disabled={!isAvailable || isSubmitting}
+                      className={`p-4 rounded-lg text-center transition-all duration-200 transform ${
+                        selectedTime === slot.time && isAvailable
+                          ? 'bg-[#98c6d5] text-white shadow-lg'
+                          : isAvailable
+                            ? 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {slot.time}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="mb-8">
@@ -375,6 +382,46 @@ const CustomerMediaDayBookingPage: React.FC = () => {
                 />
               </div>
 
+              {/* DEBUG OUTPUT - REMOVE AFTER TESTING */}
+              <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                <div><strong>Selected Date:</strong> {selectedDate?.toISOString() || 'none'}</div>
+                <div><strong>Accepted bookings for this date (all customers):</strong></div>
+                <ul>
+                  {acceptedBookingsForDate.map(b => (
+                    <li key={b._id}>
+                      raw: {b.date} | local: {new Date(b.date).toString()} | hour: {new Date(b.date).getHours()}
+                    </li>
+                  ))}
+                </ul>
+                <div><strong>Enabled slots:</strong> {timeSlots.map(ts => ts.time).join(', ')}</div>
+                <div><strong>All slots:</strong></div>
+                <ul>
+                  {allTimeSlots.map(slot => {
+                    const slotHour = (() => {
+                      const [raw, period] = slot.time.split(' ');
+                      let [hour, minute] = raw.split(':').map(Number);
+                      if (period === 'PM' && hour !== 12) hour += 12;
+                      if (period === 'AM' && hour === 12) hour = 0;
+                      return hour;
+                    })();
+                    const isEnabled = timeSlots.some(ts => ts.time === slot.time);
+                    return (
+                      <li key={slot.id}>
+                        {slot.time} | hour: {slotHour} | enabled: {isEnabled ? 'yes' : 'no'}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div><strong>All bookings (debug):</strong></div>
+                <ul>
+                  {bookings.map(b => (
+                    <li key={b._id}>
+                      raw: {b.date} | local: {new Date(b.date).toString()} | selected: {selectedDate?.toString() || 'none'} | isSameDate: {selectedDate ? (new Date(b.date).getFullYear() === selectedDate.getFullYear() && new Date(b.date).getMonth() === selectedDate.getMonth() && new Date(b.date).getDate() === selectedDate.getDate() ? 'yes' : 'no') : 'n/a'} | status: {b.status}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
               <div className="flex justify-end space-x-4">
                 <button
                   onClick={() => setIsTimeModalOpen(false)}
@@ -387,9 +434,9 @@ const CustomerMediaDayBookingPage: React.FC = () => {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={!selectedTime || isSubmitting}
+                  disabled={!selectedTime || isSubmitting || !timeSlots.some(ts => ts.time === selectedTime)}
                   className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
-                    selectedTime && !isSubmitting
+                    selectedTime && !isSubmitting && timeSlots.some(ts => ts.time === selectedTime)
                       ? 'bg-[#98c6d5] text-white hover:bg-[#7ab4c3] shadow-lg'
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   }`}

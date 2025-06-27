@@ -107,6 +107,14 @@ const AdminMediaDayBookingPage: React.FC = () => {
     setSelectedBlockedDates,
     isUnblocking,
     unblockDates,
+    selectedDateForBooking,
+    setSelectedDateForBooking,
+    selectedCustomerForBooking,
+    setSelectedCustomerForBooking,
+    selectedTimeForBooking,
+    setSelectedTimeForBooking,
+    timeSlots,
+    allTimeSlots,
   } = useAdminMediaDayBooking();
 
   // Local state
@@ -115,8 +123,6 @@ const AdminMediaDayBookingPage: React.FC = () => {
   const [selectedCustomers, setSelectedCustomers] = useState<MultiValue<any>>([]);
   const [blockAllCustomers, setBlockAllCustomers] = useState(false);
   const [isCreateBookingModalOpen, setIsCreateBookingModalOpen] = useState(false);
-  const [selectedDateForBooking, setSelectedDateForBooking] = useState<Date | null>(null);
-  const [selectedCustomerForBooking, setSelectedCustomerForBooking] = useState<any>(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [bookingNotes, setBookingNotes] = useState('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -218,15 +224,17 @@ const AdminMediaDayBookingPage: React.FC = () => {
 
   const handleCreateBooking = async (): Promise<void> => {
     try {
-      if (selectedCustomerForBooking && selectedDateForBooking) {
+      if (selectedCustomerForBooking && selectedDateForBooking && selectedTimeForBooking) {
         await createBookingForCustomer(
           selectedCustomerForBooking.value,
           selectedDateForBooking,
+          selectedTimeForBooking,
           bookingNotes
         );
         setIsConfirmModalOpen(false);
         setSelectedCustomerForBooking(null);
         setSelectedDateForBooking(null);
+        setSelectedTimeForBooking(null);
         setBookingNotes('');
         setSuccessMessage('Booking created successfully!');
         setBookingError(null);
@@ -712,6 +720,33 @@ const AdminMediaDayBookingPage: React.FC = () => {
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-900 mb-2">
+                Select Time
+              </label>
+              <div className="grid grid-cols-3 gap-4">
+                {allTimeSlots.map((slot) => {
+                  const isAvailable = timeSlots.some(ts => ts.time === slot.time);
+                  return (
+                    <button
+                      key={slot.id}
+                      onClick={() => isAvailable && setSelectedTimeForBooking(slot.time)}
+                      disabled={!isAvailable}
+                      className={`p-3 rounded-lg text-center transition-all duration-200 transform ${
+                        selectedTimeForBooking === slot.time && isAvailable
+                          ? 'bg-[#98c6d5] text-white shadow-lg'
+                          : isAvailable
+                            ? 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {slot.time}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
                 Notes (Optional)
               </label>
               <textarea
@@ -729,6 +764,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
                   setIsCreateBookingModalOpen(false);
                   setSelectedCustomerForBooking(null);
                   setBookingNotes('');
+                  setSelectedTimeForBooking(null);
                 }}
                 className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
               >
@@ -736,12 +772,12 @@ const AdminMediaDayBookingPage: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  if (selectedCustomerForBooking) {
+                  if (selectedCustomerForBooking && selectedTimeForBooking) {
                     setIsCreateBookingModalOpen(false);
                     setIsConfirmModalOpen(true);
                   }
                 }}
-                disabled={!selectedCustomerForBooking}
+                disabled={!selectedCustomerForBooking || !selectedTimeForBooking}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Confirm Booking
@@ -761,7 +797,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
             <h2 className="text-xl font-semibold mb-4 text-gray-900">Confirm Booking Creation</h2>
             <p className="text-gray-700 mb-4">
               Are you sure you want to create a booking for <strong className="text-gray-900">{selectedCustomerForBooking?.label}</strong> on{' '}
-              <strong className="text-gray-900">{selectedDateForBooking?.toLocaleDateString()}</strong>?
+              <strong className="text-gray-900">{selectedDateForBooking?.toLocaleDateString()}</strong> at <strong className="text-gray-900">{selectedTimeForBooking}</strong>?
             </p>
             {bookingNotes && (
               <p className="text-gray-700 mb-2">
@@ -781,10 +817,10 @@ const AdminMediaDayBookingPage: React.FC = () => {
               </button>
               <button
                 onClick={handleCreateBooking}
-                disabled={isCreatingBooking}
+                disabled={!selectedCustomerForBooking || !selectedDateForBooking || !selectedTimeForBooking}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isCreatingBooking ? 'Creating...' : 'Confirm'}
+                Confirm
               </button>
             </div>
           </div>

@@ -122,10 +122,11 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
 
     const savedBooking = await booking.save();
     
-    // Create blocked date for accepted booking
-    await handleBlockedDateForBooking(savedBooking, true);
+    // No longer create BlockedDate for accepted bookings
+    // Only manual admin blocks create BlockedDate entries
     
-    const populatedBooking = await populateBookingWithCustomer(savedBooking._id);
+    const populatedBooking = await Booking.findById(savedBooking._id)
+      .populate('customer', 'name email');
     res.status(201).json(populatedBooking);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -154,15 +155,11 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
     
     const updatedBooking = await booking.save();
     
-    // Handle automatic blocked date creation/removal
-    const isNowAccepted = status === 'accepted' && oldStatus !== 'accepted';
-    const wasAcceptedNowDeclined = status === 'declined' && oldStatus === 'accepted';
+    // No longer create or delete BlockedDate for accepted/declined bookings
+    // Only manual admin blocks create BlockedDate entries
     
-    if (isNowAccepted || wasAcceptedNowDeclined) {
-      await handleBlockedDateForBooking(updatedBooking, isNowAccepted);
-    }
-    
-    const populatedBooking = await populateBookingWithCustomer(updatedBooking._id);
+    const populatedBooking = await Booking.findById(updatedBooking._id)
+      .populate('customer', 'name email');
     res.json(populatedBooking);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -198,6 +195,29 @@ router.get('/available-dates', authenticateToken, authorizeRole('customer'), asy
     ];
 
     res.json({ unavailableDates });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all accepted bookings for a specific date (for all customers)
+router.get('/accepted', authenticateToken, async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ message: 'Date is required' });
+    }
+    // Get start and end of the day in UTC
+    const start = new Date(date);
+    start.setUTCHours(0, 0, 0, 0);
+    const end = new Date(date);
+    end.setUTCHours(23, 59, 59, 999);
+
+    const bookings = await Booking.find({
+      status: 'accepted',
+      date: { $gte: start, $lte: end }
+    });
+    res.json(bookings);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
