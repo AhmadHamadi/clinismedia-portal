@@ -24,32 +24,6 @@ const checkDateAvailability = async (date) => {
   }
 };
 
-const handleBlockedDateForBooking = async (booking, isAccepted) => {
-  if (isAccepted) {
-    // Create or update blocked date for accepted booking
-    try {
-      await BlockedDate.create({
-        date: booking.date,
-        bookingId: booking._id,
-        isManualBlock: false
-      });
-    } catch (error) {
-      // If blocked date already exists, update it to link to this booking
-      if (error.code === 11000) { // Duplicate key error
-        await BlockedDate.findOneAndUpdate(
-          { date: booking.date },
-          { bookingId: booking._id, isManualBlock: false }
-        );
-      } else {
-        throw error;
-      }
-    }
-  } else {
-    // Remove blocked date when booking is no longer accepted
-    await BlockedDate.deleteOne({ bookingId: booking._id });
-  }
-};
-
 const populateBookingWithCustomer = async (bookingId) => {
   return await Booking.findById(bookingId).populate('customer', 'name email');
 };
@@ -59,6 +33,21 @@ router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const bookings = await Booking.find()
       .populate('customer', 'name email')
+      .populate('photographer', 'name email')
+      .sort({ date: 1 });
+    
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all bookings for employees (Employee only)
+router.get('/employee', authenticateToken, authorizeRole('employee'), async (req, res) => {
+  try {
+    const bookings = await Booking.find()
+      .populate('customer', 'name email')
+      .populate('photographer', 'name email')
       .sort({ date: 1 });
     
     res.json(bookings);
@@ -72,6 +61,7 @@ router.get('/my-bookings', authenticateToken, authorizeRole('customer'), async (
   try {
     const bookings = await Booking.find({ customer: req.user._id })
       .populate('customer', 'name email')
+      .populate('photographer', 'name email')
       .sort({ date: 1 });
     
     res.json(bookings);
@@ -121,10 +111,6 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
     });
 
     const savedBooking = await booking.save();
-    
-    // No longer create BlockedDate for accepted bookings
-    // Only manual admin blocks create BlockedDate entries
-    
     const populatedBooking = await Booking.findById(savedBooking._id)
       .populate('customer', 'name email');
     res.status(201).json(populatedBooking);
@@ -136,7 +122,7 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
 // Update booking status (Admin only)
 router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
-    const { status, denialReason } = req.body;
+    const { status, adminMessage, employeeMessage } = req.body;
     if (!['accepted', 'declined'].includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
     }
@@ -146,20 +132,83 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
       return res.status(404).json({ message: 'Booking not found' });
     }
 
-    const oldStatus = booking.status;
     booking.status = status;
     
-    if (status === 'declined' && denialReason) {
-      booking.denialReason = denialReason;
+    // Update admin message for both accept and decline
+    if (adminMessage !== undefined) {
+      booking.adminMessage = adminMessage;
+    }
+    
+    // Update employee message only for accept
+    if (status === 'accepted' && employeeMessage !== undefined) {
+      booking.employeeMessage = employeeMessage;
     }
     
     const updatedBooking = await booking.save();
-    
-    // No longer create or delete BlockedDate for accepted/declined bookings
-    // Only manual admin blocks create BlockedDate entries
-    
     const populatedBooking = await Booking.findById(updatedBooking._id)
-      .populate('customer', 'name email');
+      .populate('customer', 'name email')
+      .populate('photographer', 'name email');
+    res.json(populatedBooking);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Update photographer assignment and employee message (Admin only)
+router.patch('/:id/photography', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { photographerId, employeeMessage } = req.body;
+
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Update photographer assignment
+    if (photographerId !== undefined) {
+      booking.photographer = photographerId;
+    }
+    
+    // Update employee message
+    if (employeeMessage !== undefined) {
+      booking.employeeMessage = employeeMessage;
+    }
+    
+    const updatedBooking = await booking.save();
+    const populatedBooking = await Booking.findById(updatedBooking._id)
+      .populate('customer', 'name email')
+      .populate('photographer', 'name email');
+    res.json(populatedBooking);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Accept photography session (Employee only)
+router.patch('/:id/accept-session', authenticateToken, authorizeRole('employee'), async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Check if booking is already accepted by another photographer
+    if (booking.photographer && booking.photographer.toString() !== req.user._id.toString()) {
+      return res.status(400).json({ message: 'This session has already been accepted by another photographer' });
+    }
+
+    // Check if booking is in accepted status (admin approved)
+    if (booking.status !== 'accepted') {
+      return res.status(400).json({ message: 'This session is not available for acceptance' });
+    }
+
+    // Update photographer field
+    booking.photographer = req.user._id;
+    
+    const updatedBooking = await booking.save();
+    const populatedBooking = await Booking.findById(updatedBooking._id)
+      .populate('customer', 'name email')
+      .populate('photographer', 'name email');
     res.json(populatedBooking);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -207,6 +256,7 @@ router.get('/accepted', authenticateToken, async (req, res) => {
     if (!date) {
       return res.status(400).json({ message: 'Date is required' });
     }
+    
     // Get start and end of the day in UTC
     const start = new Date(date);
     start.setUTCHours(0, 0, 0, 0);

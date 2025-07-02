@@ -6,9 +6,15 @@ import { API_BASE_URL } from '../../../utils/api';
 export interface Booking {
   _id: string;
   date: string;
-  notes?: string;
+  notes: string;
   status: 'pending' | 'accepted' | 'declined';
-  denialReason?: string;
+  adminMessage?: string;
+  createdAt: string;
+  photographer?: {
+    _id: string;
+    name: string;
+    email: string;
+  } | null;
 }
 
 export interface TimeSlot {
@@ -47,7 +53,6 @@ const isSameDate = (date1: Date, date2: Date): boolean => {
 };
 
 const getHourFromTimeString = (time: string): number => {
-  // Expects '10:00 AM', '1:00 PM', etc.
   const [raw, period] = time.split(' ');
   let [hour, minute] = raw.split(':').map(Number);
   if (period === 'PM' && hour !== 12) hour += 12;
@@ -59,7 +64,6 @@ const getHourFromDate = (date: string): number => {
   return new Date(date).getHours();
 };
 
-// Utility function to check if a time is allowed for the selected date
 const isTimeAllowedForSelectedDate = (date: Date | null, time: string | null, acceptedBookings: Booking[]): boolean => {
   if (!date || !time) return false;
   if (acceptedBookings.length === 0) return true;
@@ -125,17 +129,13 @@ export const useMediaDayBooking = () => {
   const filteredTimeSlots = useMemo(() => {
     if (!selectedDate) return TIME_SLOTS;
     if (acceptedBookingsForDate.length === 0) {
-      // No accepted bookings, all slots available
       return TIME_SLOTS;
     }
-    // Get hours of accepted bookings (local time)
     const acceptedHours = acceptedBookingsForDate.map(b => getHourFromDate(b.date));
     const takenHours = new Set(acceptedHours);
-    // Only allow slots that are not already taken and not within 3 hours of any accepted booking
     return TIME_SLOTS.filter(slot => {
       const slotHour = getHourFromTimeString(slot.time);
       if (takenHours.has(slotHour)) return false;
-      // If slot is within 3 hours (before or after) of any accepted booking, block it
       for (const acceptedHour of acceptedHours) {
         if (Math.abs(slotHour - acceptedHour) < 3) return false;
       }

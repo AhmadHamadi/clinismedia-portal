@@ -9,6 +9,13 @@ export interface Booking {
   date: string;
   notes: string;
   status: 'pending' | 'accepted' | 'declined';
+  adminMessage?: string;
+  employeeMessage?: string;
+  photographer?: {
+    _id: string;
+    name: string;
+    email: string;
+  } | null;
   customer: {
     name: string;
     email: string;
@@ -50,6 +57,14 @@ const ERROR_MESSAGES = {
   BLOCK_DATES_ERROR: 'Failed to block dates',
 } as const;
 
+const TIME_SLOTS = [
+  { id: 1, time: '10:00 AM' },
+  { id: 2, time: '11:00 AM' },
+  { id: 3, time: '12:00 PM' },
+  { id: 4, time: '1:00 PM' },
+  { id: 5, time: '2:00 PM' },
+];
+
 // Utility functions
 const formatDateString = (date: Date): string => {
   return date.toISOString().split('T')[0];
@@ -60,14 +75,6 @@ const isDateAlreadyBlocked = (date: Date, blockedDates: BlockedDateEvent[]): boo
   return blockedDates.some(block => formatDateString(new Date(block.date)) === dateString);
 };
 
-const TIME_SLOTS = [
-  { id: 1, time: '10:00 AM' },
-  { id: 2, time: '11:00 AM' },
-  { id: 3, time: '12:00 PM' },
-  { id: 4, time: '1:00 PM' },
-  { id: 5, time: '2:00 PM' },
-];
-
 export const useAdminMediaDayBooking = () => {
   // State
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -76,7 +83,7 @@ export const useAdminMediaDayBooking = () => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [isDenyModalOpen, setIsDenyModalOpen] = useState(false);
   const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false);
-  const [denialReason, setDenialReason] = useState('');
+  const [adminMessage, setAdminMessage] = useState('');
   const [showPriorRequests, setShowPriorRequests] = useState(false);
   const [blockedDatesEvents, setBlockedDatesEvents] = useState<BlockedDateEvent[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -88,6 +95,13 @@ export const useAdminMediaDayBooking = () => {
   const [selectedDateForBooking, setSelectedDateForBooking] = useState<Date | null>(null);
   const [selectedCustomerForBooking, setSelectedCustomerForBooking] = useState<any>(null);
   const [selectedTimeForBooking, setSelectedTimeForBooking] = useState<string | null>(null);
+  const [bookingView, setBookingView] = useState<'pending' | 'accepted' | 'declined'>('pending');
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [isEditPhotographyModalOpen, setIsEditPhotographyModalOpen] = useState(false);
+  const [selectedBookingForEdit, setSelectedBookingForEdit] = useState<Booking | null>(null);
+  const [selectedPhotographerId, setSelectedPhotographerId] = useState<string | null>(null);
+  const [editEmployeeMessage, setEditEmployeeMessage] = useState('');
+  const [isUpdatingPhotography, setIsUpdatingPhotography] = useState(false);
 
   // Utility functions
   const getAuthToken = useCallback(() => {
@@ -104,7 +118,7 @@ export const useAdminMediaDayBooking = () => {
 
   const resetModalState = useCallback(() => {
     setSelectedBooking(null);
-    setDenialReason('');
+    setAdminMessage('');
     setIsDenyModalOpen(false);
     setIsAcceptModalOpen(false);
   }, []);
@@ -122,6 +136,18 @@ export const useAdminMediaDayBooking = () => {
     }
   }, [getAuthToken]);
 
+  const fetchEmployees = useCallback(async () => {
+    try {
+      const token = getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/employees`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setEmployees(response.data);
+    } catch (err) {
+      setError('Failed to fetch employees');
+    }
+  }, [getAuthToken]);
+
   const fetchBlockedDates = useCallback(async () => {
     try {
       const token = getAuthToken();
@@ -129,17 +155,10 @@ export const useAdminMediaDayBooking = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Filter out blocked dates that correspond to accepted bookings
-      // Admin should see accepted bookings as accepted, not as blocked dates
       const filteredBlockedDates = response.data.filter((block: any) => {
-        // If it's a booking-based block, check if the booking is accepted
         if (block.bookingId && block.bookingId.status) {
-          // Only include blocked dates for non-accepted bookings (like declined bookings)
-          // or manual blocks
           return block.bookingId.status !== 'accepted';
         }
-        
-        // Include manual blocks (they affect everyone)
         return true;
       });
       
@@ -272,11 +291,13 @@ export const useAdminMediaDayBooking = () => {
     });
   }, [selectedDateForBooking, acceptedBookingsForDate]);
 
+  // Effects
   useEffect(() => {
     fetchBookings();
-    fetchBlockedDates();
     fetchCustomers();
-  }, [fetchBookings, fetchBlockedDates, fetchCustomers]);
+    fetchEmployees();
+    fetchBlockedDates();
+  }, [fetchBookings, fetchCustomers, fetchEmployees, fetchBlockedDates]);
 
   useEffect(() => {
     fetchAcceptedBookingsForDate(selectedDateForBooking);
@@ -317,12 +338,16 @@ export const useAdminMediaDayBooking = () => {
   }, [getAuthToken, fetchBookings]);
 
   // Event handlers
-  const handleAcceptRequest = useCallback(async (bookingId: string) => {
+  const handleAcceptRequest = useCallback(async (bookingId: string, adminMessage?: string, employeeMessage?: string) => {
     try {
       const token = getAuthToken();
       await axios.patch(
         `${API_BASE_URL}/bookings/${bookingId}/status`,
-        { status: 'accepted' },
+        { 
+          status: 'accepted',
+          adminMessage,
+          employeeMessage
+        },
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -338,7 +363,7 @@ export const useAdminMediaDayBooking = () => {
   }, [getAuthToken, fetchBookings, resetModalState]);
 
   const handleDenyRequest = useCallback(async (bookingId: string) => {
-    if (!denialReason.trim()) return;
+    if (!adminMessage.trim()) return;
 
     try {
       const token = getAuthToken();
@@ -346,7 +371,7 @@ export const useAdminMediaDayBooking = () => {
         `${API_BASE_URL}/bookings/${bookingId}/status`,
         { 
           status: 'declined',
-          denialReason 
+          adminMessage: adminMessage
         },
         {
           headers: {
@@ -360,7 +385,43 @@ export const useAdminMediaDayBooking = () => {
     } catch (err) {
       setError(ERROR_MESSAGES.DECLINE_BOOKING_ERROR);
     }
-  }, [denialReason, getAuthToken, fetchBookings, resetModalState]);
+  }, [adminMessage, getAuthToken, fetchBookings, resetModalState]);
+
+  const updatePhotographyAssignment = useCallback(async (bookingId: string) => {
+    try {
+      setIsUpdatingPhotography(true);
+      const token = getAuthToken();
+      await axios.patch(
+        `${API_BASE_URL}/bookings/${bookingId}/photography`,
+        {
+          photographerId: selectedPhotographerId,
+          employeeMessage: editEmployeeMessage
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      await fetchBookings();
+      setIsEditPhotographyModalOpen(false);
+      setSelectedBookingForEdit(null);
+      setSelectedPhotographerId(null);
+      setEditEmployeeMessage('');
+    } catch (err) {
+      setError('Failed to update photography assignment');
+    } finally {
+      setIsUpdatingPhotography(false);
+    }
+  }, [selectedPhotographerId, editEmployeeMessage, getAuthToken, fetchBookings]);
+
+  const openEditPhotographyModal = useCallback((booking: Booking) => {
+    setSelectedBookingForEdit(booking);
+    setSelectedPhotographerId(booking.photographer?._id || null);
+    setEditEmployeeMessage(booking.employeeMessage || '');
+    setIsEditPhotographyModalOpen(true);
+  }, []);
 
   const openDenyModal = useCallback((booking: Booking) => {
     setSelectedBooking(booking);
@@ -374,11 +435,8 @@ export const useAdminMediaDayBooking = () => {
 
   // Computed values
   const filteredBookings = useMemo(() => 
-    bookings.filter(booking => 
-      showPriorRequests 
-        ? booking.status !== 'pending'  // Show accepted/declined bookings
-        : booking.status === 'pending'  // Show pending bookings
-    ), [bookings, showPriorRequests]
+    bookings.filter(booking => booking.status === bookingView), 
+    [bookings, bookingView]
   );
 
   const calendarEvents = useMemo(() => 
@@ -386,12 +444,16 @@ export const useAdminMediaDayBooking = () => {
       .filter(booking => booking.status !== 'declined') // Only show pending and accepted bookings
       .map(booking => {
         const date = new Date(booking.date);
+        const hasPhotographer = booking.photographer && booking.photographer._id;
+        const cameraEmoji = hasPhotographer ? ' 📸' : '';
+        
         return {
           id: booking._id,
-          title: `${booking.customer.name} - ${booking.status}`,
+          title: `${booking.customer.name}${cameraEmoji} - ${booking.status}`,
           start: date,
           end: new Date(date.getTime() + 60 * 60 * 1000), // 1 hour duration
-          status: booking.status
+          status: booking.status,
+          hasPhotographer
         };
       }), [bookings]
   );
@@ -413,8 +475,8 @@ export const useAdminMediaDayBooking = () => {
     isAcceptModalOpen,
     selectedBooking,
     setSelectedBooking,
-    denialReason,
-    setDenialReason,
+    adminMessage,
+    setAdminMessage,
     showPriorRequests,
     setShowPriorRequests,
     blockedDatesEvents,
@@ -435,6 +497,19 @@ export const useAdminMediaDayBooking = () => {
     setSelectedTimeForBooking,
     timeSlots,
     allTimeSlots: TIME_SLOTS,
+    bookingView,
+    setBookingView,
+    employees,
+    isEditPhotographyModalOpen,
+    setIsEditPhotographyModalOpen,
+    selectedBookingForEdit,
+    setSelectedBookingForEdit,
+    selectedPhotographerId,
+    setSelectedPhotographerId,
+    editEmployeeMessage,
+    setEditEmployeeMessage,
+    isUpdatingPhotography,
+    setIsUpdatingPhotography,
     
     // Handlers
     handleAcceptRequest,
@@ -446,5 +521,7 @@ export const useAdminMediaDayBooking = () => {
     addBlockedDates,
     unblockDates,
     createBookingForCustomer,
+    updatePhotographyAssignment,
+    openEditPhotographyModal,
   };
 };
