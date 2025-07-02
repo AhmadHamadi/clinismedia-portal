@@ -11,6 +11,9 @@ import EmployeePortalLayout from "./components/Employee/EmployeePortalLayout";
 import CustomerMediaDayBookingPage from "./components/Customer/CustomerMediaDayBooking/CustomerMediaDayBookingPage";
 import CustomerOnboardingTasks from "./components/Customer/CustomerOnboardingTasks";
 import { EmployeeMediaDayBookingPage } from "./components/Employee/EmployeeMediaDayBooking/EmployeeMediaDayBookingPage";
+import FacebookIntegrationPage from "./components/Customer/FacebookIntegrationPage";
+import CustomerGalleryPage from "./components/Customer/CustomerGalleryPage";
+import CustomerInvoicePage from "./components/Customer/CustomerInvoicePage";
 
 function App() {
   return (
@@ -83,7 +86,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="customer">
                 <CustomerPortalLayout title="Facebook Integration">
-                  <CustomerDashboard />
+                  <FacebookIntegrationPage />
                 </CustomerPortalLayout>
               </ProtectedRoute>
             }
@@ -105,7 +108,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="customer">
                 <CustomerPortalLayout title="View Your Invoice">
-                  <CustomerDashboard />
+                  <CustomerInvoicePage />
                 </CustomerPortalLayout>
               </ProtectedRoute>
             }
@@ -117,6 +120,17 @@ function App() {
               <ProtectedRoute requiredRole="customer">
                 <CustomerPortalLayout title="Onboarding Tasks">
                   <CustomerOnboardingTasks />
+                </CustomerPortalLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route 
+            path="/customer/gallery"
+            element={
+              <ProtectedRoute requiredRole="customer">
+                <CustomerPortalLayout title="View Gallery">
+                  <CustomerGalleryPage />
                 </CustomerPortalLayout>
               </ProtectedRoute>
             }
