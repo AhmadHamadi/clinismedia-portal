@@ -4,9 +4,10 @@ const router = express.Router();
 const User = require("../models/User");
 const validator = require("validator");
 const authenticateToken = require("../middleware/authenticateToken");
+const authorizeRole = require("../middleware/authorizeRole");
 
-// GET all employees
-router.get("/", async (req, res) => {
+// GET all employees (Admin only)
+router.get("/", authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const employees = await User.find({ role: "employee" }).select("name username email department _id");
     res.status(200).json(employees);

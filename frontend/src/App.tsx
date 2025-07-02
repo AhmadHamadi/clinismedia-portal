@@ -10,6 +10,7 @@ import CustomerPortalLayout from "./components/Customer/CustomerPortalLayout";
 import EmployeePortalLayout from "./components/Employee/EmployeePortalLayout";
 import CustomerMediaDayBookingPage from "./components/Customer/CustomerMediaDayBooking/CustomerMediaDayBookingPage";
 import CustomerOnboardingTasks from "./components/Customer/CustomerOnboardingTasks";
+import { EmployeeMediaDayBookingPage } from "./components/Employee/EmployeeMediaDayBooking/EmployeeMediaDayBookingPage";
 
 function App() {
   return (
@@ -138,7 +139,7 @@ function App() {
             element={
               <ProtectedRoute requiredRole="employee">
                 <EmployeePortalLayout title="View Media Day Calendar">
-                  <EmployeeDashboard />
+                  <EmployeeMediaDayBookingPage />
                 </EmployeePortalLayout>
               </ProtectedRoute>
             }

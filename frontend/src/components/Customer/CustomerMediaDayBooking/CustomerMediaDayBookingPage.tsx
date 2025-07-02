@@ -309,8 +309,10 @@ const CustomerMediaDayBookingPage: React.FC = () => {
                       {booking.notes && (
                         <p className="mt-2 text-gray-600">Notes: {booking.notes}</p>
                       )}
-                      {booking.status === 'declined' && booking.denialReason && (
-                        <p className="mt-2 text-red-600">Reason for decline: {booking.denialReason}</p>
+                      {booking.adminMessage && (
+                        <p className="mt-2 text-gray-600">
+                          <span className="font-semibold text-blue-600">Clinimedia:</span> {booking.adminMessage}
+                        </p>
                       )}
                     </div>
                     <div className={`px-4 py-2 rounded-full text-sm font-medium border ${getStatusColor(booking.status)}`}>
