@@ -384,51 +384,11 @@ const CustomerMediaDayBookingPage: React.FC = () => {
                 />
               </div>
 
-              {/* DEBUG OUTPUT - REMOVE AFTER TESTING */}
-              <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-                <div><strong>Selected Date:</strong> {selectedDate?.toISOString() || 'none'}</div>
-                <div><strong>Accepted bookings for this date (all customers):</strong></div>
-                <ul>
-                  {acceptedBookingsForDate.map(b => (
-                    <li key={b._id}>
-                      raw: {b.date} | local: {new Date(b.date).toString()} | hour: {new Date(b.date).getHours()}
-                    </li>
-                  ))}
-                </ul>
-                <div><strong>Enabled slots:</strong> {timeSlots.map(ts => ts.time).join(', ')}</div>
-                <div><strong>All slots:</strong></div>
-                <ul>
-                  {allTimeSlots.map(slot => {
-                    const slotHour = (() => {
-                      const [raw, period] = slot.time.split(' ');
-                      let [hour, minute] = raw.split(':').map(Number);
-                      if (period === 'PM' && hour !== 12) hour += 12;
-                      if (period === 'AM' && hour === 12) hour = 0;
-                      return hour;
-                    })();
-                    const isEnabled = timeSlots.some(ts => ts.time === slot.time);
-                    return (
-                      <li key={slot.id}>
-                        {slot.time} | hour: {slotHour} | enabled: {isEnabled ? 'yes' : 'no'}
-                      </li>
-                    );
-                  })}
-                </ul>
-                <div><strong>All bookings (debug):</strong></div>
-                <ul>
-                  {bookings.map(b => (
-                    <li key={b._id}>
-                      raw: {b.date} | local: {new Date(b.date).toString()} | selected: {selectedDate?.toString() || 'none'} | isSameDate: {selectedDate ? (new Date(b.date).getFullYear() === selectedDate.getFullYear() && new Date(b.date).getMonth() === selectedDate.getMonth() && new Date(b.date).getDate() === selectedDate.getDate() ? 'yes' : 'no') : 'n/a'} | status: {b.status}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="flex justify-end space-x-4">
+              <div className="flex justify-end gap-4">
                 <button
                   onClick={() => setIsTimeModalOpen(false)}
                   disabled={isSubmitting}
-                  className={`px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors font-medium ${
+                  className={`px-6 py-2 text-gray-600 hover:text-gray-800 transition-colors ${
                     isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
@@ -436,14 +396,12 @@ const CustomerMediaDayBookingPage: React.FC = () => {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={!selectedTime || isSubmitting || !timeSlots.some(ts => ts.time === selectedTime)}
-                  className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
-                    selectedTime && !isSubmitting && timeSlots.some(ts => ts.time === selectedTime)
-                      ? 'bg-[#98c6d5] text-white hover:bg-[#7ab4c3] shadow-lg'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  disabled={!selectedTime || isSubmitting}
+                  className={`px-6 py-2 bg-[#98c6d5] text-white rounded-lg hover:bg-[#7bb3c4] transition-colors font-medium ${
+                    !selectedTime || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
-                  {isSubmitting ? 'Creating Booking...' : 'Confirm Booking'}
+                  {isSubmitting ? 'Submitting...' : 'Submit Booking'}
                 </button>
               </div>
             </div>
