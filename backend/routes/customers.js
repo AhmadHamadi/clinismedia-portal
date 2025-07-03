@@ -7,6 +7,8 @@ const User = require("../models/User");
 const validator = require("validator"); // npm install validator
 const authenticateToken = require("../middleware/authenticateToken");
 const jwt = require("jsonwebtoken");
+const GalleryItem = require('../models/GalleryItem');
+const Invoice = require('../models/Invoice');
 
 // GET customer profile (authenticated)
 router.get("/profile", authenticateToken, async (req, res) => {
@@ -106,6 +108,54 @@ router.put("/:id", async (req, res) => {
   } catch (err) {
     console.error("❌ Failed to update customer:", err.message);
     res.status(500).json({ error: "Server error updating customer" });
+  }
+});
+
+// GET visible gallery and invoice items for a customer
+router.get('/:id/portal-visibility', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id)
+      .populate('visibleGalleryItems')
+      .populate('visibleInvoices');
+    if (!user) return res.status(404).json({ error: 'Customer not found' });
+
+    // Get all global gallery items and invoices
+    const allGalleryItems = await GalleryItem.find();
+    const allInvoices = await Invoice.find();
+
+    res.json({
+      visibleGalleryItems: user.visibleGalleryItems,
+      visibleInvoices: user.visibleInvoices,
+      allGalleryItems,
+      allInvoices,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UPDATE visible gallery and invoice items for a customer
+router.put('/:id/portal-visibility', async (req, res) => {
+  try {
+    const { visibleGalleryItems, visibleInvoices } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        visibleGalleryItems,
+        visibleInvoices,
+      },
+      { new: true }
+    )
+      .populate('visibleGalleryItems')
+      .populate('visibleInvoices');
+    if (!user) return res.status(404).json({ error: 'Customer not found' });
+    res.json({
+      message: 'Portal visibility updated',
+      visibleGalleryItems: user.visibleGalleryItems,
+      visibleInvoices: user.visibleInvoices,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
