@@ -15,21 +15,22 @@ const bookingSchema = new mongoose.Schema({
     enum: ['pending', 'accepted', 'declined'],
     default: 'pending'
   },
+  photographer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   notes: {
     type: String,
     trim: true
   },
-  denialReason: {
+  adminMessage: {
     type: String,
     trim: true
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
+  employeeMessage: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true

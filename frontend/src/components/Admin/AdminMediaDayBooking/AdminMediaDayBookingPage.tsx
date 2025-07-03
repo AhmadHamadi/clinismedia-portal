@@ -86,8 +86,8 @@ const AdminMediaDayBookingPage: React.FC = () => {
     isAcceptModalOpen,
     selectedBooking,
     setSelectedBooking,
-    denialReason,
-    setDenialReason,
+    adminMessage,
+    setAdminMessage,
     handleAcceptRequest,
     handleDenyRequest,
     openDenyModal,
@@ -115,6 +115,20 @@ const AdminMediaDayBookingPage: React.FC = () => {
     setSelectedTimeForBooking,
     timeSlots,
     allTimeSlots,
+    bookingView,
+    setBookingView,
+    employees,
+    isEditPhotographyModalOpen,
+    setIsEditPhotographyModalOpen,
+    selectedBookingForEdit,
+    setSelectedBookingForEdit,
+    selectedPhotographerId,
+    setSelectedPhotographerId,
+    editEmployeeMessage,
+    setEditEmployeeMessage,
+    isUpdatingPhotography,
+    updatePhotographyAssignment,
+    openEditPhotographyModal,
   } = useAdminMediaDayBooking();
 
   // Local state
@@ -127,6 +141,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
   const [bookingNotes, setBookingNotes] = useState('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [employeeMessage, setEmployeeMessage] = useState('');
 
   // Computed values
   const customerOptions = useMemo(() => 
@@ -515,14 +530,40 @@ const AdminMediaDayBookingPage: React.FC = () => {
         <div className="bg-white rounded-xl shadow-xl p-8">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold text-[#303b45]">
-              {showPriorRequests ? 'Prior Media Day Requests' : 'Current Media Day Requests'}
+              Media Day Requests
             </h2>
-            <button
-              onClick={() => setShowPriorRequests(!showPriorRequests)}
-              className="px-4 py-2 bg-[#98c6d5] text-white rounded-lg hover:bg-[#7ab4c3] transition-colors"
-            >
-              {showPriorRequests ? 'View Current Requests' : 'View Prior Requests'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBookingView('pending')}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  bookingView === 'pending'
+                    ? 'bg-[#fbbf24] text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Pending Requests
+              </button>
+              <button
+                onClick={() => setBookingView('accepted')}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  bookingView === 'accepted'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Accepted Bookings
+              </button>
+              <button
+                onClick={() => setBookingView('declined')}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  bookingView === 'declined'
+                    ? 'bg-red-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Declined Bookings
+              </button>
+            </div>
           </div>
 
           {isLoading ? (
@@ -532,9 +573,9 @@ const AdminMediaDayBookingPage: React.FC = () => {
             </div>
           ) : bookings.length === 0 ? (
             <p className="text-gray-600 text-center py-4">
-              {showPriorRequests 
-                ? 'No prior requests to display' 
-                : 'No current requests to display'}
+              {bookingView === 'pending' && 'No pending requests to display'}
+              {bookingView === 'accepted' && 'No accepted bookings to display'}
+              {bookingView === 'declined' && 'No declined bookings to display'}
             </p>
           ) : (
             <div className="space-y-6">
@@ -563,26 +604,25 @@ const AdminMediaDayBookingPage: React.FC = () => {
                         </>
                       )}
                       {booking.status === 'accepted' && (
-                        <span className="inline-flex items-center justify-center w-28 h-10 bg-green-100 text-green-800 rounded-lg font-semibold text-center">
-                          Accepted
-                        </span>
+                        <>
+                          <button
+                            onClick={() => openEditPhotographyModal(booking)}
+                            className="w-36 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-medium h-10"
+                          >
+                            Edit Photography
+                          </button>
+                          <button
+                            onClick={() => openDenyModal(booking)}
+                            className="w-36 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium h-10"
+                          >
+                            Overturn
+                          </button>
+                        </>
                       )}
                       {booking.status === 'declined' && (
-                        <span className="inline-flex items-center justify-center w-28 h-10 bg-red-100 text-red-800 rounded-lg font-semibold text-center">
-                          Declined
-                        </span>
-                      )}
-                      {(booking.status === 'accepted' || booking.status === 'declined') && (
                         <button
-                          onClick={() =>
-                            booking.status === 'accepted'
-                              ? openDenyModal(booking)
-                              : (setSelectedBooking(booking), setIsAcceptModalOpen(true))
-                          }
-                          className={`inline-flex items-center justify-center w-28 h-10 rounded-lg transition-colors font-semibold
-                            ${booking.status === 'accepted'
-                              ? 'bg-red-500 text-white hover:bg-red-600'
-                              : 'bg-green-500 text-white hover:bg-green-600'}`}
+                          onClick={() => (setSelectedBooking(booking), setIsAcceptModalOpen(true))}
+                          className="w-36 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium h-10"
                         >
                           Overturn
                         </button>
@@ -594,6 +634,12 @@ const AdminMediaDayBookingPage: React.FC = () => {
                       <span className="font-semibold">Date & Time:</span>{' '}
                       {formatDateTime(booking.date)}
                     </p>
+                    {booking.status === 'accepted' && (
+                      <p className="text-gray-600">
+                        <span className="font-semibold">Photographer:</span>{' '}
+                        {booking.photographer ? booking.photographer.name : 'Not Assigned'}
+                      </p>
+                    )}
                     {booking.notes && (
                       <p className="text-gray-600">
                         <span className="font-semibold">Notes:</span> {booking.notes}
@@ -620,8 +666,8 @@ const AdminMediaDayBookingPage: React.FC = () => {
                 }
               </p>
               <textarea
-                value={denialReason}
-                onChange={(e) => setDenialReason(e.target.value)}
+                value={adminMessage}
+                onChange={(e) => setAdminMessage(e.target.value)}
                 className="w-full p-2 border rounded-lg mb-4 text-gray-900 bg-white"
                 rows={3}
                 placeholder="Enter reason for overturning/declining..."
@@ -630,7 +676,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
                 <button
                   onClick={() => {
                     setIsDenyModalOpen(false);
-                    setDenialReason('');
+                    setAdminMessage('');
                   }}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800"
                 >
@@ -638,9 +684,9 @@ const AdminMediaDayBookingPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => handleDenyRequest(selectedBooking._id)}
-                  disabled={!denialReason.trim()}
+                  disabled={!adminMessage.trim()}
                   className={`px-4 py-2 rounded-lg transition-colors ${
-                    denialReason.trim()
+                    adminMessage.trim()
                       ? 'bg-red-500 text-white hover:bg-red-600'
                       : 'bg-red-200 text-red-400 cursor-not-allowed'
                   }`}
@@ -655,7 +701,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
         {/* Accept Modal */}
         {isAcceptModalOpen && selectedBooking && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white rounded-xl p-8 max-w-md w-full">
+            <div className="bg-white rounded-xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <h3 className="text-xl font-semibold text-[#303b45] mb-4">
                 {selectedBooking.status === 'declined' ? 'Revert Declined Request' : 'Accept Request'}
               </h3>
@@ -664,27 +710,144 @@ const AdminMediaDayBookingPage: React.FC = () => {
                   ? `Are you sure you want to revert this declined request and accept the booking for ${selectedBooking.customer.name}?`
                   : `Are you sure you want to accept this request for ${selectedBooking.customer.name}?`}
               </p>
-              <div className="text-gray-600 mb-4">
+              <div className="text-gray-600 mb-6">
                 <p><span className="font-semibold">Date & Time:</span> {formatDateTime(selectedBooking.date)}</p>
                 {selectedBooking.notes && (
-                  <p><span className="font-semibold">Notes:</span> {selectedBooking.notes}</p>
+                  <p><span className="font-semibold">Customer Notes:</span> {selectedBooking.notes}</p>
                 )}
               </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    Message for Customer
+                  </label>
+                  <textarea
+                    value={adminMessage}
+                    onChange={(e) => setAdminMessage(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                    rows={4}
+                    placeholder="Enter a message for the customer..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This message will be visible to the customer in their booking section.
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    Message for Employee
+                  </label>
+                  <textarea
+                    value={employeeMessage}
+                    onChange={(e) => setEmployeeMessage(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                    rows={4}
+                    placeholder="Enter a message that will be displayed to the employee..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This message will be visible to the employee in their photography session.
+                  </p>
+                </div>
+              </div>
+              
               <div className="flex justify-end gap-4">
                 <button
                   onClick={() => {
                     setIsAcceptModalOpen(false);
                     setSelectedBooking(null);
+                    setAdminMessage('');
+                    setEmployeeMessage('');
                   }}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleAcceptRequest(selectedBooking._id)}
+                  onClick={() => handleAcceptRequest(selectedBooking._id, adminMessage, employeeMessage)}
                   className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
                 >
                   {selectedBooking.status === 'declined' ? 'Accept Request' : 'Confirm Acceptance'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Photography Modal */}
+        {isEditPhotographyModalOpen && selectedBookingForEdit && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <h3 className="text-xl font-semibold text-[#303b45] mb-4">
+                Edit Photography Assignment
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Update photographer assignment and message for {selectedBookingForEdit.customer.name}
+              </p>
+              <div className="text-gray-600 mb-6">
+                <p><span className="font-semibold">Date & Time:</span> {formatDateTime(selectedBookingForEdit.date)}</p>
+                {selectedBookingForEdit.notes && (
+                  <p><span className="font-semibold">Customer Notes:</span> {selectedBookingForEdit.notes}</p>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    Assign Photographer
+                  </label>
+                  <select
+                    value={selectedPhotographerId || ''}
+                    onChange={(e) => setSelectedPhotographerId(e.target.value || null)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  >
+                    <option value="">No Photographer Assigned</option>
+                    {employees.map((employee) => (
+                      <option key={employee._id} value={employee._id}>
+                        {employee.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Select a photographer to assign to this booking
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    Message for Employee
+                  </label>
+                  <textarea
+                    value={editEmployeeMessage}
+                    onChange={(e) => setEditEmployeeMessage(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                    rows={4}
+                    placeholder="Enter a message for the employee..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This message will be visible to the employee in their photography session.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-4">
+                <button
+                  onClick={() => {
+                    setIsEditPhotographyModalOpen(false);
+                    setSelectedBookingForEdit(null);
+                    setSelectedPhotographerId(null);
+                    setEditEmployeeMessage('');
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => updatePhotographyAssignment(selectedBookingForEdit._id)}
+                  disabled={isUpdatingPhotography}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+                >
+                  {isUpdatingPhotography ? 'Updating...' : 'Update Assignment'}
                 </button>
               </div>
             </div>

@@ -24,6 +24,7 @@ const notificationRoutes = require("./routes/notifications");
 const bookingRoutes = require("./routes/bookings");
 const blockedDateRoutes = require("./routes/blockedDates");
 const onboardingTasksRoutes = require("./routes/onboardingTasks");
+const facebookRoutes = require('./routes/facebook');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
@@ -32,6 +33,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/blocked-dates", blockedDateRoutes);
 app.use("/api/onboarding-tasks", onboardingTasksRoutes);
+app.use('/api/facebook', facebookRoutes);
 
 // Root route
 app.get("/", (req, res) => {
