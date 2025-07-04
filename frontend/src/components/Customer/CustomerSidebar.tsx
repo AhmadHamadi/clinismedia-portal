@@ -19,11 +19,8 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ sidebarOpen, setSideb
     { label: "Onboarding Tasks", path: "/customer/onboarding-tasks" },
     { label: "Google Integration", path: "/customer/google-integration" },
     { label: "Facebook Integration", path: "/customer/facebook-integration" },
-    { label: "Create a Ticket", path: "/customer/create-ticket" },
     { label: "View Your Invoice", path: "/customer/invoices" },
     { label: "View Gallery", path: "/customer/gallery" },
-    { label: "Messages", path: "/customer/messages" },
-    { label: "Settings", path: "/customer/settings" },
   ];
 
   const getButtonClasses = (path: string) => {

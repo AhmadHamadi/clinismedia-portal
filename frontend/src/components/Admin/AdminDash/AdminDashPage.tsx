@@ -36,7 +36,7 @@ const AdminDash = () => {
       {/* Notification Center for Admin */}
       <NotificationCenter navigateTo="/admin/notifications" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
         <DashboardBox
           title="Media Day Calendar"
           description="View and manage media day events"
@@ -56,6 +56,16 @@ const AdminDash = () => {
           title="Manage Employees"
           description="Add, edit, and view employees"
           onClick={() => navigate("/admin/employees")}
+        />
+        <DashboardBox
+          title="Manage Gallery Edits"
+          description="Review and edit gallery items"
+          onClick={() => navigate("/admin/gallery")}
+        />
+        <DashboardBox
+          title="Manage Customer Invoices"
+          description="View and manage customer invoices"
+          onClick={() => navigate("/admin/invoices")}
         />
         <DashboardBox
           title="Settings"

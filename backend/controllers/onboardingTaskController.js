@@ -1,6 +1,7 @@
 const OnboardingTask = require('../models/OnboardingTask');
 const AssignedOnboardingTask = require('../models/AssignedOnboardingTask');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 
 // Master Onboarding Tasks CRUD
 exports.createTask = async (req, res) => {
@@ -52,14 +53,29 @@ exports.assignTasksToClinic = async (req, res) => {
   try {
     const { clinicId, taskIds } = req.body; // taskIds: array of onboarding task _ids
     console.log('Assigning tasks to clinic:', { clinicId, taskIds });
+    
     // Find already assigned taskIds for this clinic
     const existingAssignments = await AssignedOnboardingTask.find({ clinicId });
+    console.log('Existing assignments for clinic:', existingAssignments);
+    
     const alreadyAssignedTaskIds = existingAssignments.map(a => a.taskId.toString());
+    console.log('Already assigned task IDs:', alreadyAssignedTaskIds);
+    
     // Filter out taskIds that are already assigned
     const newTaskIds = taskIds.filter(taskId => !alreadyAssignedTaskIds.includes(taskId));
-    // Assign only new tasks
+    console.log('New task IDs to assign:', newTaskIds);
+    
+    if (newTaskIds.length === 0) {
+      console.log('No new tasks to assign');
+      return res.status(200).json({ message: 'All tasks already assigned' });
+    }
+    
+    // Assign only new tasks, ensuring ObjectId type
     const assignments = await AssignedOnboardingTask.insertMany(
-      newTaskIds.map(taskId => ({ clinicId, taskId }))
+      newTaskIds.map(taskId => ({
+        clinicId: new mongoose.Types.ObjectId(clinicId),
+        taskId: new mongoose.Types.ObjectId(taskId)
+      }))
     );
     console.log('Created assignments:', assignments);
     res.status(201).json(assignments);
@@ -113,16 +129,17 @@ exports.updateAssignedTaskStatus = async (req, res) => {
 exports.getAssignedTasksForClinic = async (req, res) => {
   try {
     const { clinicId } = req.params;
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const assigned = await AssignedOnboardingTask.find({
-      clinicId,
-      $or: [
-        { status: { $ne: 'completed' } },
-        { status: 'completed', completedAt: { $gte: oneWeekAgo } }
-      ]
-    }).populate('taskId');
+    console.log('Fetching assigned tasks for clinic:', clinicId);
+    console.log('User making request:', req.user);
+    
+    // Get all assigned tasks for this clinic, regardless of status
+    const assigned = await AssignedOnboardingTask.find({ clinicId }).populate('taskId');
+    console.log('Found assigned tasks:', assigned);
+    console.log('Number of assigned tasks:', assigned.length);
+    
     res.json(assigned);
   } catch (err) {
+    console.error('Error in getAssignedTasksForClinic:', err);
     res.status(500).json({ error: err.message });
   }
 };

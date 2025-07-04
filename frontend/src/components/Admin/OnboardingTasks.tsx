@@ -47,27 +47,41 @@ const OnboardingTasks: React.FC = () => {
   const [categories, setCategories] = useState<string[]>([]);
 
   const fetchTasks = async () => {
-    const token = localStorage.getItem('adminToken');
-    const res = await axios.get(`${API_BASE_URL}/onboarding-tasks`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    setTasks(res.data);
-    setCategories([...new Set(res.data.map((t: any) => String(t.category)).filter(Boolean))] as string[]);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await axios.get(`${API_BASE_URL}/onboarding-tasks`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log('Fetched onboarding tasks:', res.data);
+      setTasks(res.data);
+      setCategories([...new Set(res.data.map((t: any) => String(t.category)).filter(Boolean))] as string[]);
+    } catch (err) {
+      console.error("❌ Failed to fetch onboarding tasks", err);
+    }
   };
 
   // Fetch clinics and assignments
   const fetchClinicsAndAssignments = async () => {
     const token = localStorage.getItem('adminToken');
-    // Fetch clinics (customers)
-    const clinicsRes = await axios.get(`${API_BASE_URL}/customers`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    setClinics(clinicsRes.data);
-    // Fetch assignments
-    const assignmentsRes = await axios.get(`${API_BASE_URL}/onboarding-tasks/assignments/all`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    setClinicAssignments(assignmentsRes.data.assignments);
+    console.log('Fetching clinics and assignments with token:', token ? 'present' : 'missing');
+    
+    try {
+      // Fetch clinics (customers)
+      const clinicsRes = await axios.get(`${API_BASE_URL}/customers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log('Fetched clinics:', clinicsRes.data);
+      setClinics(clinicsRes.data);
+      
+      // Fetch assignments
+      const assignmentsRes = await axios.get(`${API_BASE_URL}/onboarding-tasks/assignments/all`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log('Fetched assignments:', assignmentsRes.data);
+      setClinicAssignments(assignmentsRes.data.assignments);
+    } catch (error) {
+      console.error('Error fetching clinics and assignments:', error);
+    }
   };
 
   useEffect(() => {
@@ -157,9 +171,9 @@ const OnboardingTasks: React.FC = () => {
   const getAssignmentStatus = (a: any) => a.status || 'not_started';
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-100 font-sans">
-      {/* Master Task List */}
-      <div className="w-full md:w-1/2 p-6">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gray-100 font-sans gap-6 p-6">
+      {/* Left: Master Task List */}
+      <div className="w-full md:w-2/3 bg-white rounded-lg shadow-md p-6">
         <h1 className="text-2xl font-bold text-[#303b45] mb-4">Onboarding Tasks</h1>
         <div className="bg-white rounded-lg shadow-md p-4">
           <table className="w-full">
@@ -208,9 +222,8 @@ const OnboardingTasks: React.FC = () => {
           </button>
         </div>
       </div>
-
-      {/* Right-side: Clinic Task Management */}
-      <div className="w-full md:w-1/2 p-6 border-l border-gray-200 bg-white">
+      {/* Right: Clinic Onboarding Tasks */}
+      <div className="w-full md:w-1/3 bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-bold mb-4 text-[#303b45]">Clinic Onboarding Tasks</h2>
         <div className="mb-4">
           <label className="block mb-2 font-semibold">Select Clinic:</label>
@@ -321,14 +334,20 @@ const OnboardingTasks: React.FC = () => {
                   setShowAssignModal(false);
                   setSelectedClinicId('');
                   const token = localStorage.getItem('adminToken');
-                  await axios.post(`${API_BASE_URL}/onboarding-tasks/assign`, {
-                    clinicId: selectedClinicId,
-                    taskIds: selectedTaskIds,
-                  }, {
-                    headers: { Authorization: `Bearer ${token}` },
-                  });
-                  setSelectedTaskIds([]);
-                  fetchClinicsAndAssignments();
+                  console.log('Assigning tasks:', { clinicId: selectedClinicId, taskIds: selectedTaskIds });
+                  try {
+                    const response = await axios.post(`${API_BASE_URL}/onboarding-tasks/assign`, {
+                      clinicId: selectedClinicId,
+                      taskIds: selectedTaskIds,
+                    }, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    console.log('Assignment response:', response.data);
+                    setSelectedTaskIds([]);
+                    fetchClinicsAndAssignments();
+                  } catch (error) {
+                    console.error('Error assigning tasks:', error);
+                  }
                 }}
               >Assign</button>
               <button

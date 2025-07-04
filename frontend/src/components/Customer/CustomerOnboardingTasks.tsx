@@ -13,13 +13,19 @@ const CustomerOnboardingTasks: React.FC = () => {
       setLoading(true);
       const token = localStorage.getItem('customerToken');
       const userStr = localStorage.getItem('customerData');
-      if (!userStr) return;
+      if (!userStr) {
+        console.error('No customer data found in localStorage');
+        setLoading(false);
+        return;
+      }
       const user = JSON.parse(userStr);
-      const clinicId = user.id;
+      const clinicId = user.id || user._id;
+      console.log('Fetching tasks for clinic:', clinicId);
       try {
         const res = await axios.get(`${API_BASE_URL}/onboarding-tasks/assigned/${clinicId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        console.log('Received assigned tasks:', res.data);
         setAssignedTasks(res.data);
         setCompletedTasks(res.data.filter((a: any) => a.completed).map((a: any) => a.taskId._id));
         setCategories([...new Set(res.data.map((a: any) => a.taskId.category).filter(Boolean))] as string[]);

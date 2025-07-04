@@ -23,6 +23,8 @@ const SidebarMenu = () => {
     { label: "Onboarding Tasks", path: "/admin/onboarding" },
     { label: "Manage Customers", path: "/admin/customers" },
     { label: "Manage Employees", path: "/admin/employees" },
+    { label: "Manage Gallery Edits", path: "/admin/gallery" },
+    { label: "Manage Customer Invoices", path: "/admin/invoices" },
     { label: "Notifications", path: "/admin/notifications" },
     { label: "Settings", path: "/admin/settings" },
   ];
@@ -35,7 +37,7 @@ const SidebarMenu = () => {
   };
 
   return (
-    <div className={`fixed left-0 top-0 h-full bg-white shadow-lg border-r border-gray-200 z-50 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"}`}>
+    <div className={`fixed left-0 top-0 h-full bg-white shadow-lg border-r border-gray-200 z-50 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"}`} style={{ overflow: 'hidden' }}>
       {/* Top: Logo left, hamburger right */}
       <div className="p-4 flex items-center justify-between border-b border-gray-200">
         {sidebarOpen && (
@@ -54,7 +56,7 @@ const SidebarMenu = () => {
       </div>
 
       {/* Navigation */}
-      <nav className="p-4 space-y-2 mt-4">
+      <nav className="p-4 space-y-2 mt-4 overflow-hidden">
         {navItems.map(({ label, path }) => (
           <button
             key={path}
