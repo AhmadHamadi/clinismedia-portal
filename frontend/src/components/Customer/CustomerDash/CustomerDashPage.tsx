@@ -58,69 +58,71 @@ const CustomerDashboard = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
       {/* Welcome Section */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">
+      <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+        <h2 className="text-2xl font-bold text-gray-900 mb-1">
           Welcome back, {customer.name}! 👋
         </h2>
-        <p className="text-gray-600">
+        <p className="text-gray-600 text-sm">
           Here's your personalized dashboard where you can manage your projects and view your media assets.
         </p>
       </div>
 
       {/* Customer Info Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+        <div className="bg-white rounded-lg shadow-md p-4">
           <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="p-1 bg-blue-100 rounded-lg">
+              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <div className="ml-4">
-              <h3 className="text-lg font-semibold text-gray-900">Profile</h3>
-              <p className="text-gray-600">{customer.email}</p>
+            <div className="ml-2">
+              <h3 className="text-base font-semibold text-gray-900">Profile</h3>
+              <p className="text-gray-600 text-xs">{customer.email}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-md p-4">
           <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="p-1 bg-green-100 rounded-lg">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div className="ml-4">
-              <h3 className="text-lg font-semibold text-gray-900">Status</h3>
-              <p className="text-green-600 font-medium">Active</p>
+            <div className="ml-2">
+              <h3 className="text-base font-semibold text-gray-900">Status</h3>
+              <p className="text-green-600 font-medium text-xs">Active</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-md p-4">
           <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="p-1 bg-purple-100 rounded-lg">
+              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div className="ml-4">
-              <h3 className="text-lg font-semibold text-gray-900">Member Since</h3>
-              <p className="text-gray-600">Recently joined</p>
+            <div className="ml-2">
+              <h3 className="text-base font-semibold text-gray-900">Member Since</h3>
+              <p className="text-gray-600 text-xs">Recently joined</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Notification Center */}
-      <NotificationCenter navigateTo="/customer/notifications"/>
+      <div className="mb-4">
+        <NotificationCenter navigateTo="/customer/notifications"/>
+      </div>
 
       {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="bg-white rounded-lg shadow-md p-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Quick Actions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <button onClick={() => navigate("/customer/media-day-booking")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
             <div className="flex items-center">
               <div className="p-2 bg-pink-100 rounded-lg mr-3">
@@ -163,16 +165,16 @@ const CustomerDashboard = () => {
             </div>
           </button>
 
-          <button onClick={() => navigate("/customer/dashboard")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
+          <button onClick={() => navigate("/customer/onboarding-tasks")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
             <div className="flex items-center">
-              <div className="p-2 bg-gray-100 rounded-lg mr-3">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7M5 7h14M5 11h14M5 17h14" />
                 </svg>
               </div>
               <div>
-                <h4 className="font-medium text-gray-900">Create a Ticket</h4>
-                <p className="text-sm text-gray-600">Get support for your issues</p>
+                <h4 className="font-medium text-gray-900">Onboarding Tasks</h4>
+                <p className="text-sm text-gray-600">Complete your onboarding checklist</p>
               </div>
             </div>
           </button>
@@ -201,20 +203,6 @@ const CustomerDashboard = () => {
               <div>
                 <h4 className="font-medium text-gray-900">View Gallery</h4>
                 <p className="text-sm text-gray-600">Browse your media assets</p>
-              </div>
-            </div>
-          </button>
-
-          <button onClick={() => navigate("/customer/onboarding-tasks")} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-left">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7M5 7h14M5 11h14M5 17h14" />
-                </svg>
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-900">Onboarding Tasks</h4>
-                <p className="text-sm text-gray-600">Complete your onboarding checklist</p>
               </div>
             </div>
           </button>
