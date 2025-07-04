@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CustomerSidebar from './CustomerSidebar'; // Import the new CustomerSidebar
 import { IoMdArrowBack } from "react-icons/io"; // Back arrow icon
+import CustomerInvoicePage from './CustomerInvoicePage';
 
 interface CustomerPortalLayoutProps {
   children: React.ReactNode;

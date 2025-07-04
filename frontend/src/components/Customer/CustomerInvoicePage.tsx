@@ -1,6 +1,20 @@
-import React from "react";
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import { API_BASE_URL, BACKEND_BASE_URL } from '../../utils/api';
 
-const INVOICE_LINK = "https://your-invoice-link.com"; // Update this link monthly as needed
+interface Invoice {
+  _id: string;
+  name: string;
+  url: string;
+  date: string;
+}
+
+interface AssignedInvoice {
+  _id: string;
+  invoiceId: Invoice;
+  isCurrent: boolean;
+  assignedAt: string;
+}
 
 const DecorativeSparkle = () => (
   <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-2 animate-pulse">
@@ -8,32 +22,131 @@ const DecorativeSparkle = () => (
   </svg>
 );
 
-const CustomerInvoicePage: React.FC = () => (
-  <div className="flex flex-col items-center justify-center min-h-[60vh] px-2 py-8 bg-gradient-to-br from-[#f8fafc] to-[#e0f2fe]">
-    <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-10 flex flex-col items-center border border-[#e0e7ef] relative">
-      <div className="absolute top-6 right-6 opacity-20 rotate-12">
-        <DecorativeSparkle />
+const CustomerInvoicePage: React.FC = () => {
+  const [assignedInvoices, setAssignedInvoices] = useState<AssignedInvoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentInvoice, setCurrentInvoice] = useState<AssignedInvoice | null>(null);
+  const [historyInvoices, setHistoryInvoices] = useState<AssignedInvoice[]>([]);
+
+  useEffect(() => {
+    const fetchAssignedInvoices = async () => {
+      setLoading(true);
+      const token = localStorage.getItem('customerToken');
+      const userStr = localStorage.getItem('customerData');
+      if (!userStr) {
+        setLoading(false);
+        return;
+      }
+      const user = JSON.parse(userStr);
+      const clinicId = user.id || user._id;
+      try {
+        const res = await axios.get(`${API_BASE_URL}/invoices/assigned/${clinicId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setAssignedInvoices(res.data);
+        const current = res.data.find((item: AssignedInvoice) => item.isCurrent);
+        const history = res.data.filter((item: AssignedInvoice) => !item.isCurrent);
+        setCurrentInvoice(current || null);
+        setHistoryInvoices(history);
+      } catch (err) {
+        setAssignedInvoices([]);
+        setCurrentInvoice(null);
+        setHistoryInvoices([]);
+      }
+      setLoading(false);
+    };
+    fetchAssignedInvoices();
+  }, []);
+
+  if (loading) return <div className="p-6 text-gray-600">Loading invoices...</div>;
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-6 p-6">
+      {/* Left: Invoice History */}
+      <div className="w-full lg:w-1/3">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-bold text-[#303b45] mb-4">Invoice History</h2>
+          {historyInvoices.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">No previous invoices found.</p>
+          ) : (
+            <div className="space-y-3">
+              {historyInvoices.map((item) => (
+                <div key={item._id} className="border rounded-lg p-3 hover:bg-gray-50">
+                  <h3 className="font-medium text-gray-900 mb-1">{item.invoiceId.name}</h3>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Assigned: {new Date(item.assignedAt).toLocaleDateString()}
+                  </p>
+                  <div className="flex gap-2">
+                    <a
+                      href={BACKEND_BASE_URL + '/api/invoices/view/' + item.invoiceId.url.split('/').pop()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-sm font-medium"
+                    >
+                      View
+                    </a>
+                    <a
+                      href={BACKEND_BASE_URL + '/api/invoices/file/' + item.invoiceId.url.split('/').pop()}
+                      download
+                      className="text-green-600 hover:underline text-sm font-medium"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-      <div className="absolute bottom-6 left-6 opacity-10 -rotate-12">
-        <DecorativeSparkle />
+      {/* Right: Current Invoice */}
+      <div className="w-full lg:w-2/3">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-2 py-8 bg-gradient-to-br from-[#f8fafc] to-[#e0f2fe]">
+          <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-10 flex flex-col items-center border border-[#e0e7ef] relative">
+            {currentInvoice ? (
+              <>
+                <h1 className="text-3xl font-extrabold text-[#60a5fa] mb-2 tracking-tight text-center font-sans">
+                  {currentInvoice.invoiceId.name}
+                </h1>
+                <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
+                  Access your latest invoice securely. Assigned on {new Date(currentInvoice.assignedAt).toLocaleDateString()}.
+                </p>
+                <div className="flex gap-4">
+                  <a
+                    href={BACKEND_BASE_URL + '/api/invoices/view/' + currentInvoice.invoiceId.url.split('/').pop()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-8 py-3 bg-[#98c6d5] text-white rounded-xl font-bold text-lg shadow-lg hover:bg-[#1877f3] hover:scale-105 transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-[#98c6d5]/40"
+                  >
+                    View PDF
+                  </a>
+                  <a
+                    href={BACKEND_BASE_URL + '/api/invoices/file/' + currentInvoice.invoiceId.url.split('/').pop()}
+                    download
+                    className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 hover:scale-105 transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-green-600/40"
+                  >
+                    Download
+                  </a>
+                </div>
+              </>
+            ) : (
+              <>
+                <h1 className="text-3xl font-extrabold text-[#60a5fa] mb-2 tracking-tight text-center font-sans">
+                  No Current Invoice
+                </h1>
+                <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
+                  No invoice has been assigned to you yet. Check back later or contact your administrator.
+                </p>
+                <div className="mt-2 px-8 py-3 bg-gray-300 text-gray-600 rounded-xl font-bold text-lg">
+                  <span className="inline-block align-middle mr-2">⏳</span> Awaiting Assignment
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
-      <DecorativeSparkle />
-      <h1 className="text-3xl font-extrabold text-[#60a5fa] mb-2 tracking-tight text-center font-sans">
-        View Your Latest Invoice
-      </h1>
-      <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
-        Access your most recent invoice securely. Download or print for your records. New invoices are added every month—check back often!
-      </p>
-      <a
-        href={INVOICE_LINK}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-2 px-8 py-3 bg-[#98c6d5] text-white rounded-xl font-bold text-lg shadow-lg hover:bg-[#1877f3] hover:scale-105 transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-[#98c6d5]/40"
-      >
-        <span className="inline-block align-middle mr-2">🔗</span> View
-      </a>
     </div>
-  </div>
-);
+  );
+};
 
 export default CustomerInvoicePage; 
