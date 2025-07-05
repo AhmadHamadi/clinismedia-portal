@@ -60,6 +60,12 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
+  location: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.643 4.5 10.5a7.5 7.5 0 1115 0z" />
+    </svg>
+  ),
 };
 
 // Custom toolbar component
@@ -112,8 +118,8 @@ const BookingCard: React.FC<{
           <span>{booking.customer.name}</span>
         </div>
         <div className="flex items-center gap-2">
-          <Icons.email className="w-5 h-5 text-[#98c6d5]" />
-          <span>{booking.customer.email}</span>
+          <Icons.location className="w-5 h-5 text-[#98c6d5]" />
+          <span>{booking.customer.location || 'No location specified'}</span>
         </div>
       </div>
     </div>
@@ -182,7 +188,7 @@ const TabButton: React.FC<{
 
 export const EmployeeMediaDayBookingPage: React.FC = () => {
   // State for tab switching
-  const [activeTab, setActiveTab] = useState<'accepted' | 'available'>('accepted');
+  const [activeTab, setActiveTab] = useState<'accepted' | 'available'>('available');
 
   // Get data from backend
   const {
@@ -305,18 +311,18 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
           <h2 className="text-2xl font-bold text-[#303b45]">My Photography Sessions</h2>
           <div className="flex bg-gray-100 rounded-lg p-1">
             <TabButton
-              isActive={activeTab === 'accepted'}
-              onClick={() => setActiveTab('accepted')}
-              activeColor="bg-green-500"
-            >
-              Accepted Sessions
-            </TabButton>
-            <TabButton
               isActive={activeTab === 'available'}
               onClick={() => setActiveTab('available')}
               activeColor="bg-[#60a5fa]"
             >
               Available Sessions
+            </TabButton>
+            <TabButton
+              isActive={activeTab === 'accepted'}
+              onClick={() => setActiveTab('accepted')}
+              activeColor="bg-green-500"
+            >
+              Accepted Sessions
             </TabButton>
           </div>
         </div>

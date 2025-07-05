@@ -19,6 +19,7 @@ export interface Booking {
   customer: {
     name: string;
     email: string;
+    location?: string;
   };
 }
 
