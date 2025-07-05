@@ -51,37 +51,27 @@ exports.deleteTask = async (req, res) => {
 // Assign/unassign tasks to clinics
 exports.assignTasksToClinic = async (req, res) => {
   try {
-    const { clinicId, taskIds } = req.body; // taskIds: array of onboarding task _ids
-    console.log('Assigning tasks to clinic:', { clinicId, taskIds });
+    const { clinicId, taskIds } = req.body;
     
-    // Find already assigned taskIds for this clinic
-    const existingAssignments = await AssignedOnboardingTask.find({ clinicId });
-    console.log('Existing assignments for clinic:', existingAssignments);
-    
-    const alreadyAssignedTaskIds = existingAssignments.map(a => a.taskId.toString());
-    console.log('Already assigned task IDs:', alreadyAssignedTaskIds);
-    
-    // Filter out taskIds that are already assigned
-    const newTaskIds = taskIds.filter(taskId => !alreadyAssignedTaskIds.includes(taskId));
-    console.log('New task IDs to assign:', newTaskIds);
-    
-    if (newTaskIds.length === 0) {
-      console.log('No new tasks to assign');
-      return res.status(200).json({ message: 'All tasks already assigned' });
+    if (!clinicId || !taskIds || !Array.isArray(taskIds)) {
+      return res.status(400).json({ message: 'Clinic ID and task IDs array are required' });
     }
     
-    // Assign only new tasks, ensuring ObjectId type
-    const assignments = await AssignedOnboardingTask.insertMany(
-      newTaskIds.map(taskId => ({
-        clinicId: new mongoose.Types.ObjectId(clinicId),
-        taskId: new mongoose.Types.ObjectId(taskId)
-      }))
-    );
-    console.log('Created assignments:', assignments);
-    res.status(201).json(assignments);
-  } catch (err) {
-    console.error('Error in assignTasksToClinic:', err);
-    res.status(500).json({ error: err.message });
+    // Delete existing assignments for this clinic
+    await AssignedOnboardingTask.deleteMany({ clinicId });
+    
+    // Create new assignments
+    const assignments = taskIds.map(taskId => ({
+      clinicId,
+      taskId,
+      assignedAt: new Date()
+    }));
+    
+    await AssignedOnboardingTask.insertMany(assignments);
+    
+    res.json({ message: 'Tasks assigned successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -105,23 +95,29 @@ exports.markTaskCompleted = async (req, res) => {
 exports.updateAssignedTaskStatus = async (req, res) => {
   try {
     const { clinicId, taskId, status } = req.body;
+    
+    if (!clinicId || !taskId || !status) {
+      return res.status(400).json({ message: 'Clinic ID, task ID, and status are required' });
+    }
+    
     const update = { status };
     if (status === 'completed') {
       update.completedAt = new Date();
-    } else {
-      update.completedAt = null;
     }
-    console.log('Updating status:', { clinicId, taskId, status, update });
+    
     const assignment = await AssignedOnboardingTask.findOneAndUpdate(
       { clinicId, taskId },
       update,
       { new: true }
     );
-    console.log('Updated assignment:', assignment);
-    if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
+    
+    if (!assignment) {
+      return res.status(404).json({ message: 'Assignment not found' });
+    }
+    
     res.json(assignment);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 

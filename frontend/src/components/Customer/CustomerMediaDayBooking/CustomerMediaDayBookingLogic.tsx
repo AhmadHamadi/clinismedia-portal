@@ -97,11 +97,6 @@ export const useMediaDayBooking = () => {
     [bookings]
   );
 
-  const acceptedBookings = useMemo(() => 
-    bookings.filter(booking => booking.status === 'accepted'),
-    [bookings]
-  );
-
   // Fetch all accepted bookings for the selected date
   const fetchAcceptedBookingsForDate = useCallback(async (date: Date | null) => {
     if (!date) {
