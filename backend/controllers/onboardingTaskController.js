@@ -1,6 +1,7 @@
 const OnboardingTask = require('../models/OnboardingTask');
 const AssignedOnboardingTask = require('../models/AssignedOnboardingTask');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 
 // Master Onboarding Tasks CRUD
 exports.createTask = async (req, res) => {
@@ -124,16 +125,17 @@ exports.updateAssignedTaskStatus = async (req, res) => {
 exports.getAssignedTasksForClinic = async (req, res) => {
   try {
     const { clinicId } = req.params;
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const assigned = await AssignedOnboardingTask.find({
-      clinicId,
-      $or: [
-        { status: { $ne: 'completed' } },
-        { status: 'completed', completedAt: { $gte: oneWeekAgo } }
-      ]
-    }).populate('taskId');
+    console.log('Fetching assigned tasks for clinic:', clinicId);
+    console.log('User making request:', req.user);
+    
+    // Get all assigned tasks for this clinic, regardless of status
+    const assigned = await AssignedOnboardingTask.find({ clinicId }).populate('taskId');
+    console.log('Found assigned tasks:', assigned);
+    console.log('Number of assigned tasks:', assigned.length);
+    
     res.json(assigned);
   } catch (err) {
+    console.error('Error in getAssignedTasksForClinic:', err);
     res.status(500).json({ error: err.message });
   }
 };

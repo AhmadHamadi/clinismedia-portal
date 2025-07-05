@@ -53,6 +53,22 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  gallery: [
+    {
+      name: String,
+      url: String,
+      date: Date,
+    }
+  ],
+  invoices: [
+    {
+      name: String,
+      url: String,
+      date: Date,
+    }
+  ],
+  visibleGalleryItems: [{ type: mongoose.Schema.Types.ObjectId, ref: 'GalleryItem' }],
+  visibleInvoices: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' }],
 }, { timestamps: true });
 
 module.exports = mongoose.model("User", userSchema);

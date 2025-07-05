@@ -8,6 +8,8 @@ import CustomerManagementPage from './CustomerManagement/CustomerManagementPage'
 import EmployeeManagementPage from './EmployeeManagement/EmployeeManagementPage';
 import Settings from './Settings';
 import AdminNotificationPage from './AdminNotificationPage';
+import AdminGalleryPage from './AdminGalleryPage';
+import AdminInvoicePage from './AdminInvoicePage';
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -36,8 +38,10 @@ const AdminLayout = () => {
           <Route path="/onboarding" element={<OnboardingTasks />} />
           <Route path="/customers" element={<CustomerManagementPage />} />
           <Route path="/employees" element={<EmployeeManagementPage />} />
+          <Route path="/gallery" element={<AdminGalleryPage />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/notifications" element={<AdminNotificationPage />} />
+          <Route path="/invoices" element={<AdminInvoicePage />} />
         </Routes>
       </div>
     </div>
