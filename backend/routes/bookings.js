@@ -4,6 +4,8 @@ const Booking = require('../models/Booking');
 const BlockedDate = require('../models/BlockedDate');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
+const EmailService = require('../services/emailService');
+const User = require('../models/User');
 
 // Utility functions
 const checkDateAvailability = async (date) => {
@@ -26,6 +28,22 @@ const checkDateAvailability = async (date) => {
 
 const populateBookingWithCustomer = async (bookingId) => {
   return await Booking.findById(bookingId).populate('customer', 'name email');
+};
+
+const formatDateForEmail = (date) => {
+  return new Date(date).toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+};
+
+const sendEmailAsync = async (emailFunction, ...args) => {
+  try {
+    await emailFunction(...args);
+  } catch (error) {
+    console.error('Failed to send email:', error);
+  }
 };
 
 // Get all bookings (Admin only)
@@ -85,8 +103,16 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
 
     const savedBooking = await booking.save();
     const populatedBooking = await populateBookingWithCustomer(savedBooking._id);
-    
+
     res.status(201).json(populatedBooking);
+
+    // Send booking confirmation email asynchronously
+    (async () => {
+      const customer = await User.findById(req.user._id);
+      const clinicName = customer.name || 'Customer';
+      const requestedDate = formatDateForEmail(date);
+      await sendEmailAsync(EmailService.sendBookingConfirmation, clinicName, requestedDate);
+    })();
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -148,7 +174,30 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
     const populatedBooking = await Booking.findById(updatedBooking._id)
       .populate('customer', 'name email')
       .populate('photographer', 'name email');
+    
     res.json(populatedBooking);
+
+    // Send email notification based on status
+    if (status === 'accepted') {
+      // Send booking accepted email asynchronously
+      (async () => {
+        const customer = await User.findById(booking.customer);
+        const clinicName = customer.name || 'Customer';
+        const bookingDate = formatDateForEmail(booking.date);
+        await sendEmailAsync(EmailService.sendBookingAccepted, clinicName, bookingDate);
+        
+        // Also notify photographers about the available session
+        await sendEmailAsync(EmailService.sendPhotographerNotification, clinicName, bookingDate);
+      })();
+    } else if (status === 'declined') {
+      // Send booking declined email asynchronously
+      (async () => {
+        const customer = await User.findById(booking.customer);
+        const clinicName = customer.name || 'Customer';
+        const requestedDate = formatDateForEmail(booking.date);
+        await sendEmailAsync(EmailService.sendBookingDeclined, clinicName, requestedDate);
+      })();
+    }
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
