@@ -27,7 +27,7 @@ router.get("/profile", authenticateToken, async (req, res) => {
 // GET all customers
 router.get("/", async (req, res) => {
   try {
-    const customers = await User.find({ role: "customer" }).select("name username email _id");
+    const customers = await User.find({ role: "customer" }).select("name username email location _id");
     res.status(200).json(customers);
   } catch (err) {
     console.error("❌ Failed to fetch customers:", err.message);
@@ -38,9 +38,9 @@ router.get("/", async (req, res) => {
 // POST create a new customer
 router.post("/", async (req, res) => {
   try {
-    const { name, username, email, password } = req.body;
+    const { name, username, email, password, location } = req.body;
 
-    if (!name || !username || !email || !password) {
+    if (!name || !username || !email || !password || !location) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
@@ -67,6 +67,7 @@ router.post("/", async (req, res) => {
       email,
       password: hashedPassword,
       role: "customer",
+      location,
     });
 
     await newCustomer.save();
@@ -95,8 +96,8 @@ router.delete("/:id", async (req, res) => {
 // UPDATE a customer by ID
 router.put("/:id", async (req, res) => {
   try {
-    const { name, username, email, password } = req.body;
-    const updateData = { name, username, email };
+    const { name, username, email, password, location } = req.body;
+    const updateData = { name, username, email, location };
     if (password) {
       updateData.password = await bcrypt.hash(password, 10);
     }

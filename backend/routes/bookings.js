@@ -27,7 +27,7 @@ const checkDateAvailability = async (date) => {
 };
 
 const populateBookingWithCustomer = async (bookingId) => {
-  return await Booking.findById(bookingId).populate('customer', 'name email');
+  return await Booking.findById(bookingId).populate('customer', 'name email location');
 };
 
 const formatDateForEmail = (date) => {
@@ -50,7 +50,7 @@ const sendEmailAsync = async (emailFunction, ...args) => {
 router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const bookings = await Booking.find()
-      .populate('customer', 'name email')
+      .populate('customer', 'name email location')
       .populate('photographer', 'name email')
       .sort({ date: 1 });
     
@@ -64,7 +64,7 @@ router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
 router.get('/employee', authenticateToken, authorizeRole('employee'), async (req, res) => {
   try {
     const bookings = await Booking.find()
-      .populate('customer', 'name email')
+      .populate('customer', 'name email location')
       .populate('photographer', 'name email')
       .sort({ date: 1 });
     
@@ -78,7 +78,7 @@ router.get('/employee', authenticateToken, authorizeRole('employee'), async (req
 router.get('/my-bookings', authenticateToken, authorizeRole('customer'), async (req, res) => {
   try {
     const bookings = await Booking.find({ customer: req.user._id })
-      .populate('customer', 'name email')
+      .populate('customer', 'name email location')
       .populate('photographer', 'name email')
       .sort({ date: 1 });
     
@@ -138,7 +138,7 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
 
     const savedBooking = await booking.save();
     const populatedBooking = await Booking.findById(savedBooking._id)
-      .populate('customer', 'name email');
+      .populate('customer', 'name email location');
     res.status(201).json(populatedBooking);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -172,7 +172,7 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
     
     const updatedBooking = await booking.save();
     const populatedBooking = await Booking.findById(updatedBooking._id)
-      .populate('customer', 'name email')
+      .populate('customer', 'name email location')
       .populate('photographer', 'name email');
     
     res.json(populatedBooking);
@@ -225,7 +225,7 @@ router.patch('/:id/photography', authenticateToken, authorizeRole('admin'), asyn
     
     const updatedBooking = await booking.save();
     const populatedBooking = await Booking.findById(updatedBooking._id)
-      .populate('customer', 'name email')
+      .populate('customer', 'name email location')
       .populate('photographer', 'name email');
     res.json(populatedBooking);
   } catch (error) {
@@ -256,7 +256,7 @@ router.patch('/:id/accept-session', authenticateToken, authorizeRole('employee')
     
     const updatedBooking = await booking.save();
     const populatedBooking = await Booking.findById(updatedBooking._id)
-      .populate('customer', 'name email')
+      .populate('customer', 'name email location')
       .populate('photographer', 'name email');
     res.json(populatedBooking);
   } catch (error) {

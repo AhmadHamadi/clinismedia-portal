@@ -26,6 +26,12 @@ const userSchema = new mongoose.Schema({
     enum: ["admin", "customer", "employee"],
     default: "customer",
   },
+  location: {
+    type: String,
+    required: function () {
+      return this.role === "customer";
+    },
+  },
   department: {
     type: String,
     enum: ["photography", "web", "social"],
