@@ -59,13 +59,14 @@ const CustomerManagementPage = () => {
                   <th className="p-6 text-left font-semibold text-gray-700">Name</th>
                   <th className="p-6 text-left font-semibold text-black">Username</th>
                   <th className="p-6 text-left font-semibold text-black">Email</th>
+                  <th className="p-6 text-left font-semibold text-black">Location</th>
                   <th className="p-6 text-left font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-gray-500">No customers found.</td>
+                    <td colSpan={5} className="p-8 text-center text-gray-500">No customers found.</td>
                   </tr>
                 ) : (
                   paginatedCustomers.map((customer) => (
@@ -150,6 +151,14 @@ const CustomerManagementPage = () => {
                     className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
                   />
                   <input
+                    type="text"
+                    name="location"
+                    placeholder="Location"
+                    value={formData.location}
+                    onChange={handleInputChange}
+                    className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+                  />
+                  <input
                     type="password"
                     name="password"
                     placeholder="Password"
@@ -207,9 +216,17 @@ const CustomerManagementPage = () => {
                     className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black"
                   />
                   <input
+                    type="text"
+                    name="location"
+                    placeholder="Location"
+                    value={editFormData.location}
+                    onChange={handleEditInputChange}
+                    className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black"
+                  />
+                  <input
                     type="password"
                     name="password"
-                    placeholder="New Password (leave blank to keep current)"
+                    placeholder="Password (leave blank to keep current)"
                     value={editFormData.password}
                     onChange={handleEditInputChange}
                     className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black"
@@ -224,7 +241,7 @@ const CustomerManagementPage = () => {
                     </button>
                     <button
                       type="submit"
-                      className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                      className="px-6 py-2 rounded-lg bg-[#98c6d5] text-white hover:bg-blue-700"
                     >
                       Save Changes
                     </button>

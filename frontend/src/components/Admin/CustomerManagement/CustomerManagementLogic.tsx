@@ -8,6 +8,7 @@ export interface Customer {
   name: string;
   email: string;
   username?: string;
+  location?: string;
 }
 
 interface CustomerTableRowProps {
@@ -27,6 +28,7 @@ export const CustomerTableRow: React.FC<CustomerTableRowProps> = ({
     <td className="p-6 text-black">{customer.name}</td>
     <td className="p-6 text-black">{customer.username || '-'}</td>
     <td className="p-6 text-black">{customer.email}</td>
+    <td className="p-6 text-black">{customer.location || '-'}</td>
     <td className="p-6">
       <button className="text-[#98c6d5] hover:underline mr-4" onClick={() => onView(customer)}>
         View
@@ -52,6 +54,7 @@ export function useCustomerManagement() {
     username: "",
     email: "",
     password: "",
+    location: "",
   });
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -60,6 +63,7 @@ export function useCustomerManagement() {
     username: "",
     email: "",
     password: "",
+    location: "",
   });
 
   const fetchCustomers = async () => {
@@ -77,7 +81,7 @@ export function useCustomerManagement() {
 
   const validateForm = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!formData.name.trim() || !formData.username.trim() || !formData.email.trim() || !formData.password) {
+    if (!formData.name.trim() || !formData.username.trim() || !formData.email.trim() || !formData.password || !formData.location.trim()) {
       alert("All fields are required.");
       return false;
     }
@@ -93,7 +97,7 @@ export function useCustomerManagement() {
     try {
       await axios.post(`${API_BASE_URL}/customers`, { ...formData });
       setShowModal(false);
-      setFormData({ name: "", username: "", email: "", password: "" });
+      setFormData({ name: "", username: "", email: "", password: "", location: "" });
       fetchCustomers();
     } catch (err: any) {
       if (err.response && err.response.data && err.response.data.error) {
@@ -115,7 +119,7 @@ export function useCustomerManagement() {
   };
 
   const handleViewCustomer = (customer: Customer) => {
-    alert(`Customer Details:\n\nName: ${customer.name}\nUsername: ${customer.username || 'N/A'}\nEmail: ${customer.email}`);
+    alert(`Customer Details:\n\nName: ${customer.name}\nUsername: ${customer.username || 'N/A'}\nEmail: ${customer.email}\nLocation: ${customer.location || 'N/A'}`);
   };
 
   const handleEditClick = (customer: Customer) => {
@@ -125,6 +129,7 @@ export function useCustomerManagement() {
       username: customer.username || "",
       email: customer.email,
       password: "",
+      location: customer.location || "",
     });
     setEditModalOpen(true);
   };
@@ -152,7 +157,8 @@ export function useCustomerManagement() {
   const filteredCustomers = useMemo(() =>
     customers.filter((cust) =>
       cust.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cust.email.toLowerCase().includes(searchTerm.toLowerCase())
+      cust.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (cust.location && cust.location.toLowerCase().includes(searchTerm.toLowerCase()))
     ),
     [customers, searchTerm]
   );

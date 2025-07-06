@@ -16,6 +16,47 @@ interface MediaDayEvent extends Event {
   status: 'pending' | 'accepted' | 'declined';
 }
 
+// Icons object
+const Icons = {
+  calendar: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  ),
+  clock: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  user: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+  ),
+  email: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+  ),
+  location: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.643 4.5 10.5a7.5 7.5 0 1115 0z" />
+    </svg>
+  ),
+  camera: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
+  document: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  ),
+};
+
 // Constants
 const locales = { 'en-US': enUS };
 
@@ -54,27 +95,27 @@ const customModalStyles = {
 
 // Custom toolbar component
 const CustomToolbar: React.FC<any> = (toolbar) => (
-  <div className="flex items-center justify-between mb-6">
-    <div className="flex items-center space-x-4">
-      <button
+    <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center space-x-4">
+        <button
         onClick={() => toolbar.onNavigate('PREV')}
-        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-      >
-        <ChevronLeftIcon className="w-6 h-6 text-[#303b45]" />
-      </button>
-      <button
+          className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+        >
+          <ChevronLeftIcon className="w-6 h-6 text-[#303b45]" />
+        </button>
+        <button
         onClick={() => toolbar.onNavigate('NEXT')}
-        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-      >
-        <ChevronRightIcon className="w-6 h-6 text-[#303b45]" />
-      </button>
-    </div>
-    <h2 className="text-2xl font-semibold text-[#303b45]">
-      {format(toolbar.date, 'MMMM yyyy')}
-    </h2>
+          className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+        >
+          <ChevronRightIcon className="w-6 h-6 text-[#303b45]" />
+        </button>
+      </div>
+      <h2 className="text-2xl font-semibold text-[#303b45]">
+        {format(toolbar.date, 'MMMM yyyy')}
+      </h2>
     <div className="w-24" />
-  </div>
-);
+    </div>
+  );
 
 const AdminMediaDayBookingPage: React.FC = () => {
   const {
@@ -166,19 +207,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
     })),
   ], [calendarEvents, blockedDatesEvents]);
 
-  // Utility functions
-  const formatDateTime = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true
-    });
-  };
+
 
   const isDateAvailableForBooking = (date: Date, blockedDatesEvents: any[], bookings: any[]): boolean => {
     const isBlocked = blockedDatesEvents.some(block => {
@@ -265,7 +294,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
   // Event styling
   const eventStyleGetter = (event: any) => {
     const backgroundColor = EVENT_COLORS[event.status as keyof typeof EVENT_COLORS] || EVENT_COLORS.pending;
-    
+
     return {
       style: {
         backgroundColor,
@@ -463,8 +492,8 @@ const AdminMediaDayBookingPage: React.FC = () => {
         <div className="bg-white rounded-xl shadow-xl p-8 mb-8 transform transition-all duration-300 hover:shadow-2xl">
           <div className="mb-6 flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-semibold text-[#303b45] mb-2">Scheduled Media Days</h2>
-              <p className="text-gray-600">View all scheduled and pending media day requests</p>
+            <h2 className="text-2xl font-semibold text-[#303b45] mb-2">Scheduled Media Days</h2>
+            <p className="text-gray-600">View all scheduled and pending media day requests</p>
             </div>
             <div className="flex gap-3">
               <button
@@ -553,7 +582,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
               >
                 Accepted Bookings
               </button>
-              <button
+            <button
                 onClick={() => setBookingView('declined')}
                 className={`px-4 py-2 rounded-lg transition-colors ${
                   bookingView === 'declined'
@@ -562,7 +591,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
                 }`}
               >
                 Declined Bookings
-              </button>
+            </button>
             </div>
           </div>
 
@@ -572,32 +601,46 @@ const AdminMediaDayBookingPage: React.FC = () => {
               <p className="mt-4 text-gray-600">Loading bookings...</p>
             </div>
           ) : bookings.length === 0 ? (
-            <p className="text-gray-600 text-center py-4">
+              <p className="text-gray-600 text-center py-4">
               {bookingView === 'pending' && 'No pending requests to display'}
               {bookingView === 'accepted' && 'No accepted bookings to display'}
               {bookingView === 'declined' && 'No declined bookings to display'}
-            </p>
-          ) : (
+              </p>
+            ) : (
             <div className="space-y-6">
               {bookings.map((booking) => (
-                <div key={booking._id} className="bg-gray-50 rounded-lg p-6 relative min-h-[180px] flex flex-col justify-between">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-lg font-semibold text-[#303b45]">{booking.customer.name}</h3>
-                      <p className="text-gray-600">{booking.customer.email}</p>
+                <div key={booking._id} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-200">
+                  {/* Header with customer info and buttons */}
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-semibold text-[#303b45] mb-3">{booking.customer.name}</h3>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3 text-gray-600">
+                          <Icons.email className="w-4 h-4 text-[#98c6d5] flex-shrink-0" />
+                          <span className="text-sm">{booking.customer.email}</span>
+                        </div>
+                        {booking.customer.location && (
+                          <div className="flex items-center gap-3 text-gray-600">
+                            <Icons.location className="w-4 h-4 text-[#98c6d5] flex-shrink-0" />
+                            <span className="text-sm">{booking.customer.location}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col items-center gap-3 min-w-[7rem]">
+                    
+                    {/* Action buttons */}
+                    <div className="flex flex-col gap-2 ml-4">
                       {booking.status === 'pending' && (
                         <>
                           <button
                             onClick={() => openAcceptModal(booking)}
-                            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium whitespace-nowrap"
                           >
                             Accept
                           </button>
                           <button
                             onClick={() => openDenyModal(booking)}
-                            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium whitespace-nowrap"
                           >
                             Decline
                           </button>
@@ -607,13 +650,13 @@ const AdminMediaDayBookingPage: React.FC = () => {
                         <>
                           <button
                             onClick={() => openEditPhotographyModal(booking)}
-                            className="w-36 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-medium h-10"
+                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium whitespace-nowrap"
                           >
                             Edit Photography
                           </button>
                           <button
                             onClick={() => openDenyModal(booking)}
-                            className="w-36 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium h-10"
+                            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium whitespace-nowrap"
                           >
                             Overturn
                           </button>
@@ -622,34 +665,43 @@ const AdminMediaDayBookingPage: React.FC = () => {
                       {booking.status === 'declined' && (
                         <button
                           onClick={() => (setSelectedBooking(booking), setIsAcceptModalOpen(true))}
-                          className="w-36 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium h-10"
+                          className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium whitespace-nowrap"
                         >
                           Overturn
                         </button>
                       )}
                     </div>
                   </div>
-                  <div className="mt-4">
-                    <p className="text-gray-600">
-                      <span className="font-semibold">Date & Time:</span>{' '}
-                      {formatDateTime(booking.date)}
-                    </p>
-                    {booking.status === 'accepted' && (
-                      <p className="text-gray-600">
-                        <span className="font-semibold">Photographer:</span>{' '}
-                        {booking.photographer ? booking.photographer.name : 'Not Assigned'}
-                      </p>
-                    )}
-                    {booking.notes && (
-                      <p className="text-gray-600">
-                        <span className="font-semibold">Notes:</span> {booking.notes}
-                      </p>
-                    )}
+                  
+                  {/* Booking details */}
+                  <div className="border-t border-gray-100 pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="flex items-center gap-3 text-gray-600">
+                        <Icons.calendar className="w-4 h-4 text-[#98c6d5] flex-shrink-0" />
+                        <span className="text-sm">{format(new Date(booking.date), 'EEEE, MMMM d, yyyy')}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-gray-600">
+                        <Icons.clock className="w-4 h-4 text-[#98c6d5] flex-shrink-0" />
+                        <span className="text-sm">{format(new Date(booking.date), 'h:mm a')}</span>
+                      </div>
+                      {booking.status === 'accepted' && (
+                        <div className="flex items-center gap-3 text-gray-600">
+                          <Icons.camera className="w-4 h-4 text-[#98c6d5] flex-shrink-0" />
+                          <span className="text-sm">{booking.photographer ? booking.photographer.name : 'Not Assigned'}</span>
+                        </div>
+                      )}
+                      {booking.notes && (
+                        <div className="flex items-center gap-3 text-gray-600 md:col-span-2">
+                          <Icons.document className="w-4 h-4 text-[#98c6d5] flex-shrink-0" />
+                          <span className="text-sm">{booking.notes}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
-          )}
+            )}
         </div>
 
         {/* Deny Modal */}
@@ -711,10 +763,22 @@ const AdminMediaDayBookingPage: React.FC = () => {
                   : `Are you sure you want to accept this request for ${selectedBooking.customer.name}?`}
               </p>
               <div className="text-gray-600 mb-6">
-                <p><span className="font-semibold">Date & Time:</span> {formatDateTime(selectedBooking.date)}</p>
-                {selectedBooking.notes && (
-                  <p><span className="font-semibold">Customer Notes:</span> {selectedBooking.notes}</p>
-                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div className="flex items-center gap-2">
+                    <Icons.calendar className="w-4 h-4 text-[#98c6d5]" />
+                    <span>{format(new Date(selectedBooking.date), 'EEEE, MMMM d, yyyy')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Icons.clock className="w-4 h-4 text-[#98c6d5]" />
+                    <span>{format(new Date(selectedBooking.date), 'h:mm a')}</span>
+                  </div>
+                  {selectedBooking.notes && (
+                    <div className="flex items-center gap-2">
+                      <Icons.document className="w-4 h-4 text-[#98c6d5]" />
+                      <span>{selectedBooking.notes}</span>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -785,10 +849,22 @@ const AdminMediaDayBookingPage: React.FC = () => {
                 Update photographer assignment and message for {selectedBookingForEdit.customer.name}
               </p>
               <div className="text-gray-600 mb-6">
-                <p><span className="font-semibold">Date & Time:</span> {formatDateTime(selectedBookingForEdit.date)}</p>
-                {selectedBookingForEdit.notes && (
-                  <p><span className="font-semibold">Customer Notes:</span> {selectedBookingForEdit.notes}</p>
-                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div className="flex items-center gap-2">
+                    <Icons.calendar className="w-4 h-4 text-[#98c6d5]" />
+                    <span>{format(new Date(selectedBookingForEdit.date), 'EEEE, MMMM d, yyyy')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Icons.clock className="w-4 h-4 text-[#98c6d5]" />
+                    <span>{format(new Date(selectedBookingForEdit.date), 'h:mm a')}</span>
+                  </div>
+                  {selectedBookingForEdit.notes && (
+                    <div className="flex items-center gap-2">
+                      <Icons.document className="w-4 h-4 text-[#98c6d5]" />
+                      <span>{selectedBookingForEdit.notes}</span>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
