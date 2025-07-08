@@ -3,7 +3,6 @@ import React from 'react';
 import { useNavigate } from "react-router-dom";
 import logo1 from "../../../assets/CliniMedia_Logo1.png";
 import { DashboardBox } from "./AdminDashLogic";
-import NotificationCenter from "../../Customer/NotificationCenter";
 
 const AdminDash = () => {
   const navigate = useNavigate();
@@ -32,9 +31,6 @@ const AdminDash = () => {
         {/* Spacer for balance */}
         <div className="w-64"></div>
       </div>
-
-      {/* Notification Center for Admin */}
-      <NotificationCenter navigateTo="/admin/notifications" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
         <DashboardBox

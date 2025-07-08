@@ -114,11 +114,6 @@ const CustomerDashboard = () => {
         </div>
       </div>
 
-      {/* Notification Center */}
-      <div className="mb-4">
-        <NotificationCenter navigateTo="/customer/notifications"/>
-      </div>
-
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow-md p-4">
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Quick Actions</h3>

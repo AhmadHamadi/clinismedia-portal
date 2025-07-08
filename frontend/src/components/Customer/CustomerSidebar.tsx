@@ -14,7 +14,6 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ sidebarOpen, setSideb
 
   const navItems = [
     { label: "Dashboard", path: "/customer/dashboard" },
-    { label: "Notifications", path: "/customer/notifications" },
     { label: "Media Day Booking", path: "/customer/media-day-booking" },
     { label: "Onboarding Tasks", path: "/customer/onboarding-tasks" },
     { label: "Google Integration", path: "/customer/google-integration" },

@@ -25,7 +25,6 @@ const SidebarMenu = () => {
     { label: "Manage Employees", path: "/admin/employees" },
     { label: "Manage Gallery Edits", path: "/admin/gallery" },
     { label: "Manage Customer Invoices", path: "/admin/invoices" },
-    { label: "Notifications", path: "/admin/notifications" },
     { label: "Settings", path: "/admin/settings" },
   ];
 

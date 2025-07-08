@@ -114,9 +114,6 @@ const EmployeeDashboard = () => {
         </div>
       </div>
 
-      {/* Notification Center */}
-      <NotificationCenter navigateTo="/employee/notifications"/>
-
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow-md p-6 mt-8">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
