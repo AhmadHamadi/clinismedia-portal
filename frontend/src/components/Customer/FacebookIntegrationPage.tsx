@@ -135,9 +135,9 @@ const FacebookIntegrationPage: React.FC = () => {
             <strong className="text-lg text-green-900 mb-2">{connectedPage.name}</strong>
             <button
               className="mt-2 px-4 py-2 bg-[#1877f3] text-white rounded-lg font-semibold hover:bg-[#145db2]"
-              onClick={() => navigate('/customer/facebook-reports')}
+              onClick={() => navigate('/customer/facebook-insights')}
             >
-              View Monthly Facebook Reports
+              View Facebook Insights
             </button>
           </div>
         )}

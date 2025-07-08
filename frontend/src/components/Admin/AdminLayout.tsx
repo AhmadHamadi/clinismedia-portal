@@ -10,6 +10,7 @@ import Settings from './Settings';
 import AdminNotificationPage from './AdminNotificationPage';
 import AdminGalleryPage from './AdminGalleryPage';
 import AdminInvoicePage from './AdminInvoicePage';
+import FacebookManagementPage from './FacebookManagement/FacebookManagementPage';
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -42,6 +43,7 @@ const AdminLayout = () => {
           <Route path="/settings" element={<Settings />} />
           <Route path="/notifications" element={<AdminNotificationPage />} />
           <Route path="/invoices" element={<AdminInvoicePage />} />
+          <Route path="/facebook" element={<FacebookManagementPage />} />
         </Routes>
       </div>
     </div>
