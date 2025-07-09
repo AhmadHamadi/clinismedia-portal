@@ -62,6 +62,21 @@ const CustomToolbar: React.FC<any> = (toolbar) => (
   </div>
 );
 
+// Custom event dot component for calendar
+const CalendarEventDot = ({ event }: { event: any }) => {
+  let color = '';
+  let tooltip = event.title;
+  if (event.status === 'accepted') color = 'bg-green-500';
+  else if (event.status === 'declined') color = 'bg-red-500';
+  else if (event.status === 'blocked') color = 'bg-gray-500';
+  else if (event.status === 'pending') color = 'bg-yellow-400';
+  return (
+    <div className="flex items-center justify-center h-full w-full" title={tooltip}>
+      <span className={`inline-block w-3 h-3 rounded-full ${color}`}></span>
+    </div>
+  );
+};
+
 const CustomerMediaDayBookingPage: React.FC = () => {
   const {
     selectedDate,
@@ -192,19 +207,27 @@ const CustomerMediaDayBookingPage: React.FC = () => {
   // Event styling
   const eventStyleGetter = (event: any) => {
     const backgroundColor = EVENT_COLORS[event.status as keyof typeof EVENT_COLORS] || EVENT_COLORS.pending;
-    
+    let color = 'white';
+    if (event.status === 'pending') color = '#b45309';
+    if (event.status === 'accepted') color = 'white';
+    if (event.status === 'declined') color = 'white';
+    if (event.status === 'blocked') color = 'white';
     return {
       style: {
         backgroundColor,
-        borderRadius: '4px',
-        opacity: 0.9,
-        color: 'white',
-        border: '0px',
-        display: 'block',
-        textAlign: 'center' as const,
+        borderRadius: '8px',
+        opacity: 0.95,
+        color,
+        border: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 700,
+        fontSize: '0.95rem',
+        minHeight: '24px',
+        minWidth: '24px',
         padding: '2px 0',
-        fontWeight: event.isBlocked ? 700 : 500,
-        fontSize: event.isBlocked ? '1rem' : undefined,
+        textAlign: 'center' as const,
       }
     };
   };
@@ -221,13 +244,15 @@ const CustomerMediaDayBookingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#f9fafb] via-[#f3f4f6] to-[#e5e7eb] py-8">
       <div className="max-w-6xl mx-auto px-4">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-[#303b45] mb-4">Book Your Media Day</h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Select your preferred date and time for your media day. We'll confirm your booking and send you all the details.
+        <div className="text-center mb-12 relative flex flex-col items-center">
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-2 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow font-sans tracking-tight flex items-center justify-center gap-2">
+            <span>Book Your Media Day!</span>
+          </h1>
+          <p className="text-base md:text-lg font-normal text-gray-800 max-w-xl mx-auto px-6 py-4 mt-2 rounded-2xl shadow-xl backdrop-blur-md bg-white/60 border border-transparent">
+          Make your clinic impossible to ignore. Book your next Media Day in just a few clicks. Lock in your date and time and let our team handle the rest. 
           </p>
         </div>
         
@@ -243,28 +268,27 @@ const CustomerMediaDayBookingPage: React.FC = () => {
           </div>
         )}
         
-        {/* Booking Legend */}
-        <div className="mb-6 flex flex-wrap gap-4 items-center justify-center">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-yellow-400"></div>
-            <span className="text-sm text-gray-700">Pending</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-green-500"></div>
-            <span className="text-sm text-gray-700">Accepted</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-red-500"></div>
-            <span className="text-sm text-gray-700">Declined</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-gray-800"></div>
-            <span className="text-sm text-gray-700">Blocked</span>
-          </div>
-        </div>
-
         {/* Calendar */}
-        <div className="bg-white rounded-xl shadow-xl p-8 mb-8 transform transition-all duration-300 hover:shadow-2xl">
+        <div className="bg-white rounded-xl shadow-xl p-3 mb-8 transform transition-all duration-300 hover:shadow-2xl relative border-8 border-[#e5e7eb]">
+          {/* Booking Legend (top right corner) */}
+          <div className="absolute top-6 right-8 flex flex-wrap gap-4 items-center justify-end z-10">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-yellow-400"></div>
+              <span className="text-sm text-gray-700">Pending</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-green-500"></div>
+              <span className="text-sm text-gray-700">Accepted</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-red-500"></div>
+              <span className="text-sm text-gray-700">Declined</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-gray-800"></div>
+              <span className="text-sm text-gray-700">Blocked</span>
+            </div>
+          </div>
           <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-bg]:transition-colors [&_.rbc-day-bg:hover]:bg-[#98c6d5] [&_.rbc-day-bg:hover]:bg-opacity-20 [&_.rbc-day-bg.rbc-off-range]:opacity-50 [&_.rbc-day-bg.rbc-off-range]:cursor-not-allowed [&_.rbc-day-bg.rbc-off-range]:hover:bg-transparent">
             <Calendar
               localizer={localizer}
@@ -285,8 +309,10 @@ const CustomerMediaDayBookingPage: React.FC = () => {
         </div>
 
         {/* Booking Requests */}
-        <div className="bg-white rounded-xl shadow-xl p-8 mb-8">
-          <h2 className="text-2xl font-bold text-[#303b45] mb-6">Your Booking Requests</h2>
+        <div className="bg-white border-8  rounded-xl shadow-xl p-8 mb-8">
+          <h2 className="text-2xl md:text-3xl font-extrabold mb-8 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow tracking-wide font-sans text-left">
+            Your Booking Requests
+          </h2>
           
           {isLoadingBookings ? (
             <div className="text-center py-8">
@@ -298,29 +324,52 @@ const CustomerMediaDayBookingPage: React.FC = () => {
               <p className="text-gray-600">You haven't made any booking requests yet.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {bookings.map((booking) => (
-                <div key={booking._id} className="border rounded-lg p-6 transition-all duration-200 hover:shadow-md">
-                  <div className="flex justify-between items-start">
+            <div className="space-y-6">
+              {bookings.map((booking) => {
+                // Status pill color/icon
+                let statusStyles = '';
+                let statusIcon = null;
+                if (booking.status === 'accepted') {
+                  statusStyles = 'bg-green-100 text-green-700';
+                  statusIcon = (
+                    <svg className="w-5 h-5 mr-1.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M5 13l4 4L19 7" /></svg>
+                  );
+                } else if (booking.status === 'pending') {
+                  statusStyles = 'bg-yellow-100 text-yellow-700';
+                  statusIcon = (
+                    <svg className="w-5 h-5 mr-1.5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M12 8v4l3 3" /><circle cx="12" cy="12" r="9" stroke="#fbbf24" strokeWidth="2.2" /></svg>
+                  );
+                } else if (booking.status === 'declined') {
+                  statusStyles = 'bg-red-100 text-red-700';
+                  statusIcon = (
+                    <svg className="w-5 h-5 mr-1.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  );
+                }
+                return (
+                  <div
+                    key={booking._id}
+                    className="bg-gray-50 rounded-2xl shadow-lg px-8 py-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 transition-all duration-200 hover:shadow-2xl"
+                  >
                     <div>
-                      <h3 className="text-lg font-semibold text-[#303b45]">
+                      <h3 className="text-base font-semibold text-[#303b45] mb-1 tracking-tight">
                         {formatDateTime(booking.date)}
                       </h3>
                       {booking.notes && (
-                        <p className="mt-2 text-gray-600">Notes: {booking.notes}</p>
+                        <p className="mt-1 text-gray-600 text-base">Notes: {booking.notes}</p>
                       )}
                       {booking.adminMessage && (
-                        <p className="mt-2 text-gray-600">
-                          <span className="font-semibold text-blue-600">Clinimedia:</span> {booking.adminMessage}
+                        <p className="mt-1 text-gray-600 text-base">
+                          <span className="font-semibold text-[#38c6d5]">Clinimedia:</span> {booking.adminMessage}
                         </p>
                       )}
                     </div>
-                    <div className={`px-4 py-2 rounded-full text-sm font-medium border ${getStatusColor(booking.status)}`}>
+                    <div className={`flex items-center px-4 py-2 rounded-full text-base font-semibold shadow-sm ${statusStyles}`}>
+                      {statusIcon}
                       {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
