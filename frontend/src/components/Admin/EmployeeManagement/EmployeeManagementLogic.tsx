@@ -69,7 +69,10 @@ export function useEmployeeManagement() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/employees`);
+      const token = localStorage.getItem('adminToken');
+      const res = await axios.get(`${API_BASE_URL}/employees`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setEmployees(res.data);
     } catch (err) {
       console.error("❌ Failed to fetch employees", err);
@@ -96,7 +99,10 @@ export function useEmployeeManagement() {
   const handleAddEmployee = async () => {
     if (!validateForm()) return;
     try {
-      await axios.post(`${API_BASE_URL}/employees`, formData);
+      const token = localStorage.getItem('adminToken');
+      await axios.post(`${API_BASE_URL}/employees`, formData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setShowModal(false);
       setFormData({ name: "", username: "", email: "", password: "", department: "" });
       fetchEmployees();
@@ -112,11 +118,13 @@ export function useEmployeeManagement() {
   const handleDeleteEmployee = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this employee?")) return;
     try {
-      await axios.delete(`${API_BASE_URL}/employees/${id}`);
+      const token = localStorage.getItem('adminToken');
+      await axios.delete(`${API_BASE_URL}/employees/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setEmployees((prev) => prev.filter((emp) => emp._id !== id));
     } catch (err) {
       console.error("❌ Failed to delete employee", err);
-      alert("Failed to delete employee. Please try again.");
     }
   };
 
@@ -144,11 +152,14 @@ export function useEmployeeManagement() {
     e.preventDefault();
     if (!window.confirm("Are you sure you want to save these changes?")) return;
     try {
-      await axios.put(`${API_BASE_URL}/employees/${editFormData._id}`, editFormData);
+      const token = localStorage.getItem('adminToken');
+      await axios.put(`${API_BASE_URL}/employees/${editFormData._id}`, editFormData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setEditModalOpen(false);
       fetchEmployees();
     } catch (err: any) {
-      alert("Failed to update employee.");
+      console.error("❌ Failed to update employee", err);
     }
   };
 
