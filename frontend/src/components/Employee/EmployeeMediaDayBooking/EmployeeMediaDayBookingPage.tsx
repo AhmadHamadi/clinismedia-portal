@@ -99,10 +99,10 @@ const BookingCard: React.FC<{
   onAccept?: (bookingId: string) => void;
   isAccepting?: boolean;
 }> = ({ booking, showAcceptButton = false, onAccept, isAccepting = false }) => (
-  <div className="border border-gray-200 rounded-lg p-6 transition-all duration-200 hover:shadow-md">
-    <div className="mb-4">
+  <div className="bg-gray-50 rounded-2xl shadow-lg px-8 py-6 flex flex-col transition-all duration-200 hover:shadow-2xl">
+    <div>
       <h3 className="text-xl font-semibold text-[#303b45] mb-2">
-        {booking.customer.name} - Media Day
+        {booking.customer.name}
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-600">
         <div className="flex items-center gap-2">
@@ -127,7 +127,7 @@ const BookingCard: React.FC<{
     {booking.employeeMessage && (
       <div className="border-t border-gray-100 pt-4">
         <p className="text-gray-600 text-sm">
-          <strong className="text-blue-600">Clinimedia:</strong> {booking.employeeMessage}
+          <strong className="text-[#38bdf8]">Clinimedia:</strong> {booking.employeeMessage}
         </p>
       </div>
     )}
@@ -218,14 +218,19 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
     return {
       style: {
         backgroundColor,
-        borderRadius: '4px',
-        opacity: 0.9,
+        borderRadius: '6px',
+        opacity: 0.95,
         color: 'white',
         border: '0px',
-        display: 'block',
-        padding: '2px 5px',
-        fontSize: '12px',
-        fontWeight: '500',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2px 4px',
+        fontSize: '14px',
+        fontWeight: '600',
+        minHeight: '16px',
+        minWidth: '16px',
+        textAlign: 'center' as const,
       }
     };
   }, []);
@@ -242,74 +247,75 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-[#303b45] mb-2">
-          Employee Media Day Calendar
-        </h1>
-        <p className="text-gray-600 text-lg">
-          Select available media days to schedule your photography sessions
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#f9fafb] via-[#f3f4f6] to-[#e5e7eb] py-8">
+      <div className="max-w-6xl mx-auto px-4">
+        {/* Header */}
+        <div className="text-center mb-12 relative flex flex-col items-center">
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-2 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow font-sans tracking-tight flex items-center justify-center gap-2">
+            <span>Book your Photography Sessions!</span>
+          </h1>
+          <p className="text-base md:text-lg font-normal text-gray-800 max-w-xl mx-auto px-6 py-4 mt-2 rounded-2xl shadow-xl backdrop-blur-md bg-white/60 border border-transparent">
+            Select the Media Days that fit your schedule and be part of telling each clinic’s unique story. Choose your session with ease and we’ll handle the rest so you can focus on what you do best.
+          </p>
+        </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-          <div className="flex justify-between items-center">
-            <span>{error}</span>
-            <button 
-              onClick={clearError}
-              className="text-red-700 hover:text-red-900"
-            >
-              ×
-            </button>
+        {/* Error Display */}
+        {error && (
+          <div className="mb-8 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            <div className="flex justify-between items-center">
+              <span>{error}</span>
+              <button 
+                onClick={clearError}
+                className="text-red-700 hover:text-red-900"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Calendar Card */}
+        <div className="bg-white rounded-2xl shadow-xl p-3 mb-12 transform transition-all duration-300 hover:shadow-2xl relative border-8 border-[#e5e7eb]">
+          {/* Booking Legend (top right corner) */}
+          <div className="absolute top-6 right-8 flex flex-wrap gap-4 items-center justify-end z-10">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-[#60a5fa]"></div>
+              <span className="text-sm text-gray-700">Available</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-green-500"></div>
+              <span className="text-sm text-gray-700">Accepted</span>
+            </div>
+          </div>
+          <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-bg]:transition-colors [&_.rbc-day-bg:hover]:bg-[#98c6d5] [&_.rbc-day-bg:hover]:bg-opacity-20 [&_.rbc-day-bg.rbc-off-range]:opacity-50 [&_.rbc-day-bg.rbc-off-range]:cursor-not-allowed [&_.rbc-day-bg.rbc-off-range]:hover:bg-transparent">
+            <Calendar
+              localizer={localizer}
+              events={calendarEvents}
+              startAccessor="start"
+              endAccessor="end"
+              style={{ height: 600 }}
+              eventPropGetter={eventStyleGetter}
+              views={['month', 'week', 'day']}
+              defaultView="month"
+              defaultDate={new Date()}
+              tooltipAccessor={(event) => event.title}
+              selectable
+              popup
+              components={{ toolbar: CustomToolbar }}
+              formats={{
+                dayHeaderFormat: (date: Date) => format(date, 'EEE')
+              }}
+              className="rounded-lg"
+            />
           </div>
         </div>
-      )}
 
-      {/* Booking Legend */}
-      <div className="mb-6 flex flex-wrap gap-4 items-center justify-center">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-[#60a5fa] rounded"></div>
-          <span className="text-sm text-gray-700">Available</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-500 rounded"></div>
-          <span className="text-sm text-gray-700">Accepted</span>
-        </div>
-      </div>
-
-      {/* Calendar Container */}
-      <div className="bg-white rounded-xl shadow-xl p-8 mb-8 transform transition-all duration-300 hover:shadow-2xl">
-        <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-bg]:transition-colors [&_.rbc-day-bg:hover]:bg-[#98c6d5] [&_.rbc-day-bg:hover]:bg-opacity-20 [&_.rbc-day-bg.rbc-off-range]:opacity-50 [&_.rbc-day-bg.rbc-off-range]:cursor-not-allowed [&_.rbc-day-bg.rbc-off-range]:hover:bg-transparent">
-          <Calendar
-            localizer={localizer}
-            events={calendarEvents}
-            startAccessor="start"
-            endAccessor="end"
-            style={{ height: 600 }}
-            eventPropGetter={eventStyleGetter}
-            views={['month', 'week', 'day']}
-            defaultView="month"
-            defaultDate={new Date()}
-            tooltipAccessor={(event) => event.title}
-            selectable
-            popup
-            components={{ toolbar: CustomToolbar }}
-            formats={{
-              dayHeaderFormat: (date: Date) => format(date, 'EEE')
-            }}
-            className="rounded-lg"
-          />
-        </div>
-      </div>
-
-      {/* My Photography Sessions */}
-      <div className="bg-white rounded-xl shadow-xl p-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-[#303b45]">My Photography Sessions</h2>
-          <div className="flex bg-gray-100 rounded-lg p-1">
+        {/* My Photography Sessions */}
+        <div className="bg-white border-8 rounded-2xl shadow-xl p-8 mb-8">
+          <h2 className="text-2xl md:text-3xl font-extrabold mb-8 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow tracking-wide font-sans text-left">
+            My Photography Sessions
+          </h2>
+          <div className="flex bg-gray-100 rounded-lg p-1 mb-6 w-fit">
             <TabButton
               isActive={activeTab === 'available'}
               onClick={() => setActiveTab('available')}
@@ -325,40 +331,39 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
               Accepted Sessions
             </TabButton>
           </div>
-        </div>
-        
-        <div className="space-y-6">
-          {activeTab === 'accepted' ? (
-            // Accepted Sessions
-            acceptedBookings.length > 0 ? (
-              acceptedBookings.map((booking) => (
-                <BookingCard key={booking._id} booking={booking} />
-              ))
-            ) : (
-              <EmptyState
-                title="No Accepted Sessions"
-                message="You don't have any confirmed photography sessions yet."
-              />
-            )
-          ) : (
-            // Available Sessions
-            availableBookings.length > 0 ? (
-              availableBookings.map((booking) => (
-                <BookingCard
-                  key={booking._id}
-                  booking={booking}
-                  showAcceptButton
-                  onAccept={handleAcceptSession}
-                  isAccepting={isAcceptingSession}
+          <div className="space-y-6">
+            {activeTab === 'accepted' ? (
+              // Accepted Sessions
+              acceptedBookings.length > 0 ? (
+                acceptedBookings.map((booking) => (
+                  <BookingCard key={booking._id} booking={booking} />
+                ))
+              ) : (
+                <EmptyState
+                  title="No Accepted Sessions"
+                  message="You don't have any confirmed photography sessions yet."
                 />
-              ))
+              )
             ) : (
-              <EmptyState
-                title="No Available Sessions"
-                message="There are no photography sessions available at the moment."
-              />
-            )
-          )}
+              // Available Sessions
+              availableBookings.length > 0 ? (
+                availableBookings.map((booking) => (
+                  <BookingCard
+                    key={booking._id}
+                    booking={booking}
+                    showAcceptButton
+                    onAccept={handleAcceptSession}
+                    isAccepting={isAcceptingSession}
+                  />
+                ))
+              ) : (
+                <EmptyState
+                  title="No Available Sessions"
+                  message="There are no photography sessions available at the moment."
+                />
+              )
+            )}
+          </div>
         </div>
       </div>
     </div>
