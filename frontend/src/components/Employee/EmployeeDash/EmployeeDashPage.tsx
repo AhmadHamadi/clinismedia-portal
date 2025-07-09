@@ -75,7 +75,7 @@ const EmployeeDashboard = () => {
           <div className="z-10 w-full max-w-2xl text-center mx-auto">
             <div className="text-center mx-auto">
               <div className="text-gray-700 text-lg md:text-xl font-medium font-sans leading-relaxed md:leading-8 max-w-3xl mx-auto">
-                We’re excited to partner with you. Here, you can easily <span className='text-[#60a5fa] font-semibold'>view and accept upcoming photography sessions</span>, <span className='text-[#60a5fa] font-semibold'>access your payment receipts</span>, and <span className='text-[#60a5fa] font-semibold'>stay on top of your bookings</span>, all in one place. Let’s continue creating amazing work together!
+                We’re glad to have you on board. This is your space to <span className='text-[#60a5fa] font-semibold'>view and accept upcoming photography sessions</span>, <span className='text-[#60a5fa] font-semibold'>track your bookings</span>, and <span className='text-[#60a5fa] font-semibold'>access payment receipts</span>, all in one place. Each session is a chance to capture meaningful moments and help clinics tell their story through your lens.
               </div>
             </div>
           </div>

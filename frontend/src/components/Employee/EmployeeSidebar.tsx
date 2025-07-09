@@ -14,7 +14,7 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
 
   const navItems = [
     { label: "Dashboard", path: "/employee/dashboard" },
-    { label: "View Media Day Calendar", path: "/employee/media-day-calendar" },
+    { label: "Photography Session Booking", path: "/employee/media-day-calendar" },
     { label: "Payment Receipt", path: "/employee/payment-receipt" },
   ];
 
