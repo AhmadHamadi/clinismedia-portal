@@ -41,7 +41,7 @@ const CustomerDashboard = () => {
     fetchBookings();
   }, []);
 
-  const getUpcomingMediaDay = (): MediaDay | null => {
+  const getUpcomingMediaDay = (): (MediaDay & { status: string }) | null => {
     const now = new Date();
     // Only consider accepted or pending bookings in the future
     const upcoming = bookings
@@ -51,11 +51,26 @@ const CustomerDashboard = () => {
     const dateObj = new Date(upcoming.date);
     return {
       date: dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
-      time: dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+      time: dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+      status: upcoming.status
     };
   };
 
   const upcomingMediaDay = getUpcomingMediaDay();
+
+  // Find completed (not cancelled) Media Day for the current month
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const hadMediaDayThisMonth = bookings.some(b => {
+    const d = new Date(b.date);
+    return (
+      b.status === 'accepted' &&
+      d.getMonth() === currentMonth &&
+      d.getFullYear() === currentYear &&
+      d < now // in the past
+    );
+  });
 
   const handleLogoutAndNavigate = () => {
     handleLogout();
@@ -169,6 +184,20 @@ const CustomerDashboard = () => {
           <div className="bg-white rounded-xl shadow p-6 flex flex-col md:flex-row items-center gap-6 h-full">
             <div className="flex-1">
               <h3 className="text-lg font-bold mb-4" style={{ color: '#38bdf8' }}>Upcoming Media Day</h3>
+              {upcomingMediaDay && upcomingMediaDay.status === 'pending' && (
+                <div className="mb-2 flex items-center">
+                  <span className="px-4 py-2 text-lg rounded-full bg-yellow-300 text-yellow-900 font-extrabold border-2 border-yellow-500 shadow-md animate-pulse">
+                    Pending Approval
+                  </span>
+                </div>
+              )}
+              {upcomingMediaDay && upcomingMediaDay.status === 'accepted' && (
+                <div className="mb-2 flex items-center">
+                  <span className="px-4 py-2 text-lg rounded-full bg-green-200 text-green-900 font-extrabold border-2 border-green-500 shadow-md">
+                    Approved
+                  </span>
+                </div>
+              )}
               {isLoadingBookings ? (
                 <div className="text-gray-500">Loading...</div>
               ) : upcomingMediaDay !== null ? (
@@ -192,8 +221,10 @@ const CustomerDashboard = () => {
                     <span>{upcomingMediaDay.time}</span>
                   </div>
                 </div>
+              ) : hadMediaDayThisMonth ? (
+                <div className="text-green-700 font-semibold">Media Day completed for this month. Book for next month!</div>
               ) : (
-                <div className="text-gray-500">No media day scheduled.</div>
+                <div className="text-gray-500">No Media Day scheduled for this month. Book your next Media Day!</div>
               )}
             </div>
             <button

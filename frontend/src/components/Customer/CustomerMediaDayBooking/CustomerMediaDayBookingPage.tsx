@@ -325,7 +325,11 @@ const CustomerMediaDayBookingPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-6">
-              {bookings.map((booking) => {
+              {[...bookings].sort((a, b) => {
+                const aTime = new Date(a.updatedAt || a.createdAt || a.date).getTime();
+                const bTime = new Date(b.updatedAt || b.createdAt || b.date).getTime();
+                return bTime - aTime;
+              }).map((booking) => {
                 // Status pill color/icon
                 let statusStyles = '';
                 let statusIcon = null;
