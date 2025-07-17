@@ -6,6 +6,7 @@ const router = express.Router();
 const User = require("../models/User");
 const validator = require("validator"); // npm install validator
 const authenticateToken = require("../middleware/authenticateToken");
+const authorizeRole = require("../middleware/authorizeRole");
 const jwt = require("jsonwebtoken");
 const GalleryItem = require('../models/GalleryItem');
 const Invoice = require('../models/Invoice');
@@ -24,10 +25,10 @@ router.get("/profile", authenticateToken, async (req, res) => {
   }
 });
 
-// GET all customers
-router.get("/", async (req, res) => {
+// GET all customers (admin only)
+router.get("/", authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    const customers = await User.find({ role: "customer" }).select("name username email location _id");
+    const customers = await User.find({ role: "customer" }).select("name username email location _id facebookPageId facebookPageName facebookAccessToken facebookTokenExpiry");
     res.status(200).json(customers);
   } catch (err) {
     console.error("❌ Failed to fetch customers:", err.message);
@@ -157,6 +158,28 @@ router.put('/:id/portal-visibility', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Disconnect Facebook page from a customer (admin only)
+router.patch('/:id/facebook-disconnect', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        facebookPageId: null,
+        facebookPageName: null,
+        facebookAccessToken: null,
+        facebookTokenExpiry: null,
+      },
+      { new: true }
+    );
+    
+    if (!user) return res.status(404).json({ error: 'Customer not found' });
+    res.json({ message: 'Facebook Page disconnected successfully!', user });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to disconnect Facebook Page' });
   }
 });
 

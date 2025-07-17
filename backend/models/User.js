@@ -59,6 +59,14 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  facebookUserAccessToken: {
+    type: String,
+    default: null,
+  },
+  facebookUserTokenExpiry: {
+    type: Date,
+    default: null,
+  },
   gallery: [
     {
       name: String,
