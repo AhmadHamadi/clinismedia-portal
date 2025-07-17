@@ -12,6 +12,7 @@ import CustomerMediaDayBookingPage from "./components/Customer/CustomerMediaDayB
 import CustomerOnboardingTasks from "./components/Customer/CustomerOnboardingTasks";
 import { EmployeeMediaDayBookingPage } from "./components/Employee/EmployeeMediaDayBooking/EmployeeMediaDayBookingPage";
 import FacebookIntegrationPage from "./components/Customer/FacebookIntegrationPage";
+import FacebookInsightsPage from "./components/Customer/FacebookInsightsPage";
 import CustomerGalleryPage from "./components/Customer/CustomerGalleryPage";
 import CustomerInvoicePage from "./components/Customer/CustomerInvoicePage";
 
@@ -87,6 +88,17 @@ function App() {
               <ProtectedRoute requiredRole="customer">
                 <CustomerPortalLayout title="Facebook Integration">
                   <FacebookIntegrationPage />
+                </CustomerPortalLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route 
+            path="/customer/facebook-insights"
+            element={
+              <ProtectedRoute requiredRole="customer">
+                <CustomerPortalLayout title="Facebook Insights">
+                  <FacebookInsightsPage />
                 </CustomerPortalLayout>
               </ProtectedRoute>
             }
