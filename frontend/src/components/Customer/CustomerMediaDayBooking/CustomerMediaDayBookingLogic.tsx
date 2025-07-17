@@ -10,6 +10,7 @@ export interface Booking {
   status: 'pending' | 'accepted' | 'declined';
   adminMessage?: string;
   createdAt: string;
+  updatedAt: string;
   photographer?: {
     _id: string;
     name: string;
