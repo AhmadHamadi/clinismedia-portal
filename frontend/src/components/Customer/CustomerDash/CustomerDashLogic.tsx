@@ -7,10 +7,12 @@ export interface Customer {
   name: string;
   email: string;
   username: string;
+  location?: string;
   customerSettings?: {
     displayName?: string;
     logoUrl?: string;
   };
+  createdAt?: string;
 }
 
 export const useCustomerDashboard = () => {

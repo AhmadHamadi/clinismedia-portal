@@ -18,7 +18,7 @@ router.get("/", authenticateToken, authorizeRole('admin'), async (req, res) => {
 });
 
 // POST create a new employee
-router.post("/", async (req, res) => {
+router.post("/", authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const { name, username, email, password, department } = req.body;
 
@@ -67,7 +67,7 @@ router.post("/", async (req, res) => {
 });
 
 // DELETE an employee by ID
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
     const deleted = await User.findByIdAndDelete(id);
@@ -82,7 +82,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 // UPDATE an employee by ID
-router.put("/:id", async (req, res) => {
+router.put("/:id", authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const { name, username, email, password, department } = req.body;
     const updateData = { name, username, email };

@@ -132,7 +132,7 @@ export const useEmployeeMediaDayBooking = () => {
       const date = new Date(booking.date);
       events.push({
         id: `accepted-${booking._id}`,
-        title: `${booking.customer.name} - Accepted`,
+        title: booking.customer.name,
         start: date,
         end: new Date(date.getTime() + 60 * 60 * 1000),
         status: 'accepted'
@@ -143,7 +143,7 @@ export const useEmployeeMediaDayBooking = () => {
       const date = new Date(booking.date);
       events.push({
         id: `available-${booking._id}`,
-        title: `${booking.customer.name} - Available`,
+        title: booking.customer.name,
         start: date,
         end: new Date(date.getTime() + 60 * 60 * 1000),
         status: 'pending'
