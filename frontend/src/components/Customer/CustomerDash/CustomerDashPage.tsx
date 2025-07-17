@@ -209,16 +209,18 @@ const CustomerDashboard = () => {
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="text-lg font-bold mb-4" style={{ color: '#14b8a6' }}>Quick Actions</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Onboarding - blue */}
+              {/* Meta Insights - Meta logo */}
               <button
-                onClick={() => navigate("/customer/onboarding-tasks")}
-                className="flex flex-col items-center p-4 bg-[#e0f2fe] rounded-lg hover:bg-[#bae6fd] transition"
+                onClick={() => navigate("/customer/facebook-insights")}
+                className="flex flex-col items-center p-4 bg-[#e7f0fd] rounded-lg hover:bg-[#c7e0fa] transition"
               >
-                <svg className="w-8 h-8 text-[#3b82f6] mb-2" fill="none" viewBox="0 0 24 24" stroke="#3b82f6" strokeWidth="1.5">
-                  <rect x="4" y="4" width="16" height="16" rx="4" stroke="#3b82f6" strokeWidth="1.5" />
-                  <path d="M8 12l3 3 5-5" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                {/* Meta SVG Logo */}
+                <svg className="w-8 h-8 mb-2" viewBox="0 0 40 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M10.5 19C13.5 7 26.5 7 29.5 19" stroke="#1877f3" strokeWidth="2.5" strokeLinecap="round"/>
+                  <ellipse cx="10.5" cy="19" rx="4.5" ry="4" stroke="#1877f3" strokeWidth="2.5"/>
+                  <ellipse cx="29.5" cy="19" rx="4.5" ry="4" stroke="#1877f3" strokeWidth="2.5"/>
                 </svg>
-                <span className="font-medium text-gray-800">Onboarding</span>
+                <span className="font-medium text-gray-800">Meta Insights</span>
               </button>
               {/* Gallery - green */}
               <button
@@ -232,19 +234,6 @@ const CustomerDashboard = () => {
                 </svg>
                 <span className="font-medium text-gray-800">Gallery</span>
               </button>
-              {/* Google Integration - yellow */}
-              <button
-                onClick={() => navigate("/customer/dashboard")}
-                className="flex flex-col items-center p-4 bg-[#fef9c3] rounded-lg hover:bg-[#fde68a] transition"
-              >
-                <svg className="w-8 h-8 text-[#fbbf24] mb-2" fill="none" viewBox="0 0 24 24" stroke="#fbbf24" strokeWidth="1.5">
-                  <path d="M4 17a8 8 0 0116 0" stroke="#fbbf24" strokeWidth="1.5" fill="none" />
-                  <circle cx="12" cy="17" r="1.5" stroke="#fbbf24" strokeWidth="1.5" fill="none" />
-                  <path d="M12 17l4-4" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" />
-                  <path d="M8 13a4 4 0 018 0" stroke="#fbbf24" strokeWidth="1.5" fill="none" />
-                </svg>
-                <span className="font-medium text-gray-800">Google Integration</span>
-              </button>
               {/* Invoices - red */}
               <button
                 onClick={() => navigate("/customer/invoices")}
@@ -256,6 +245,30 @@ const CustomerDashboard = () => {
                 </svg>
                 <span className="font-medium text-gray-800">Invoices</span>
               </button>
+              {/* Onboarding - blue */}
+              <button
+                onClick={() => navigate("/customer/onboarding-tasks")}
+                className="flex flex-col items-center p-4 bg-[#e0f2fe] rounded-lg hover:bg-[#bae6fd] transition"
+              >
+                <svg className="w-8 h-8 text-[#3b82f6] mb-2" fill="none" viewBox="0 0 24 24" stroke="#3b82f6" strokeWidth="1.5">
+                  <rect x="4" y="4" width="16" height="16" rx="4" stroke="#3b82f6" strokeWidth="1.5" />
+                  <path d="M8 12l3 3 5-5" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="font-medium text-gray-800">Onboarding</span>
+              </button>
+            </div>
+            {/* Second row for Google Integration - Coming Soon */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+              <div className="flex flex-col items-center p-4 bg-[#fef9c3] rounded-lg opacity-60 cursor-not-allowed border-2 border-dashed border-[#fbbf24]">
+                <svg className="w-8 h-8 text-[#fbbf24] mb-2" fill="none" viewBox="0 0 24 24" stroke="#fbbf24" strokeWidth="1.5">
+                  <path d="M4 17a8 8 0 0116 0" stroke="#fbbf24" strokeWidth="1.5" fill="none" />
+                  <circle cx="12" cy="17" r="1.5" stroke="#fbbf24" strokeWidth="1.5" fill="none" />
+                  <path d="M12 17l4-4" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M8 13a4 4 0 018 0" stroke="#fbbf24" strokeWidth="1.5" fill="none" />
+                </svg>
+                <span className="font-medium text-gray-800">Google Integration</span>
+                <span className="text-xs text-gray-500 mt-1">Coming Soon</span>
+              </div>
             </div>
           </div>
         </div>
