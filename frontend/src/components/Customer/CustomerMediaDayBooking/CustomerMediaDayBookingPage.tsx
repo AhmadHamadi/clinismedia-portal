@@ -5,6 +5,8 @@ import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useMediaDayBooking } from './CustomerMediaDayBookingLogic';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import axios from 'axios';
+import { API_BASE_URL } from '../../../utils/api';
 
 // Types
 interface MediaDayEvent extends Event {
@@ -100,6 +102,44 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     setNotes,
     setTemporaryError,
   } = useMediaDayBooking();
+
+  const [customer, setCustomer] = React.useState<any>(null);
+  const [loadingCustomer, setLoadingCustomer] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchCustomer = async () => {
+      try {
+        const token = localStorage.getItem('customerToken');
+        const res = await axios.get(`${API_BASE_URL}/customers/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setCustomer(res.data);
+      } catch (err) {
+        setCustomer(null);
+      } finally {
+        setLoadingCustomer(false);
+      }
+    };
+    fetchCustomer();
+  }, []);
+
+  // Calculate next allowed booking date for the customer
+  const [nextAllowedBookingDate, setNextAllowedBookingDate] = React.useState<Date | null>(null);
+
+  React.useEffect(() => {
+    if (!customer) return;
+    // Find last accepted booking
+    const acceptedBookings = bookings.filter(b => b.status === 'accepted');
+    if (acceptedBookings.length === 0) {
+      setNextAllowedBookingDate(null); // No restriction for first booking
+      return;
+    }
+    const lastBooking = acceptedBookings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    const interval = customer.bookingIntervalMonths || 1;
+    const nextDate = new Date(lastBooking.date);
+    nextDate.setMonth(nextDate.getMonth() + interval);
+    setNextAllowedBookingDate(nextDate);
+  }, [customer, bookings]);
 
   // Utility functions
   const formatDateTime = (dateString: string): string => {
@@ -236,10 +276,11 @@ const CustomerMediaDayBookingPage: React.FC = () => {
   const dayPropGetter = (date: Date) => {
     const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
     const unavailable = isDateUnavailable(date);
-    
+    // Disable dates before nextAllowedBookingDate if set
+    const beforeNextAllowed = nextAllowedBookingDate && date < nextAllowedBookingDate;
     return {
-      className: `${isPast ? 'rbc-off-range' : ''} ${unavailable ? 'bg-gray-200 cursor-not-allowed' : ''}`,
-      onClick: unavailable ? (e: React.MouseEvent) => e.preventDefault() : undefined
+      className: `${isPast ? 'rbc-off-range' : ''} ${unavailable || beforeNextAllowed ? 'bg-gray-200 cursor-not-allowed' : ''}`,
+      onClick: (unavailable || beforeNextAllowed) ? (e: React.MouseEvent) => e.preventDefault() : undefined
     };
   };
 
@@ -251,6 +292,13 @@ const CustomerMediaDayBookingPage: React.FC = () => {
           <h1 className="text-4xl md:text-5xl font-extrabold mb-2 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow font-sans tracking-tight flex items-center justify-center gap-2">
             <span>Book Your Media Day!</span>
           </h1>
+          {loadingCustomer ? (
+            <div className="text-gray-500 text-sm mt-2">Loading your frequency...</div>
+          ) : customer && (
+            <div className="text-center mb-2 text-gray-700 font-medium">
+              Your Media Day Frequency: {customer.bookingIntervalMonths === 3 ? 'Quarterly' : 'Monthly'}
+            </div>
+          )}
           <p className="text-base md:text-lg font-normal text-gray-800 max-w-xl mx-auto px-6 py-4 mt-2 rounded-2xl shadow-xl backdrop-blur-md bg-white/60 border border-transparent">
           Make your clinic impossible to ignore. Book your next Media Day in just a few clicks. Lock in your date and time and let our team handle the rest. 
           </p>

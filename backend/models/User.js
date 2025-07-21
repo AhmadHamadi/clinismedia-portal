@@ -39,6 +39,10 @@ const userSchema = new mongoose.Schema({
       return this.role === "employee";
     },
   },
+  address: {
+    type: String,
+    default: '',
+  },
   customerSettings: {
     displayName: String,
     logoUrl: String,
@@ -66,6 +70,11 @@ const userSchema = new mongoose.Schema({
   facebookUserTokenExpiry: {
     type: Date,
     default: null,
+  },
+  bookingIntervalMonths: {
+    type: Number, // 1 for monthly, 3 for quarterly
+    enum: [1, 3],
+    default: 1
   },
   gallery: [
     {

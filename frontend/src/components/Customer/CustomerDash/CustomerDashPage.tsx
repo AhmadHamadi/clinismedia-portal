@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useCustomerDashboard, Customer } from "./CustomerDashLogic";
 import { UserCircleIcon, MapPinIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
 import axios from 'axios';
-import { API_BASE_URL } from '../../../utils/api';
+import { API_BASE_URL, BACKEND_BASE_URL } from '../../../utils/api';
 
 // Booking type
 interface Booking {
@@ -146,7 +146,7 @@ const CustomerDashboard = () => {
             <div className="flex-shrink-0">
               {customer.customerSettings?.logoUrl ? (
                 <img
-                  src={customer.customerSettings.logoUrl}
+                  src={BACKEND_BASE_URL + customer.customerSettings.logoUrl}
                   alt="Clinic Logo"
                   className="w-20 h-20 rounded-full object-cover border-2 border-[#98c6d5] bg-white"
                 />
@@ -168,6 +168,9 @@ const CustomerDashboard = () => {
                   <div className="flex items-center gap-1 text-gray-600 text-sm">
                     <MapPinIcon className="w-4 h-4 text-[#98c6d5]" />
                     <span>{customer.location}</span>
+                    {customer.address && (
+                      <span className="ml-2 text-gray-500">| {customer.address}</span>
+                    )}
                   </div>
                 )}
                 {customer.createdAt && (

@@ -59,9 +59,11 @@ app.listen(PORT, () => {
     // Run at 9:00 AM daily
     if (hours === 9 && minutes === 0) {
       await ScheduledEmailService.sendDailyReminders();
+      await ScheduledEmailService.sendProactiveBookingReminders();
     }
   }, 60000); // Check every minute
   
   // Also run once on server start for testing
   ScheduledEmailService.sendDailyReminders();
+  ScheduledEmailService.sendProactiveBookingReminders();
 });

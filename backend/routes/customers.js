@@ -10,6 +10,21 @@ const authorizeRole = require("../middleware/authorizeRole");
 const jwt = require("jsonwebtoken");
 const GalleryItem = require('../models/GalleryItem');
 const Invoice = require('../models/Invoice');
+const multer = require('multer');
+const path = require('path');
+
+// Set up multer storage for customer logos
+const logoStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, '../uploads/customer-logos/'));
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    cb(null, uniqueName);
+  },
+});
+const uploadLogo = multer({ storage: logoStorage });
 
 // GET customer profile (authenticated)
 router.get("/profile", authenticateToken, async (req, res) => {
@@ -37,9 +52,10 @@ router.get("/", authenticateToken, authorizeRole(['admin']), async (req, res) =>
 });
 
 // POST create a new customer
-router.post("/", async (req, res) => {
+router.post('/', uploadLogo.single('logo'), async (req, res) => {
   try {
-    const { name, username, email, password, location } = req.body;
+    const { name, username, email, password, location, address, bookingIntervalMonths } = req.body;
+    const logoUrl = req.file ? `/uploads/customer-logos/${req.file.filename}` : '';
 
     if (!name || !username || !email || !password || !location) {
       return res.status(400).json({ error: "All fields are required" });
@@ -62,20 +78,20 @@ router.post("/", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newCustomer = new User({
+    const user = new User({
       name,
       username,
       email,
-      password: hashedPassword,
-      role: "customer",
+      password: await bcrypt.hash(password, 10),
       location,
+      address,
+      bookingIntervalMonths,
+      customerSettings: { logoUrl },
     });
-
-    await newCustomer.save();
-    res.status(201).json({ message: "Customer added successfully" });
+    await user.save();
+    res.status(201).json(user);
   } catch (err) {
-    console.error("❌ Error adding customer:", err.message);
-    res.status(500).json({ error: "Server error adding customer" });
+    res.status(400).json({ error: err.message });
   }
 });
 
@@ -95,21 +111,30 @@ router.delete("/:id", async (req, res) => {
 });
 
 // UPDATE a customer by ID
-router.put("/:id", async (req, res) => {
+router.put('/:id', uploadLogo.single('logo'), async (req, res) => {
   try {
-    const { name, username, email, password, location } = req.body;
-    const updateData = { name, username, email, location };
-    if (password) {
-      updateData.password = await bcrypt.hash(password, 10);
+    const { name, username, email, password, location, address, bookingIntervalMonths } = req.body;
+    const update = {
+      name,
+      username,
+      email,
+      location,
+      address,
+      bookingIntervalMonths,
+    };
+    if (password) update.password = await bcrypt.hash(password, 10);
+    // Merge customerSettings if updating logo
+    if (req.file) {
+      const user = await User.findById(req.params.id);
+      update.customerSettings = {
+        ...((user && user.customerSettings) || {}),
+        logoUrl: `/uploads/customer-logos/${req.file.filename}`
+      };
     }
-    const updated = await User.findByIdAndUpdate(req.params.id, updateData, { new: true });
-    if (!updated) {
-      return res.status(404).json({ error: "Customer not found" });
-    }
-    res.status(200).json({ message: "Customer updated successfully" });
+    const user = await User.findByIdAndUpdate(req.params.id, update, { new: true });
+    res.json(user);
   } catch (err) {
-    console.error("❌ Failed to update customer:", err.message);
-    res.status(500).json({ error: "Server error updating customer" });
+    res.status(400).json({ error: err.message });
   }
 });
 

@@ -131,6 +131,38 @@ class EmailService {
       'Failed to send photographer reminder email:'
     );
   }
+
+  static async sendProactiveBookingReminder(customerName, customerEmail, monthName, timing) {
+    let subject = '';
+    let content = '';
+    if (timing === 'early') {
+      subject = `You are now eligible to book your Media Day for ${monthName}`;
+      content = `
+        <p>Hi ${customerName},</p>
+        <p>You are now eligible to book your Media Day for <strong>${monthName}</strong>.</p>
+        <p>Book now to secure your preferred date!</p>
+      `;
+    } else if (timing === 'first') {
+      subject = `Reminder: Book your Media Day for ${monthName}`;
+      content = `
+        <p>Hi ${customerName},</p>
+        <p>This is a reminder to book your Media Day for <strong>${monthName}</strong>.</p>
+        <p>Don't miss out—book your session today!</p>
+      `;
+    } else if (timing === 'late') {
+      subject = `Final reminder: Book your Media Day for ${monthName}`;
+      content = `
+        <p>Hi ${customerName},</p>
+        <p>This is your final reminder to book your Media Day for <strong>${monthName}</strong>.</p>
+        <p>Please book as soon as possible to ensure availability.</p>
+      `;
+    }
+    await EmailService.sendEmail(
+      subject,
+      content,
+      'Failed to send proactive booking reminder:'
+    );
+  }
 }
 
 module.exports = EmailService; 
