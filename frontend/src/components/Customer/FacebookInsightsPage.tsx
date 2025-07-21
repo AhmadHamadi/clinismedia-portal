@@ -4,6 +4,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../../utils/api';
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import InstagramInsightsImagePage from './InstagramInsightsImagePage';
 
 interface FacebookInsights {
   pageInfo: {
@@ -377,71 +378,7 @@ const FacebookInsightsPage: React.FC = () => {
       )}
       {/* Instagram Insights */}
       {activeTab === 'instagram' && (
-        <div className="max-w-7xl mx-auto flex flex-col gap-8">
-          <div className="mb-8 flex items-center">
-            <span className="text-3xl font-bold text-pink-600 mr-3">📸</span>
-            <h1 className="text-3xl font-bold text-gray-900">Instagram Insights</h1>
-          </div>
-          {/* Instagram Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Impressions Chart */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Impressions</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={igImpressionsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="value" stroke="#e1306c" strokeWidth={2} name="Impressions" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            {/* Reach Chart */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Reach</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={igReachData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="value" stroke="#fdc800" strokeWidth={2} name="Reach" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            {/* Profile Views Chart */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Profile Views</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={igProfileViewsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="value" stroke="#0095f6" strokeWidth={2} name="Profile Views" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            {/* Followers Chart */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Followers</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={igFollowersData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="value" stroke="#8e44ad" strokeWidth={2} name="Followers" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
+        <InstagramInsightsImagePage />
       )}
     </div>
   );

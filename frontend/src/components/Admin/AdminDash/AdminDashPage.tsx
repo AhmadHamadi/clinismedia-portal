@@ -64,9 +64,14 @@ const AdminDash = () => {
           onClick={() => navigate("/admin/invoices")}
         />
         <DashboardBox
-          title="Settings"
-          description="Configure admin preferences"
-          onClick={() => navigate("/admin/settings")}
+          title="Facebook Management"
+          description="Assign and manage Facebook Pages"
+          onClick={() => navigate("/admin/facebook")}
+        />
+        <DashboardBox
+          title="Manage Instagram Insights"
+          description="Upload and manage Instagram insight images"
+          onClick={() => navigate("/admin/instagram-insights")}
         />
       </div>
     </div>
