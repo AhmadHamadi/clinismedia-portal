@@ -95,6 +95,23 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
 
     await checkDateAvailability(date);
 
+    // Enforce booking interval
+    const customer = await User.findById(req.user._id);
+    const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 3 for quarterly
+    const lastBooking = await Booking.findOne({
+      customer: req.user._id,
+      status: 'accepted'
+    }).sort({ date: -1 });
+    if (lastBooking) {
+      const nextAllowedDate = new Date(lastBooking.date);
+      nextAllowedDate.setMonth(nextAllowedDate.getMonth() + interval);
+      if (new Date(date) < nextAllowedDate) {
+        return res.status(400).json({
+          message: `You can only book once every ${interval === 1 ? 'month' : '3 months'}. Next available booking: ${nextAllowedDate.toLocaleDateString()}`
+        });
+      }
+    }
+
     const booking = new Booking({
       customer: req.user._id,
       date,

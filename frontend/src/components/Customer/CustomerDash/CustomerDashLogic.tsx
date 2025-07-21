@@ -8,9 +8,10 @@ export interface Customer {
   email: string;
   username: string;
   location?: string;
+  address?: string;
   customerSettings?: {
-    displayName?: string;
     logoUrl?: string;
+    displayName?: string;
   };
   createdAt?: string;
 }

@@ -9,6 +9,12 @@ export interface Customer {
   email: string;
   username?: string;
   location?: string;
+  address?: string;
+  bookingIntervalMonths?: number;
+  customerSettings?: {
+    logoUrl?: string;
+    displayName?: string;
+  };
 }
 
 interface CustomerTableRowProps {
@@ -55,6 +61,8 @@ export function useCustomerManagement() {
     email: "",
     password: "",
     location: "",
+    address: "",
+    bookingIntervalMonths: 1,
   });
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -64,6 +72,8 @@ export function useCustomerManagement() {
     email: "",
     password: "",
     location: "",
+    address: "",
+    bookingIntervalMonths: 1,
   });
 
   const fetchCustomers = async () => {
@@ -78,8 +88,9 @@ export function useCustomerManagement() {
     }
   };
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: name === 'bookingIntervalMonths' ? Number(value) : value });
   };
 
   const validateForm = () => {
@@ -100,7 +111,7 @@ export function useCustomerManagement() {
     try {
       await axios.post(`${API_BASE_URL}/customers`, { ...formData });
       setShowModal(false);
-      setFormData({ name: "", username: "", email: "", password: "", location: "" });
+      setFormData({ name: "", username: "", email: "", password: "", location: "", address: "", bookingIntervalMonths: 1 });
       fetchCustomers();
     } catch (err: any) {
       if (err.response && err.response.data && err.response.data.error) {
@@ -133,12 +144,15 @@ export function useCustomerManagement() {
       email: customer.email,
       password: "",
       location: customer.location || "",
+      address: customer.address || "",
+      bookingIntervalMonths: customer.bookingIntervalMonths || 1,
     });
     setEditModalOpen(true);
   };
 
-  const handleEditInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
+  const handleEditInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setEditFormData({ ...editFormData, [name]: name === 'bookingIntervalMonths' ? Number(value) : value });
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {

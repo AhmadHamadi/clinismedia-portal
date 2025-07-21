@@ -11,6 +11,27 @@ const formatDateForEmail = (date) => {
   });
 };
 
+const getNextEligibleMonth = (lastBookingDate, interval) => {
+  // Returns a Date object for the first day of the next eligible month
+  const next = new Date(lastBookingDate);
+  next.setMonth(next.getMonth() + interval);
+  next.setDate(1);
+  next.setHours(0, 0, 0, 0);
+  return next;
+};
+
+const hasBookingForMonth = async (customerId, year, month) => {
+  // Checks if the customer has an accepted booking for the given year/month
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  const booking = await Booking.findOne({
+    customer: customerId,
+    status: 'accepted',
+    date: { $gte: start, $lte: end }
+  });
+  return !!booking;
+};
+
 class ScheduledEmailService {
   static async sendDailyReminders() {
     try {
@@ -60,6 +81,53 @@ class ScheduledEmailService {
       }
     } catch (error) {
       console.error('Error in sendDailyReminders:', error);
+    }
+  }
+
+  static async sendProactiveBookingReminders() {
+    try {
+      const customers = await User.find({ role: 'customer' });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      for (const customer of customers) {
+        const interval = customer.bookingIntervalMonths || 1;
+        // Find last accepted booking
+        const lastBooking = await Booking.findOne({
+          customer: customer._id,
+          status: 'accepted'
+        }).sort({ date: -1 });
+        let nextEligibleMonth;
+        if (lastBooking) {
+          nextEligibleMonth = getNextEligibleMonth(lastBooking.date, interval);
+        } else {
+          // If no bookings, allow booking this month
+          nextEligibleMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        }
+        const year = nextEligibleMonth.getFullYear();
+        const month = nextEligibleMonth.getMonth();
+        const monthName = nextEligibleMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+        // Check if customer has already booked for this month
+        const alreadyBooked = await hasBookingForMonth(customer._id, year, month);
+        if (alreadyBooked) continue;
+        // 1 week before eligible month
+        const oneWeekBefore = new Date(nextEligibleMonth);
+        oneWeekBefore.setDate(oneWeekBefore.getDate() - 7);
+        // 1st of eligible month
+        const firstOfMonth = new Date(nextEligibleMonth);
+        // 2 weeks into month
+        const twoWeeksIn = new Date(nextEligibleMonth);
+        twoWeeksIn.setDate(twoWeeksIn.getDate() + 13);
+        // Send emails at the right times
+        if (today.getTime() === oneWeekBefore.getTime()) {
+          await EmailService.sendProactiveBookingReminder(customer.name, customer.email, monthName, 'early');
+        } else if (today.getTime() === firstOfMonth.getTime()) {
+          await EmailService.sendProactiveBookingReminder(customer.name, customer.email, monthName, 'first');
+        } else if (today.getTime() === twoWeeksIn.getTime()) {
+          await EmailService.sendProactiveBookingReminder(customer.name, customer.email, monthName, 'late');
+        }
+      }
+    } catch (error) {
+      console.error('Error in sendProactiveBookingReminders:', error);
     }
   }
 }
