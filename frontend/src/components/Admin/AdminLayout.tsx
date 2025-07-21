@@ -11,6 +11,7 @@ import AdminNotificationPage from './AdminNotificationPage';
 import AdminGalleryPage from './AdminGalleryPage';
 import AdminInvoicePage from './AdminInvoicePage';
 import FacebookManagementPage from './FacebookManagement/FacebookManagementPage';
+import AdminInstagramInsightsPage from './AdminInstagramInsightsPage';
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -44,6 +45,7 @@ const AdminLayout = () => {
           <Route path="/notifications" element={<AdminNotificationPage />} />
           <Route path="/invoices" element={<AdminInvoicePage />} />
           <Route path="/facebook" element={<FacebookManagementPage />} />
+          <Route path="/instagram-insights" element={<AdminInstagramInsightsPage />} />
         </Routes>
       </div>
     </div>

@@ -25,7 +25,8 @@ const SidebarMenu = () => {
     { label: "Manage Employees", path: "/admin/employees" },
     { label: "Manage Gallery Edits", path: "/admin/gallery" },
     { label: "Manage Customer Invoices", path: "/admin/invoices" },
-    { label: "Settings", path: "/admin/settings" },
+    { label: "Facebook Management", path: "/admin/facebook" },
+    { label: "Manage Instagram Insights", path: "/admin/instagram-insights" },
   ];
 
   const getButtonClasses = (path: string) => {

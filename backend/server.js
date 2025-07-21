@@ -27,6 +27,7 @@ const onboardingTasksRoutes = require("./routes/onboardingTasks");
 const facebookRoutes = require('./routes/facebook');
 const galleryRoutes = require('./routes/gallery');
 const invoicesRoutes = require('./routes/invoices');
+const instagramInsightsRoutes = require('./routes/instagramInsights');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
@@ -37,6 +38,8 @@ app.use("/api/onboarding-tasks", onboardingTasksRoutes);
 app.use('/api/facebook', facebookRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/invoices', invoicesRoutes);
+app.use('/api/instagram-insights', instagramInsightsRoutes);
+app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
 
 // Root route
 app.get("/", (req, res) => {

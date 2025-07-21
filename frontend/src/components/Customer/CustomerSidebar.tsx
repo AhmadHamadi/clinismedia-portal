@@ -17,7 +17,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ sidebarOpen, setSideb
     { label: "Media Day Booking", path: "/customer/media-day-booking" },
     { label: "Onboarding Tasks", path: "/customer/onboarding-tasks" },
     { label: "Google Integration", path: "/customer/google-integration" },
-    { label: "Facebook Insights", path: "/customer/facebook-insights" },
+    { label: "Meta Insights", path: "/customer/facebook-insights" },
     { label: "View Your Invoice", path: "/customer/invoices" },
     { label: "View Gallery", path: "/customer/gallery" },
   ];
