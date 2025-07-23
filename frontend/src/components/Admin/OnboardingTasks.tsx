@@ -220,6 +220,47 @@ const OnboardingTasks: React.FC = () => {
           >
             Assign to Clinic
           </button>
+
+          {/* New Task Creation Form - moved here */}
+          <div className="mt-8">
+            <h2 className="text-lg font-bold mb-2 text-[#303b45]">Create New Task</h2>
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+              <input
+                type="text"
+                placeholder="Task Title"
+                value={newTask.title}
+                onChange={e => setNewTask({ ...newTask, title: e.target.value })}
+                className="flex-1 p-2 border rounded text-black mb-2 md:mb-0"
+              />
+              <select
+                value={newTask.category}
+                onChange={e => setNewTask({ ...newTask, category: e.target.value })}
+                className="p-2 border rounded text-black mb-2 md:mb-0"
+              >
+                <option value="">-- Select Category --</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+                <option value="__new__">+ New Category</option>
+              </select>
+              {newTask.category === "__new__" && (
+                <input
+                  type="text"
+                  placeholder="New Category"
+                  value={newTask.description || ''}
+                  onChange={e => setNewTask({ ...newTask, category: e.target.value })}
+                  className="flex-1 p-2 border rounded text-black mb-2 md:mb-0"
+                />
+              )}
+              <button
+                className="px-4 py-2 bg-[#98c6d5] text-white rounded hover:bg-[#7bb3c7]"
+                onClick={handleAddTask}
+                disabled={!newTask.title.trim() || (!newTask.category || newTask.category === "__new__")}
+              >
+                Add Task
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       {/* Right: Clinic Onboarding Tasks */}
