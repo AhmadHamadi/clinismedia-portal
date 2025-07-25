@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FaFacebookSquare, FaCheckCircle } from 'react-icons/fa';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+import { API_BASE_URL } from '../../utils/api';
 
 const FacebookIntegrationPage: React.FC = () => {
   const [pages, setPages] = useState<any[]>([]);
