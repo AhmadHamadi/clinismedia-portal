@@ -9,7 +9,11 @@ const app = express();
 
 // Enable CORS for your frontend origin (adjust port if needed)
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174"],
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://clinismedia-portal-production-3684.up.railway.app"
+  ],
   credentials: true,
 }));
 
