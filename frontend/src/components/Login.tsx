@@ -9,7 +9,7 @@ import { API_BASE_URL } from '../utils/api';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [username, setUsername] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
@@ -24,7 +24,7 @@ const Login = () => {
 
     try {
       const response = await axios.post(`${API_BASE_URL}/auth/login`, {
-        username,
+        email,
         password,
       });
 
@@ -78,14 +78,14 @@ const Login = () => {
         )}
 
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3 mt-2">
-          {/* Username input */}
+          {/* Email input */}
           <div className="w-full flex items-center gap-2 bg-gray-800 p-2 rounded-xl">
             <MdOutlinePerson className="text-gray-400" />
             <input
-              type="text"
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="bg-transparent border-0 w-full outline-none text-sm md:text-base text-white placeholder-gray-500"
               disabled={loading}
             />

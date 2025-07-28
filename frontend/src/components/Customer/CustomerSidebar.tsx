@@ -14,12 +14,12 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ sidebarOpen, setSideb
 
   const navItems = [
     { label: "Dashboard", path: "/customer/dashboard" },
-    { label: "Media Day Booking", path: "/customer/media-day-booking" },
+    { label: "Media Day Calendar", path: "/customer/media-day-booking" },
     { label: "Onboarding Tasks", path: "/customer/onboarding-tasks" },
     { label: "Google Integration", path: "/customer/google-integration" },
     { label: "Meta Insights", path: "/customer/facebook-insights" },
     { label: "View Your Invoice", path: "/customer/invoices" },
-    { label: "View Gallery", path: "/customer/gallery" },
+    { label: "View Media", path: "/customer/gallery" },
   ];
 
   const getButtonClasses = (path: string) => {
@@ -37,7 +37,8 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ sidebarOpen, setSideb
           <img
             src={logo1}
             alt="CliniMedia Logo"
-            className="h-20 object-contain"
+            className="h-20 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => navigate("/customer/dashboard")}
           />
         )}
         <FaBars onClick={() => setSidebarOpen(!sidebarOpen)} className="cursor-pointer" />

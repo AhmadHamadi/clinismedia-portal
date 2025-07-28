@@ -64,7 +64,7 @@ const AdminDash = () => {
           onClick={() => navigate("/admin/invoices")}
         />
         <DashboardBox
-          title="Facebook Management"
+          title="Manage Facebook"
           description="Assign and manage Facebook Pages"
           onClick={() => navigate("/admin/facebook")}
         />
