@@ -62,49 +62,17 @@ const CustomerInvoicePage: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-6">
-      {/* Left: Invoice History */}
-      <div className="w-full lg:w-1/3">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-bold text-[#303b45] mb-4">Invoice History</h2>
-          {historyInvoices.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No previous invoices found.</p>
-          ) : (
-            <div className="space-y-3">
-              {historyInvoices.map((item) => (
-                <div key={item._id} className="border rounded-lg p-3 hover:bg-gray-50">
-                  <h3 className="font-medium text-gray-900 mb-1">{item.invoiceId.name}</h3>
-                  <p className="text-sm text-gray-600 mb-2">
-                    Assigned: {new Date(item.assignedAt).toLocaleDateString()}
-                  </p>
-                  <div className="flex gap-2">
-                    <a
-                      href={BACKEND_BASE_URL + '/api/invoices/view/' + item.invoiceId.url.split('/').pop()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline text-sm font-medium"
-                    >
-                      View
-                    </a>
-                    <a
-                      href={BACKEND_BASE_URL + '/api/invoices/file/' + item.invoiceId.url.split('/').pop()}
-                      download
-                      className="text-green-600 hover:underline text-sm font-medium"
-                    >
-                      Download
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-      {/* Right: Current Invoice */}
+      {/* Left: Current Invoice */}
       <div className="w-full lg:w-2/3">
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-2 py-8 bg-gradient-to-br from-[#f8fafc] to-[#e0f2fe]">
           <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-10 flex flex-col items-center border border-[#e0e7ef] relative">
             {currentInvoice ? (
               <>
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                  <span className="bg-green-500 text-white px-4 py-1 rounded-full text-sm font-semibold shadow-lg">
+                    Latest Invoice
+                  </span>
+                </div>
                 <h1 className="text-3xl font-extrabold text-[#60a5fa] mb-2 tracking-tight text-center font-sans">
                   {currentInvoice.invoiceId.name}
                 </h1>
@@ -143,6 +111,43 @@ const CustomerInvoicePage: React.FC = () => {
               </>
             )}
           </div>
+        </div>
+      </div>
+      {/* Right: Invoice History */}
+      <div className="w-full lg:w-1/3">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-bold text-[#303b45] mb-4">Invoice History</h2>
+          {historyInvoices.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">No previous invoices found.</p>
+          ) : (
+            <div className="space-y-3">
+              {historyInvoices.map((item) => (
+                <div key={item._id} className="border rounded-lg p-3 hover:bg-gray-50">
+                  <h3 className="font-medium text-gray-900 mb-1">{item.invoiceId.name}</h3>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Assigned: {new Date(item.assignedAt).toLocaleDateString()}
+                  </p>
+                  <div className="flex gap-2">
+                    <a
+                      href={BACKEND_BASE_URL + '/api/invoices/view/' + item.invoiceId.url.split('/').pop()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-sm font-medium"
+                    >
+                      View
+                    </a>
+                    <a
+                      href={BACKEND_BASE_URL + '/api/invoices/file/' + item.invoiceId.url.split('/').pop()}
+                      download
+                      className="text-green-600 hover:underline text-sm font-medium"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

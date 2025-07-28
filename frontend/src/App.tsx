@@ -64,7 +64,7 @@ function App() {
             path="/customer/media-day-booking"
             element={
               <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="Media Day Booking">
+                <CustomerPortalLayout title="View/Request Booking">
                   <CustomerMediaDayBookingPage />
                 </CustomerPortalLayout>
               </ProtectedRoute>

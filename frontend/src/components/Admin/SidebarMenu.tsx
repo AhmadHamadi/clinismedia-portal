@@ -1,5 +1,4 @@
 // src/components/SidebarMenu.tsx
-import { FaBars } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import logo1 from "../../assets/CliniMedia_Logo1.png";
@@ -25,7 +24,7 @@ const SidebarMenu = () => {
     { label: "Manage Employees", path: "/admin/employees" },
     { label: "Manage Gallery Edits", path: "/admin/gallery" },
     { label: "Manage Customer Invoices", path: "/admin/invoices" },
-    { label: "Facebook Management", path: "/admin/facebook" },
+    { label: "Manage Facebook", path: "/admin/facebook" },
     { label: "Manage Instagram Insights", path: "/admin/instagram-insights" },
   ];
 
@@ -38,21 +37,16 @@ const SidebarMenu = () => {
 
   return (
     <div className={`fixed left-0 top-0 h-full bg-white shadow-lg border-r border-gray-200 z-50 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"}`} style={{ overflow: 'hidden' }}>
-      {/* Top: Logo left, hamburger right */}
-      <div className="p-4 flex items-center justify-between border-b border-gray-200">
+      {/* Top: Logo only */}
+      <div className="p-4 border-b border-gray-200">
         {sidebarOpen && (
           <img
             src={logo1}
             alt="CliniMedia Logo"
-            className="h-20 object-contain"
+            className="h-20 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => navigate("/admin")}
           />
         )}
-        <button 
-          onClick={() => setSidebarOpen(!sidebarOpen)} 
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <FaBars className="text-gray-600" />
-        </button>
       </div>
 
       {/* Navigation */}

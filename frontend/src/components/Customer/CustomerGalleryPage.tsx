@@ -65,16 +65,68 @@ const CustomerGalleryPage: React.FC = () => {
     fetchAssignedItems();
   }, []);
 
-  if (loading) return <div className="p-6 text-gray-600">Loading gallery items...</div>;
+  if (loading) return <div className="p-6 text-gray-600">Loading media items...</div>;
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-6">
-      {/* Left: History/Recent Gallery Items */}
+      {/* Left: Current Gallery Item */}
+      <div className="w-full lg:w-2/3">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-2 py-8 bg-gradient-to-br from-[#f8fafc] to-[#e0f2fe]">
+          <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-10 flex flex-col items-center border border-[#e0e7ef] relative">
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <span className="bg-green-500 text-white px-4 py-1 rounded-full text-sm font-semibold shadow-lg">
+                Latest Media
+              </span>
+            </div>
+            <div className="absolute top-6 right-6 opacity-20 rotate-12">
+              <DecorativeSparkle />
+            </div>
+            <div className="absolute bottom-6 left-6 opacity-10 -rotate-12">
+              <DecorativeSparkle />
+            </div>
+            <DecorativeSparkle />
+            
+            {currentItem ? (
+              <>
+                <h1 className="text-3xl font-extrabold text-[#60a5fa] mb-2 tracking-tight text-center font-sans">
+                  {currentItem.galleryItemId.name}
+                </h1>
+                <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
+                  Explore your latest media day highlights and share your favorite moments with your team. 
+                  This media was assigned on {new Date(currentItem.assignedAt).toLocaleDateString()}.
+                </p>
+                <a
+                  href={currentItem.galleryItemId.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 px-8 py-3 bg-[#98c6d5] text-white rounded-xl font-bold text-lg shadow-lg hover:bg-[#1877f3] hover:scale-105 transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-[#98c6d5]/40"
+                >
+                  <span className="inline-block align-middle mr-2">🔗</span> View Current Media
+                </a>
+              </>
+            ) : (
+              <>
+                <h1 className="text-3xl font-extrabold text-[#60a5fa] mb-2 tracking-tight text-center font-sans">
+                  No Current Media
+                </h1>
+                <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
+                  No media has been assigned to you yet. Check back later or contact your administrator.
+                </p>
+                <div className="mt-2 px-8 py-3 bg-gray-300 text-gray-600 rounded-xl font-bold text-lg">
+                  <span className="inline-block align-middle mr-2">⏳</span> Awaiting Assignment
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Right: History/Recent Gallery Items */}
       <div className="w-full lg:w-1/3">
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-bold text-[#303b45] mb-4">Gallery History</h2>
+          <h2 className="text-xl font-bold text-[#303b45] mb-4">Media History</h2>
           {historyItems.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No previous gallery items found.</p>
+            <p className="text-gray-500 text-center py-4">No previous media items found.</p>
           ) : (
             <div className="space-y-3">
               {historyItems.map((item) => (
@@ -91,59 +143,12 @@ const CustomerGalleryPage: React.FC = () => {
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                   >
-                    View Gallery →
+                    View Media →
                   </a>
                 </div>
               ))}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Right: Current Gallery Item */}
-      <div className="w-full lg:w-2/3">
-        <div className="flex flex-col items-center justify-center min-h-[60vh] px-2 py-8 bg-gradient-to-br from-[#f8fafc] to-[#e0f2fe]">
-          <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-10 flex flex-col items-center border border-[#e0e7ef] relative">
-            <div className="absolute top-6 right-6 opacity-20 rotate-12">
-              <DecorativeSparkle />
-            </div>
-            <div className="absolute bottom-6 left-6 opacity-10 -rotate-12">
-              <DecorativeSparkle />
-            </div>
-            <DecorativeSparkle />
-            
-            {currentItem ? (
-              <>
-                <h1 className="text-3xl font-extrabold text-[#60a5fa] mb-2 tracking-tight text-center font-sans">
-                  {currentItem.galleryItemId.name}
-                </h1>
-                <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
-                  Explore your latest media day highlights and share your favorite moments with your team. 
-                  This gallery was assigned on {new Date(currentItem.assignedAt).toLocaleDateString()}.
-                </p>
-                <a
-                  href={currentItem.galleryItemId.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 px-8 py-3 bg-[#98c6d5] text-white rounded-xl font-bold text-lg shadow-lg hover:bg-[#1877f3] hover:scale-105 transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-[#98c6d5]/40"
-                >
-                  <span className="inline-block align-middle mr-2">🔗</span> View Current Gallery
-                </a>
-              </>
-            ) : (
-              <>
-                <h1 className="text-3xl font-extrabold text-[#60a5fa] mb-2 tracking-tight text-center font-sans">
-                  No Current Gallery
-                </h1>
-                <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
-                  No gallery has been assigned to you yet. Check back later or contact your administrator.
-                </p>
-                <div className="mt-2 px-8 py-3 bg-gray-300 text-gray-600 rounded-xl font-bold text-lg">
-                  <span className="inline-block align-middle mr-2">⏳</span> Awaiting Assignment
-                </div>
-              </>
-            )}
-          </div>
         </div>
       </div>
     </div>

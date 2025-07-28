@@ -28,9 +28,6 @@ const CustomerManagementPage = () => {
     totalPages,
   } = useCustomerManagement();
 
-  const [logoFile, setLogoFile] = React.useState<File | null>(null);
-  const [editLogoFile, setEditLogoFile] = React.useState<File | null>(null);
-
   const validateForm = () => {
     if (!formData.name || !formData.username || !formData.email || !formData.password) {
       alert("Please fill in all required fields.");
@@ -75,36 +72,26 @@ const CustomerManagementPage = () => {
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse table-auto">
               <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-6 text-left font-semibold text-gray-700">Logo</th>
+                <tr className="bg-gray-50">
                   <th className="p-6 text-left font-semibold text-gray-700">Name</th>
                   <th className="p-6 text-left font-semibold text-black">Username</th>
                   <th className="p-6 text-left font-semibold text-black">Email</th>
                   <th className="p-6 text-left font-semibold text-black">Location</th>
-                  <th className="p-6 text-left font-semibold text-black">Address</th>
                   <th className="p-6 text-left font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-500">No customers found.</td>
+                    <td colSpan={5} className="p-8 text-center text-gray-500">No customers found.</td>
                   </tr>
                 ) : (
                   paginatedCustomers.map((customer) => (
                     <tr key={customer._id} className="border-b hover:bg-gray-50 transition">
-                      <td className="p-6">
-                        {customer.customerSettings?.logoUrl ? (
-                          <img src={BACKEND_BASE_URL + customer.customerSettings.logoUrl} alt="Logo" className="w-10 h-10 rounded-full object-cover border" />
-                        ) : (
-                          <span className="inline-block w-10 h-10 rounded-full bg-gray-200" />
-                        )}
-                      </td>
                       <td className="p-6 text-black">{customer.name}</td>
                       <td className="p-6 text-black">{customer.username || '-'}</td>
                       <td className="p-6 text-black">{customer.email}</td>
                       <td className="p-6 text-black">{customer.location || '-'}</td>
-                      <td className="p-6 text-black">{customer.address || '-'}</td>
                       <td className="p-6">
                         <button className="text-[#98c6d5] hover:underline mr-4" onClick={() => handleViewCustomer(customer)}>
                           View
@@ -223,12 +210,6 @@ const CustomerManagementPage = () => {
                     <option value={1}>Monthly Booking</option>
                     <option value={3}>Quarterly Booking</option>
                   </select>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e => setLogoFile(e.target.files?.[0] || null)}
-                    className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black"
-                  />
                   <div className="flex justify-end space-x-4">
                     <button
                       type="button"
@@ -311,12 +292,6 @@ const CustomerManagementPage = () => {
                     <option value={1}>Monthly Booking</option>
                     <option value={3}>Quarterly Booking</option>
                   </select>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e => setEditLogoFile(e.target.files?.[0] || null)}
-                    className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black"
-                  />
                   <div className="flex justify-end space-x-4">
                     <button
                       type="button"

@@ -12,7 +12,6 @@ export interface Customer {
   address?: string;
   bookingIntervalMonths?: number;
   customerSettings?: {
-    logoUrl?: string;
     displayName?: string;
   };
 }
@@ -82,6 +81,7 @@ export function useCustomerManagement() {
       const res = await axios.get(`${API_BASE_URL}/customers`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      console.log('Fetched customers data:', res.data);
       setCustomers(res.data);
     } catch (err) {
       console.error("❌ Failed to fetch customers", err);
@@ -133,11 +133,32 @@ export function useCustomerManagement() {
   };
 
   const handleViewCustomer = (customer: Customer) => {
-    alert(`Customer Details:\n\nName: ${customer.name}\nUsername: ${customer.username || 'N/A'}\nEmail: ${customer.email}\nLocation: ${customer.location || 'N/A'}`);
+    const details = [
+      `Name: ${customer.name}`,
+      `Username: ${customer.username || 'N/A'}`,
+      `Email: ${customer.email}`,
+      `Location: ${customer.location || 'N/A'}`,
+      `Address: ${customer.address || 'N/A'}`,
+      `Booking Interval: ${customer.bookingIntervalMonths || 1} month(s)`,
+      `Customer ID: ${customer._id}`,
+    ].join('\n\n');
+    
+    alert(`Customer Details:\n\n${details}`);
   };
 
   const handleEditClick = (customer: Customer) => {
+    console.log('Editing customer data:', customer);
     setEditFormData({
+      _id: customer._id,
+      name: customer.name,
+      username: customer.username || "",
+      email: customer.email,
+      password: "",
+      location: customer.location || "",
+      address: customer.address || "",
+      bookingIntervalMonths: customer.bookingIntervalMonths || 1,
+    });
+    console.log('Set edit form data:', {
       _id: customer._id,
       name: customer.name,
       username: customer.username || "",
@@ -159,10 +180,13 @@ export function useCustomerManagement() {
     e.preventDefault();
     if (!window.confirm("Are you sure you want to save these changes?")) return;
     try {
-      await axios.put(`${API_BASE_URL}/customers/${editFormData._id}`, editFormData);
+      console.log('Submitting edit data:', editFormData);
+      const response = await axios.put(`${API_BASE_URL}/customers/${editFormData._id}`, editFormData);
+      console.log('Edit response:', response.data);
       setEditModalOpen(false);
       fetchCustomers();
     } catch (err: any) {
+      console.error('Edit submission error:', err);
       alert("Failed to update customer.");
     }
   };

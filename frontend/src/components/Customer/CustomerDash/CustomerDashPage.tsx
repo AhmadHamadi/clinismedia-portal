@@ -134,7 +134,7 @@ const CustomerDashboard = () => {
         <div className="z-10 w-full max-w-2xl text-center mx-auto">
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1877f3] mb-1 font-sans text-center">Welcome to Your CliniMedia Portal!</h1>
           <p className="text-gray-700 text-base md:text-lg font-medium text-center mx-auto">
-            We're excited to help your clinic shine. Here you can easily <span className="text-[#60a5fa] font-semibold">book your next Media Day</span>, access your <span className="text-[#60a5fa] font-semibold">professional photo galleries</span>, manage <span className="text-[#60a5fa] font-semibold">invoices</span>, and track <span className="text-[#60a5fa] font-semibold">onboarding tasks</span>, <span className="text-[#60a5fa] font-semibold">monitor the performance of your Facebook and Google advertisements</span>—all in one place. Our team is here to support you every step of the way. Let's make your brand stand out!
+            We're excited to help your clinic shine. Here you can easily <span className="text-[#60a5fa] font-bold">book your next Media Day</span>, access your <span className="text-[#60a5fa] font-bold">professional photo galleries</span>, manage <span className="text-[#60a5fa] font-bold">invoices</span>, and track <span className="text-[#60a5fa] font-bold">onboarding tasks</span>, monitor your <span className="text-[#60a5fa] font-bold">Facebook and Google advertisements</span>—all in one place. Our team is here to support you every step of the way.
           </p>
         </div>
       </div>
@@ -234,7 +234,7 @@ const CustomerDashboard = () => {
               onClick={() => navigate("/customer/media-day-booking")}
               className="bg-[#98c6d5] hover:bg-[#7bb3c4] text-white px-6 py-3 rounded-lg font-semibold text-lg shadow-md transition"
             >
-              {upcomingMediaDay ? "View Bookings" : "Book Media Day"}
+              View/Request Booking
             </button>
           </div>
         </div>

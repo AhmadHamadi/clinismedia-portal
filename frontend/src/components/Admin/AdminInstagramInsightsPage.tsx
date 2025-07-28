@@ -108,9 +108,9 @@ const AdminInstagramInsightsPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-100 font-sans gap-6 p-6">
-      {/* Left: Upload Form */}
-      <div className="w-full md:w-1/3 bg-white rounded-lg shadow-md p-6">
+    <div className="flex flex-col min-h-screen bg-gray-100 font-sans gap-6 p-6">
+      {/* Upload Form */}
+      <div className="w-full bg-white rounded-lg shadow-md p-6">
         <h1 className="text-2xl font-bold text-[#303b45] mb-4">Instagram Insights (Upload)</h1>
         <select
           value={selectedClinicId}
@@ -144,8 +144,8 @@ const AdminInstagramInsightsPage: React.FC = () => {
           {loading ? 'Uploading...' : 'Upload'}
         </button>
       </div>
-      {/* Right: Image List & Filter */}
-      <div className="w-full md:w-2/3 bg-white rounded-lg shadow-md p-6">
+      {/* Image List & Filter */}
+      <div className="w-full bg-white rounded-lg shadow-md p-6">
         <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
           <select
             value={filterClinicId}
