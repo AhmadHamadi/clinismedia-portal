@@ -37,16 +37,28 @@ router.post('/upload', authenticateToken, authorizeRole(['admin']), upload.singl
   }
 });
 
-// Serve PDF files (force download)
-router.get('/file/:filename', (req, res) => {
-  const filePath = path.join(__dirname, '../uploads/invoices', req.params.filename);
-  res.download(filePath);
+// GET invoice file (authenticated)
+router.get('/file/:filename', authenticateToken, (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, '../uploads/invoices', filename);
+  
+  if (fs.existsSync(filePath)) {
+    res.download(filePath);
+  } else {
+    res.status(404).json({ error: 'File not found' });
+  }
 });
 
-// Serve PDF for viewing (open in browser)
-router.get('/view/:filename', (req, res) => {
-  const filePath = path.join(__dirname, '../uploads/invoices', req.params.filename);
-  res.sendFile(filePath);
+// GET invoice view (authenticated)
+router.get('/view/:filename', authenticateToken, (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, '../uploads/invoices', filename);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).json({ error: 'File not found' });
+  }
 });
 
 // Get all invoices (admin only)

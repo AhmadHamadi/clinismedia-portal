@@ -2,6 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import logo1 from "../../assets/CliniMedia_Logo1.png";
+import { logout } from "../../utils/auth";
 
 const SidebarMenu = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -35,6 +36,11 @@ const SidebarMenu = () => {
     return currentPath === path ? `${baseClasses} ${activeClasses}` : baseClasses;
   };
 
+  const handleLogout = async () => {
+    await logout('admin');
+    navigate("/login");
+  };
+
   return (
     <div className={`fixed left-0 top-0 h-full bg-white shadow-lg border-r border-gray-200 z-50 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"} flex flex-col`}>
       {/* Top: Logo only */}
@@ -66,13 +72,7 @@ const SidebarMenu = () => {
       {/* Logout Button at bottom */}
       <div className="p-3 border-t border-gray-200 flex-shrink-0">
         <button
-          onClick={() => {
-            localStorage.removeItem("adminToken");
-            localStorage.removeItem("adminData");
-            localStorage.removeItem("employeeToken");
-            localStorage.removeItem("employeeData");
-            navigate("/login");
-          }}
+          onClick={handleLogout}
           className="w-full bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm"
         >
           {sidebarOpen ? "Logout" : "X"}

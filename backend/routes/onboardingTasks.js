@@ -6,7 +6,7 @@ const authorizeRole = require('../middleware/authorizeRole');
 
 // Master onboarding tasks (admin only)
 router.post('/', authenticateToken, authorizeRole(['admin']), onboardingTaskController.createTask);
-router.get('/', onboardingTaskController.getAllTasks);
+router.get('/', authenticateToken, authorizeRole(['admin']), onboardingTaskController.getAllTasks);
 router.put('/:id', authenticateToken, authorizeRole(['admin']), onboardingTaskController.updateTask);
 router.delete('/:id', authenticateToken, authorizeRole(['admin']), onboardingTaskController.deleteTask);
 

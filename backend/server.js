@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");           // Add CORS
 const connectDB = require("./config/db");
 const ScheduledEmailService = require("./services/scheduledEmailService");
+const { sessionManager } = require("./middleware/sessionManager");
 require("dotenv").config();
 
 const app = express();
@@ -65,6 +66,13 @@ app.listen(PORT, () => {
       await ScheduledEmailService.sendProactiveBookingReminders();
     }
   }, 60000); // Check every minute
+  
+  // Set up session cleanup (runs every hour)
+  setInterval(() => {
+    sessionManager.cleanupOldSessions();
+    sessionManager.forceDailyReset();
+    console.log("🧹 Cleaned up old sessions");
+  }, 60 * 60 * 1000); // Every hour
   
   // Also run once on server start for testing
   ScheduledEmailService.sendDailyReminders();
