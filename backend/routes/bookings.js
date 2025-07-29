@@ -128,7 +128,7 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
       const customer = await User.findById(req.user._id);
       const clinicName = customer.name || 'Customer';
       const requestedDate = formatDateForEmail(date);
-      await sendEmailAsync(EmailService.sendBookingConfirmation, clinicName, requestedDate);
+      await sendEmailAsync(EmailService.sendBookingConfirmation, clinicName, requestedDate, customer.email);
     })();
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -144,7 +144,8 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
       return res.status(400).json({ message: 'Customer ID and date are required' });
     }
 
-    await checkDateAvailability(date);
+    // Admin can book any date - no availability checks needed
+    // await checkDateAvailability(date); // Removed for admin flexibility
 
     const booking = new Booking({
       customer: customerId,
@@ -156,6 +157,55 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
     const savedBooking = await booking.save();
     const populatedBooking = await Booking.findById(savedBooking._id)
       .populate('customer', 'name email location');
+    
+    // Create blocked dates for the next few months since this is an accepted booking
+    try {
+      const customer = await User.findById(customerId);
+      const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 3 for quarterly
+      
+      console.log(`📅 Processing admin-created booking for customer ${customer.name} with interval: ${interval} months`);
+      
+      // Only create blocked dates for quarterly clinics (interval = 3)
+      if (interval === 3) {
+        console.log(`🔒 Creating blocked dates for quarterly clinic - blocking entire months of August and September`);
+        
+        // Create blocked dates for the entire next 2 months (August and September)
+        const bookingDate = new Date(date);
+        for (let monthOffset = 1; monthOffset <= 2; monthOffset++) {
+          const blockedMonth = new Date(bookingDate);
+          blockedMonth.setMonth(blockedMonth.getMonth() + monthOffset);
+          
+          // Block every day in the month
+          const year = blockedMonth.getFullYear();
+          const month = blockedMonth.getMonth();
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
+          
+          console.log(`🔒 Blocking entire month: ${blockedMonth.toLocaleString('default', { month: 'long', year: 'numeric' })} (${daysInMonth} days)`);
+          
+          for (let day = 1; day <= daysInMonth; day++) {
+            const blockedDate = new Date(year, month, day);
+            
+            // Check if this date is already blocked
+            const existingBlock = await BlockedDate.findOne({ date: blockedDate });
+            if (!existingBlock) {
+              const newBlockedDate = new BlockedDate({
+                date: blockedDate,
+                bookingId: savedBooking._id,
+                isManualBlock: false
+              });
+              await newBlockedDate.save();
+            }
+          }
+          console.log(`✅ Blocked entire month: ${blockedMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}`);
+        }
+      } else {
+        console.log(`✅ Monthly clinic - no blocked dates created (allows flexible booking)`);
+      }
+    } catch (blockError) {
+      console.error('❌ Error creating blocked dates:', blockError);
+      // Don't fail the booking creation if blocking fails
+    }
+    
     res.status(201).json(populatedBooking);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -192,6 +242,91 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
       .populate('customer', 'name email location')
       .populate('photographer', 'name email');
     
+    // If booking is accepted, create blocked dates for the next few months
+    if (status === 'accepted') {
+      try {
+        const customer = await User.findById(booking.customer);
+        const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 3 for quarterly
+        
+        console.log(`📅 Processing booking for customer ${customer.name} with interval: ${interval} months`);
+        
+        if (interval === 1) {
+          // For monthly clinics, block the entire next month
+          console.log(`🔒 Creating blocked dates for monthly clinic - blocking entire next month`);
+          
+          const bookingDate = new Date(booking.date);
+          const nextMonth = new Date(bookingDate);
+          nextMonth.setMonth(nextMonth.getMonth() + 1);
+          
+          // Block all dates in the next month
+          const startOfNextMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+          const endOfNextMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0);
+          
+          console.log(`🔒 Blocking entire month: ${startOfNextMonth.toISOString().split('T')[0]} to ${endOfNextMonth.toISOString().split('T')[0]}`);
+          
+          // Create blocked dates for each day in the next month
+          for (let day = 1; day <= endOfNextMonth.getDate(); day++) {
+            const blockedDate = new Date(startOfNextMonth);
+            blockedDate.setDate(day);
+            
+            // Check if this date is already blocked
+            const existingBlock = await BlockedDate.findOne({ date: blockedDate });
+            if (!existingBlock) {
+              const newBlockedDate = new BlockedDate({
+                date: blockedDate,
+                bookingId: booking._id,
+                isManualBlock: false
+              });
+              await newBlockedDate.save();
+              console.log(`✅ Blocked date created: ${blockedDate.toISOString().split('T')[0]}`);
+            } else {
+              console.log(`⚠️ Date already blocked: ${blockedDate.toISOString().split('T')[0]}`);
+            }
+          }
+        } else if (interval === 3) {
+          // For quarterly clinics, block the next 2 months
+          console.log(`🔒 Creating blocked dates for quarterly clinic - blocking 2 months after media day`);
+          
+          // Create blocked dates for the next 2 months only (to prevent immediate double booking)
+          const bookingDate = new Date(booking.date);
+          for (let i = 1; i <= 2; i++) {
+            const blockedDate = new Date(bookingDate);
+            blockedDate.setMonth(blockedDate.getMonth() + i);
+            
+            console.log(`🔒 Creating blocked date: ${blockedDate.toISOString().split('T')[0]} (${i} month(s) after media day)`);
+            
+            // Check if this date is already blocked
+            const existingBlock = await BlockedDate.findOne({ date: blockedDate });
+            if (!existingBlock) {
+              const newBlockedDate = new BlockedDate({
+                date: blockedDate,
+                bookingId: booking._id,
+                isManualBlock: false
+              });
+              await newBlockedDate.save();
+              console.log(`✅ Blocked date created: ${blockedDate.toISOString().split('T')[0]}`);
+            } else {
+              console.log(`⚠️ Date already blocked: ${blockedDate.toISOString().split('T')[0]}`);
+            }
+          }
+        } else {
+          console.log(`✅ No blocked dates created for interval: ${interval}`);
+        }
+      } catch (blockError) {
+        console.error('❌ Error creating blocked dates:', blockError);
+        // Don't fail the booking update if blocking fails
+      }
+    } else if (status === 'declined') {
+      // Remove any blocked dates associated with this booking
+      try {
+        const deletedCount = await BlockedDate.deleteMany({ bookingId: booking._id });
+        console.log(`🗑️ Removed ${deletedCount.deletedCount} blocked dates for declined booking`);
+      } catch (blockError) {
+        console.error('❌ Error removing blocked dates:', blockError);
+        // Don't fail the booking update if unblocking fails
+      }
+    }
+    
     res.json(populatedBooking);
 
     // Send email notification based on status
@@ -201,10 +336,10 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
         const customer = await User.findById(booking.customer);
         const clinicName = customer.name || 'Customer';
         const bookingDate = formatDateForEmail(booking.date);
-        await sendEmailAsync(EmailService.sendBookingAccepted, clinicName, bookingDate);
+        await sendEmailAsync(EmailService.sendBookingAccepted, clinicName, bookingDate, customer.email);
         
         // Also notify photographers about the available session
-        await sendEmailAsync(EmailService.sendPhotographerNotification, clinicName, bookingDate);
+        await sendEmailAsync(EmailService.sendPhotographerNotificationToAll, clinicName, bookingDate);
       })();
     } else if (status === 'declined') {
       // Send booking declined email asynchronously
@@ -212,7 +347,7 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
         const customer = await User.findById(booking.customer);
         const clinicName = customer.name || 'Customer';
         const requestedDate = formatDateForEmail(booking.date);
-        await sendEmailAsync(EmailService.sendBookingDeclined, clinicName, requestedDate);
+        await sendEmailAsync(EmailService.sendBookingDeclined, clinicName, requestedDate, customer.email);
       })();
     }
   } catch (error) {

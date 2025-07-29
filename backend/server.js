@@ -7,13 +7,9 @@ require("dotenv").config();
 
 const app = express();
 
-// Enable CORS for your frontend origin (adjust port if needed)
+// Enable CORS for your frontend origin
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "https://clinismedia-portal-production-3684.up.railway.app"
-  ],
+  origin: process.env.FRONTEND_URL,
   credentials: true,
 }));
 
@@ -32,6 +28,7 @@ const facebookRoutes = require('./routes/facebook');
 const galleryRoutes = require('./routes/gallery');
 const invoicesRoutes = require('./routes/invoices');
 const instagramInsightsRoutes = require('./routes/instagramInsights');
+const emailNotificationSettingsRoutes = require('./routes/emailNotificationSettings');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
@@ -43,6 +40,7 @@ app.use('/api/facebook', facebookRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/invoices', invoicesRoutes);
 app.use('/api/instagram-insights', instagramInsightsRoutes);
+app.use('/api/email-notification-settings', emailNotificationSettingsRoutes);
 app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
 
 // Root route
@@ -50,9 +48,10 @@ app.get("/", (req, res) => {
   res.send("CliniMedia Portal API is running.");
 });
 
-const PORT = process.env.PORT || 5050;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`🌐 Public URL: ${process.env.RAILWAY_PUBLIC_DOMAIN || 'Not set'}`);
   
   // Set up daily reminder emails (runs every day at 9 AM)
   setInterval(async () => {

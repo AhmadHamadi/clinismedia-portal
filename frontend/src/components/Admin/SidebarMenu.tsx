@@ -30,27 +30,27 @@ const SidebarMenu = () => {
 
   const getButtonClasses = (path: string) => {
     const baseClasses =
-      "text-left w-full p-3 rounded-lg transition-all duration-200 hover:bg-[#a0d2eb] text-gray-700 font-medium";
+      "text-left w-full p-2 rounded-lg transition-all duration-200 hover:bg-[#a0d2eb] text-gray-700 font-medium text-sm";
     const activeClasses = "bg-[#98c6d5] text-white shadow-md";
     return currentPath === path ? `${baseClasses} ${activeClasses}` : baseClasses;
   };
 
   return (
-    <div className={`fixed left-0 top-0 h-full bg-white shadow-lg border-r border-gray-200 z-50 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"}`} style={{ overflow: 'hidden' }}>
+    <div className={`fixed left-0 top-0 h-full bg-white shadow-lg border-r border-gray-200 z-50 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"} flex flex-col`}>
       {/* Top: Logo only */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-3 border-b border-gray-200 flex-shrink-0">
         {sidebarOpen && (
           <img
             src={logo1}
             alt="CliniMedia Logo"
-            className="h-20 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+            className="h-16 object-contain cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => navigate("/admin")}
           />
         )}
       </div>
 
       {/* Navigation */}
-      <nav className="p-4 space-y-2 mt-4 overflow-hidden">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {navItems.map(({ label, path }) => (
           <button
             key={path}
@@ -64,7 +64,7 @@ const SidebarMenu = () => {
       </nav>
 
       {/* Logout Button at bottom */}
-      <div className="absolute bottom-4 left-4 right-4">
+      <div className="p-3 border-t border-gray-200 flex-shrink-0">
         <button
           onClick={() => {
             localStorage.removeItem("adminToken");
@@ -73,7 +73,7 @@ const SidebarMenu = () => {
             localStorage.removeItem("employeeData");
             navigate("/login");
           }}
-          className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg transition-colors font-medium"
+          className="w-full bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm"
         >
           {sidebarOpen ? "Logout" : "X"}
         </button>

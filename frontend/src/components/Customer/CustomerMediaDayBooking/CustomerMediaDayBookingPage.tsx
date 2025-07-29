@@ -287,18 +287,18 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-[#f9fafb] via-[#f3f4f6] to-[#e5e7eb] py-8">
       <div className="max-w-6xl mx-auto px-4">
         {/* Header */}
-        <div className="text-center mb-12 relative flex flex-col items-center">
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-2 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow font-sans tracking-tight flex items-center justify-center gap-2">
+        <div className="text-center mb-12 relative flex flex-col items-center pt-8 pb-4">
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow font-sans tracking-tight flex items-center justify-center gap-2 leading-normal py-2">
             <span>Book Your Media Day!</span>
           </h1>
           {loadingCustomer ? (
             <div className="text-gray-500 text-sm mt-2">Loading your frequency...</div>
           ) : customer && (
-            <div className="text-center mb-2 text-gray-700 font-medium">
+            <div className="text-center mb-3 text-gray-700 font-medium">
               Your Media Day Frequency: {customer.bookingIntervalMonths === 3 ? 'Quarterly' : 'Monthly'}
             </div>
           )}
-          <p className="text-base md:text-lg font-normal text-gray-800 max-w-xl mx-auto px-6 py-4 mt-2 rounded-2xl shadow-xl backdrop-blur-md bg-white/60 border border-transparent">
+          <p className="text-base md:text-lg font-normal text-gray-800 max-w-xl mx-auto px-6 py-4 mt-3 rounded-2xl shadow-xl backdrop-blur-md bg-white/60 border border-transparent">
           Make your clinic impossible to ignore. Book your next Media Day in just a few clicks. Lock in your date and time and let our team handle the rest. 
           </p>
         </div>

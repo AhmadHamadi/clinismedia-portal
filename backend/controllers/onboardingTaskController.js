@@ -1,6 +1,7 @@
 const OnboardingTask = require('../models/OnboardingTask');
 const AssignedOnboardingTask = require('../models/AssignedOnboardingTask');
 const User = require('../models/User');
+const OnboardingEmailService = require('../services/onboardingEmailService');
 const mongoose = require('mongoose');
 
 // Master Onboarding Tasks CRUD
@@ -57,6 +58,12 @@ exports.assignTasksToClinic = async (req, res) => {
       return res.status(400).json({ message: 'Clinic ID and task IDs array are required' });
     }
     
+    // Get clinic details
+    const clinic = await User.findById(clinicId);
+    if (!clinic) {
+      return res.status(404).json({ message: 'Clinic not found' });
+    }
+    
     // Delete existing assignments for this clinic
     await AssignedOnboardingTask.deleteMany({ clinicId });
     
@@ -68,6 +75,14 @@ exports.assignTasksToClinic = async (req, res) => {
     }));
     
     await AssignedOnboardingTask.insertMany(assignments);
+    
+    // Send email notifications for each assigned task
+    for (const taskId of taskIds) {
+      const task = await OnboardingTask.findById(taskId);
+      if (task) {
+        await OnboardingEmailService.sendTaskCreatedEmail(clinic, task);
+      }
+    }
     
     res.json({ message: 'Tasks assigned successfully' });
   } catch (error) {
@@ -113,6 +128,18 @@ exports.updateAssignedTaskStatus = async (req, res) => {
     
     if (!assignment) {
       return res.status(404).json({ message: 'Assignment not found' });
+    }
+    
+    // Send email notifications based on status
+    const clinic = await User.findById(clinicId);
+    const task = await OnboardingTask.findById(taskId);
+    
+    if (clinic && task) {
+      if (status === 'pending') {
+        await OnboardingEmailService.sendTaskPendingEmail(clinic, task);
+      } else if (status === 'completed') {
+        await OnboardingEmailService.sendTaskCompletedEmail(clinic, task);
+      }
     }
     
     res.json(assignment);
