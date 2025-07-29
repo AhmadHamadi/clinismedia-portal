@@ -96,11 +96,10 @@ router.post('/', uploadLogo.single('logo'), async (req, res) => {
 });
 
 // DELETE a customer by ID
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    const { id } = req.params;
-    const deleted = await User.findByIdAndDelete(id);
-    if (!deleted) {
+    const customer = await User.findByIdAndDelete(req.params.id);
+    if (!customer) {
       return res.status(404).json({ error: "Customer not found" });
     }
     res.status(200).json({ message: "Customer deleted successfully" });
@@ -110,79 +109,66 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// UPDATE a customer by ID
-router.put('/:id', uploadLogo.single('logo'), async (req, res) => {
+// PUT update customer profile (authenticated)
+router.put("/profile", authenticateToken, uploadLogo.single('logo'), async (req, res) => {
   try {
-    const { name, username, email, password, location, address, bookingIntervalMonths } = req.body;
-    const update = {
-      name,
-      username,
-      email,
-      location,
-      address,
-      bookingIntervalMonths,
-    };
-    if (password) update.password = await bcrypt.hash(password, 10);
-    // Merge customerSettings if updating logo
-    if (req.file) {
-      const user = await User.findById(req.params.id);
-      update.customerSettings = {
-        ...((user && user.customerSettings) || {}),
-        logoUrl: `/uploads/customer-logos/${req.file.filename}`
-      };
+    const { name, email, location, address, bookingIntervalMonths } = req.body;
+    const logoUrl = req.file ? `/uploads/customer-logos/${req.file.filename}` : undefined;
+
+    const updateData = { name, email, location, address, bookingIntervalMonths };
+    if (logoUrl) {
+      updateData.customerSettings = { logoUrl };
     }
-    const user = await User.findByIdAndUpdate(req.params.id, update, { new: true });
-    res.json(user);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
 
-// GET visible gallery and invoice items for a customer
-router.get('/:id/portal-visibility', async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id)
-      .populate('visibleGalleryItems')
-      .populate('visibleInvoices');
-    if (!user) return res.status(404).json({ error: 'Customer not found' });
-
-    // Get all global gallery items and invoices
-    const allGalleryItems = await GalleryItem.find();
-    const allInvoices = await Invoice.find();
-
-    res.json({
-      visibleGalleryItems: user.visibleGalleryItems,
-      visibleInvoices: user.visibleInvoices,
-      allGalleryItems,
-      allInvoices,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// UPDATE visible gallery and invoice items for a customer
-router.put('/:id/portal-visibility', async (req, res) => {
-  try {
-    const { visibleGalleryItems, visibleInvoices } = req.body;
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      {
-        visibleGalleryItems,
-        visibleInvoices,
-      },
+    const customer = await User.findByIdAndUpdate(
+      req.user.id,
+      updateData,
       { new: true }
-    )
-      .populate('visibleGalleryItems')
-      .populate('visibleInvoices');
-    if (!user) return res.status(404).json({ error: 'Customer not found' });
-    res.json({
-      message: 'Portal visibility updated',
-      visibleGalleryItems: user.visibleGalleryItems,
-      visibleInvoices: user.visibleInvoices,
-    });
+    ).select("-password");
+
+    if (!customer) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    res.status(200).json(customer);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ Failed to update customer profile:", err.message);
+    res.status(500).json({ error: "Server error updating customer profile" });
+  }
+});
+
+// GET customer portal visibility (authenticated)
+router.get('/:id/portal-visibility', authenticateToken, async (req, res) => {
+  try {
+    const customer = await User.findById(req.params.id).select('portalVisibility');
+    if (!customer) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+    res.json({ portalVisibility: customer.portalVisibility || false });
+  } catch (err) {
+    console.error("❌ Failed to fetch portal visibility:", err.message);
+    res.status(500).json({ error: "Server error fetching portal visibility" });
+  }
+});
+
+// PUT update customer portal visibility (authenticated)
+router.put('/:id/portal-visibility', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { portalVisibility } = req.body;
+    const customer = await User.findByIdAndUpdate(
+      req.params.id,
+      { portalVisibility },
+      { new: true }
+    ).select('portalVisibility');
+    
+    if (!customer) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+    
+    res.json({ portalVisibility: customer.portalVisibility });
+  } catch (err) {
+    console.error("❌ Failed to update portal visibility:", err.message);
+    res.status(500).json({ error: "Server error updating portal visibility" });
   }
 });
 

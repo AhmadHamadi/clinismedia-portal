@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, Outlet, Routes, Route } from 'react-router-dom';
 import CustomerSidebar from './CustomerSidebar';
 import CustomerDashboard from './CustomerDash/CustomerDashPage';
@@ -9,11 +9,9 @@ import FacebookInsightsPage from './FacebookInsightsPage';
 import CustomerGalleryPage from './CustomerGalleryPage';
 import CustomerInvoicePage from './CustomerInvoicePage';
 import NotificationPage from './NotificationPage';
-import { IoMdArrowBack } from "react-icons/io";
 
 const CustomerPortalLayout: React.FC = () => {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleLogout = () => {
     localStorage.removeItem('customerToken');
@@ -21,15 +19,13 @@ const CustomerPortalLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const contentMarginClass = sidebarOpen ? "ml-64" : "ml-16";
-
   return (
     <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar */}
+      {/* Sidebar - Always visible */}
       <CustomerSidebar onLogout={handleLogout} />
       
       {/* Main Content */}
-      <div className={`flex-1 flex flex-col ${contentMarginClass} transition-all duration-300`}>
+      <div className="flex-1 flex flex-col ml-64">
         {/* Page Content */}
         <main className="flex-1">
           <Routes>

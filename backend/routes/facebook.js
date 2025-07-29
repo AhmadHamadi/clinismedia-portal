@@ -5,29 +5,17 @@ const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 
-router.get('/auth/:clinicId', (req, res) => {
-  const { clinicId } = req.params;
-  const redirectUri = encodeURIComponent(process.env.FB_REDIRECT_URI);
-  const clientId = process.env.FB_APP_ID;
-  const scope = [
-    'business_management',
-    'pages_read_engagement',
-    'pages_manage_metadata',
-    'pages_read_user_content',
-    'pages_manage_posts',
-    'pages_manage_engagement',
-    'pages_show_list',
-    'read_insights' // Only Facebook permissions
-  ].join(',');
+// Facebook OAuth routes (authenticated)
+router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), (req, res) => {
+  const clinicId = req.params.clinicId;
+  const redirectUri = `${process.env.FRONTEND_URL}/admin/facebook`;
   
-  console.log(`Starting Facebook OAuth for clinic: ${clinicId}`);
+  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${process.env.FACEBOOK_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=pages_show_list,pages_read_engagement,pages_manage_metadata,pages_read_user_content,pages_manage_posts,pages_manage_engagement`;
   
-  res.redirect(
-    `https://www.facebook.com/v19.0/dialog/oauth?client_id=${clientId}&redirect_uri=${redirectUri}&state=${clinicId}&scope=${scope}`
-  );
+  res.json({ authUrl });
 });
 
-router.get('/callback', async (req, res) => {
+router.get('/callback', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   const { code, state: clinicId } = req.query;
   const redirectUri = process.env.FB_REDIRECT_URI;
   const clientId = process.env.FB_APP_ID;

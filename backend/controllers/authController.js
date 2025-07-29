@@ -3,6 +3,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { sessionManager } = require("../middleware/sessionManager");
 
 exports.register = async (req, res) => {
   try {
@@ -42,11 +43,24 @@ exports.login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
+    // Check concurrent sessions limit
+    const userSessions = sessionManager.getUserSessions(user._id.toString());
+    const maxSessions = 3; // Allow max 3 concurrent sessions
+    
+    if (userSessions.length >= maxSessions) {
+      return res.status(409).json({ 
+        message: `Maximum ${maxSessions} concurrent sessions allowed. Please log out from another device first.` 
+      });
+    }
+
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
+
+    // Add session to session manager
+    sessionManager.addSession(user._id.toString(), token, user.role);
 
     res.json({
       token,
@@ -59,6 +73,22 @@ exports.login = async (req, res) => {
         department: user.department || null,
       },
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.logout = async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (token && req.user) {
+      // Remove session from session manager
+      sessionManager.removeSession(req.user._id || req.user.id, req.user.role);
+    }
+
+    res.json({ message: "Logged out successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
