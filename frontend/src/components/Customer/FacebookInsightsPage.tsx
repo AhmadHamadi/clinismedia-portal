@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FaFacebook, FaEye, FaUsers, FaHeart, FaChartLine, FaSpinner, FaExclamationTriangle } from 'react-icons/fa';
+import { FaFacebook, FaChartLine, FaUsers, FaEye, FaHeart, FaComment, FaShare, FaSpinner, FaExclamationTriangle } from 'react-icons/fa';
 import axios from 'axios';
-import { API_BASE_URL } from '../../utils/api';
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import InstagramInsightsImagePage from './InstagramInsightsImagePage';
@@ -76,7 +75,7 @@ const FacebookInsightsPage: React.FC = () => {
         throw new Error('Customer data not found');
       }
       const customerId = customer.id || customer._id;
-      let url = `${API_BASE_URL}/facebook/insights/${customerId}`;
+      let url = `${import.meta.env.VITE_API_BASE_URL}/facebook/insights/${customerId}`;
       if (range) {
         url += `?start=${format(range.start, 'yyyy-MM-dd')}&end=${format(range.end, 'yyyy-MM-dd')}`;
       }

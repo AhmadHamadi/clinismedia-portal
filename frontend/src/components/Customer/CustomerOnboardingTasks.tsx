@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../utils/api';
 
 const CustomerOnboardingTasks: React.FC = () => {
   const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
@@ -22,7 +21,7 @@ const CustomerOnboardingTasks: React.FC = () => {
       const clinicId = user.id || user._id;
       console.log('Fetching tasks for clinic:', clinicId);
       try {
-        const res = await axios.get(`${API_BASE_URL}/onboarding-tasks/assigned/${clinicId}`, {
+        const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks/assigned/${clinicId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         console.log('Received assigned tasks:', res.data);

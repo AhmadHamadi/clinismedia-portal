@@ -1,7 +1,7 @@
 // src/components/Admin/CustomerManagement/CustomerManagementPage.tsx
 import React from "react";
-import { useCustomerManagement, CustomerTableRow } from "./CustomerManagementLogic";
-import { API_BASE_URL, BACKEND_BASE_URL } from '../../../utils/api';
+import { useCustomerManagement } from "./CustomerManagementLogic";
+import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaFilter } from "react-icons/fa";
 
 const CustomerManagementPage = () => {
   const {

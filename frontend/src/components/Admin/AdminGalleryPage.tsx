@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../utils/api';
 
 interface Clinic {
   _id: string;
@@ -66,7 +65,7 @@ const AdminGalleryPage: React.FC = () => {
   const fetchGalleryItems = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await axios.get(`${API_BASE_URL}/gallery`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/gallery`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Fetched gallery items:', res.data);
@@ -83,14 +82,14 @@ const AdminGalleryPage: React.FC = () => {
     
     try {
       // Fetch clinics (customers)
-      const clinicsRes = await axios.get(`${API_BASE_URL}/customers`, {
+      const clinicsRes = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Fetched clinics:', clinicsRes.data);
       setClinics(clinicsRes.data);
       
       // Fetch assignments
-      const assignmentsRes = await axios.get(`${API_BASE_URL}/gallery/assignments/all`, {
+      const assignmentsRes = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/gallery/assignments/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Fetched assignments:', assignmentsRes.data);
@@ -141,7 +140,7 @@ const AdminGalleryPage: React.FC = () => {
   const handleAddItem = async () => {
     if (!newItem.name.trim() || !newItem.url.trim()) return;
     const token = localStorage.getItem('adminToken');
-    await axios.post(`${API_BASE_URL}/gallery`, newItem, {
+    await axios.post(`${import.meta.env.VITE_API_BASE_URL}/gallery`, newItem, {
       headers: { Authorization: `Bearer ${token}` },
     });
     setNewItem({ name: '', url: '' });
@@ -153,7 +152,7 @@ const AdminGalleryPage: React.FC = () => {
   const handleEditItem = async () => {
     if (!editItem || !editItem.name.trim() || !editItem.url.trim()) return;
     const token = localStorage.getItem('adminToken');
-    await axios.put(`${API_BASE_URL}/gallery/${editItem._id}`, editItem, {
+    await axios.put(`${import.meta.env.VITE_API_BASE_URL}/gallery/${editItem._id}`, editItem, {
       headers: { Authorization: `Bearer ${token}` },
     });
     setShowEditModal(false);
@@ -165,7 +164,7 @@ const AdminGalleryPage: React.FC = () => {
   const handleDeleteItem = async (id: string) => {
     if (!window.confirm('Delete this gallery item?')) return;
     const token = localStorage.getItem('adminToken');
-    await axios.delete(`${API_BASE_URL}/gallery/${id}`, {
+    await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/gallery/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     fetchGalleryItems();
@@ -177,7 +176,7 @@ const AdminGalleryPage: React.FC = () => {
     if (!selectedClinic) return;
     setLoadingAssignments(true);
     const token = localStorage.getItem('adminToken');
-    await axios.post(`${API_BASE_URL}/gallery/assign`, {
+    await axios.post(`${import.meta.env.VITE_API_BASE_URL}/gallery/assign`, {
       clinicId: selectedClinic,
       galleryItemIds: selectedItems,
     }, {
@@ -191,7 +190,7 @@ const AdminGalleryPage: React.FC = () => {
   // Update assignment status
   const handleUpdateAssignment = async (clinicId: string, galleryItemId: string, isCurrent: boolean) => {
     const token = localStorage.getItem('adminToken');
-    await axios.post(`${API_BASE_URL}/gallery/update-assignment`, {
+    await axios.post(`${import.meta.env.VITE_API_BASE_URL}/gallery/update-assignment`, {
       clinicId, galleryItemId, isCurrent
     }, {
       headers: { Authorization: `Bearer ${token}` },
@@ -203,7 +202,7 @@ const AdminGalleryPage: React.FC = () => {
   const handleRemoveAssignment = async (clinicId: string, galleryItemId: string) => {
     if (!window.confirm('Remove this gallery item from the clinic?')) return;
     const token = localStorage.getItem('adminToken');
-    await axios.post(`${API_BASE_URL}/gallery/remove-assignment`, {
+    await axios.post(`${import.meta.env.VITE_API_BASE_URL}/gallery/remove-assignment`, {
       clinicId, galleryItemId
     }, {
       headers: { Authorization: `Bearer ${token}` },
@@ -462,11 +461,11 @@ const AdminGalleryPage: React.FC = () => {
                   if (!newItem.name.trim() || !newItem.url.trim() || !selectedClinicId) return;
                   const token = localStorage.getItem('adminToken');
                   // 1. Create the gallery item
-                  const res = await axios.post(`${API_BASE_URL}/gallery`, newItem, {
+                  const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/gallery`, newItem, {
                     headers: { Authorization: `Bearer ${token}` },
                   });
                   // 2. Assign the new gallery item to the selected clinic
-                  await axios.post(`${API_BASE_URL}/gallery/assign`, {
+                  await axios.post(`${import.meta.env.VITE_API_BASE_URL}/gallery/assign`, {
                     clinicId: selectedClinicId,
                     galleryItemIds: [res.data._id],
                   }, {
@@ -565,7 +564,7 @@ const AdminGalleryPage: React.FC = () => {
                   const token = localStorage.getItem('adminToken');
                   console.log('Assigning items:', { clinicId: selectedClinicId, galleryItemIds: selectedItemIds });
                   try {
-                    const response = await axios.post(`${API_BASE_URL}/gallery/assign`, {
+                    const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/gallery/assign`, {
                       clinicId: selectedClinicId,
                       galleryItemIds: selectedItemIds,
                     }, {

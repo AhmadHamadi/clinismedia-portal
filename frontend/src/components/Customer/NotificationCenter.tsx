@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { IoNotificationsOutline } from 'react-icons/io5'; // For the notification icon
-import { useNavigate, useLocation } from "react-router-dom"; // Import useNavigate and useLocation
+import { IoNotificationsOutline } from 'react-icons/io5';
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from 'axios';
-import { API_BASE_URL } from '../../utils/api';
+import { FaBell, FaTimes } from 'react-icons/fa';
 
 interface Notification {
   _id: string; // Changed from id to _id to match MongoDB convention
@@ -52,7 +52,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ navigateTo }) =
 
       try {
         console.log("Fetching general notifications for user ID:", userData.id, "with role:", role);
-        const generalNotificationsResponse = await axios.get(`${API_BASE_URL}/notifications`, {
+        const generalNotificationsResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/notifications`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

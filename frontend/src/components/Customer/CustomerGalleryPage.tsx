@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../utils/api';
 
 interface GalleryItem {
   _id: string;
@@ -42,7 +41,7 @@ const CustomerGalleryPage: React.FC = () => {
       const clinicId = user.id || user._id;
       console.log('Fetching gallery items for clinic:', clinicId);
       try {
-        const res = await axios.get(`${API_BASE_URL}/gallery/assigned/${clinicId}`, {
+        const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/gallery/assigned/${clinicId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         console.log('Received assigned gallery items:', res.data);

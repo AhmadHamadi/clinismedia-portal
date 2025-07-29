@@ -5,11 +5,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import logo from "../assets/CliniMedia_Logo.png";
-import { API_BASE_URL } from '../utils/api';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [email, setEmail] = useState<string>("");
+  const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
@@ -23,8 +22,8 @@ const Login = () => {
     setError("");
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
-        email,
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/auth/login`, {
+        username,
         password,
       });
 
@@ -82,10 +81,10 @@ const Login = () => {
           <div className="w-full flex items-center gap-2 bg-gray-800 p-2 rounded-xl">
             <MdOutlinePerson className="text-gray-400" />
             <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="bg-transparent border-0 w-full outline-none text-sm md:text-base text-white placeholder-gray-500"
               disabled={loading}
             />

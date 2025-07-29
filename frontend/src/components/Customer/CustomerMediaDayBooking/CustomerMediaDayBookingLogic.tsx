@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../../utils/api';
 
 // Types
 export interface Booking {
@@ -107,7 +106,7 @@ export const useMediaDayBooking = () => {
     try {
       const token = localStorage.getItem('customerToken');
       const dateString = date.toISOString().split('T')[0];
-      const response = await axios.get(`${API_BASE_URL}/bookings/accepted?date=${dateString}`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/bookings/accepted?date=${dateString}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAcceptedBookingsForDate(response.data);
@@ -169,7 +168,7 @@ export const useMediaDayBooking = () => {
   const fetchBookings = useCallback(async () => {
     try {
       const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/bookings/my-bookings`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/bookings/my-bookings`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       setBookings(response.data);
@@ -183,7 +182,7 @@ export const useMediaDayBooking = () => {
   const fetchBlockedDates = useCallback(async () => {
     try {
       const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/blocked-dates`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/blocked-dates`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -260,7 +259,7 @@ export const useMediaDayBooking = () => {
         date: bookingDate.toISOString(),
         notes: notes.trim() || undefined
       };
-      await axios.post(`${API_BASE_URL}/bookings`, bookingData, {
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/bookings`, bookingData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

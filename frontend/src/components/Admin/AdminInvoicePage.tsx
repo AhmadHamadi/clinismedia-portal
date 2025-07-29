@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_BASE_URL } from '../../utils/api';
 
 interface Clinic {
   _id: string;
@@ -17,8 +16,7 @@ interface Invoice {
 
 interface AssignedInvoice {
   _id: string;
-  clinicId: Clinic | string;
-  invoiceId: Invoice | string;
+  invoiceId: Invoice;
   isCurrent: boolean;
   assignedAt: string;
 }
@@ -60,7 +58,7 @@ const AdminInvoicePage: React.FC = () => {
   const fetchInvoices = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await axios.get(`${API_BASE_URL}/invoices`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/invoices`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setInvoices(res.data);
@@ -72,11 +70,11 @@ const AdminInvoicePage: React.FC = () => {
   const fetchClinicsAndAssignments = async () => {
     const token = localStorage.getItem('adminToken');
     try {
-      const clinicsRes = await axios.get(`${API_BASE_URL}/customers`, {
+      const clinicsRes = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setClinics(clinicsRes.data);
-      const assignmentsRes = await axios.get(`${API_BASE_URL}/invoices/assignments/all`, {
+      const assignmentsRes = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/invoices/assignments/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setClinicAssignments(assignmentsRes.data.assignments);
@@ -93,8 +91,8 @@ const AdminInvoicePage: React.FC = () => {
     if (selectedClinic) {
       const assignedInvoiceIds = clinicAssignments
         .filter(a => {
-          if (typeof a.clinicId === 'string') return a.clinicId === selectedClinic;
-          return a.clinicId._id === selectedClinic;
+          if (typeof a.invoiceId === 'string') return a.invoiceId === selectedClinic;
+          return a.invoiceId._id === selectedClinic;
         })
         .map(a => typeof a.invoiceId === 'string' ? a.invoiceId : a.invoiceId._id);
       
@@ -131,11 +129,11 @@ const AdminInvoicePage: React.FC = () => {
     const formData = new FormData();
     formData.append('name', newInvoiceName);
     formData.append('pdf', newInvoiceFile);
-    const uploadRes = await axios.post(`${API_BASE_URL}/invoices/upload`, formData, {
+    const uploadRes = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/invoices/upload`, formData, {
       headers: { Authorization: `Bearer ${token}` },
     });
     // 2. Assign the new invoice to the selected clinic
-    await axios.post(`${API_BASE_URL}/invoices/assign`, {
+    await axios.post(`${import.meta.env.VITE_API_BASE_URL}/invoices/assign`, {
       clinicId: selectedClinicId,
       invoiceIds: [uploadRes.data._id],
     }, {
@@ -154,7 +152,7 @@ const AdminInvoicePage: React.FC = () => {
   const handleDeleteInvoice = async (id: string) => {
     if (!window.confirm('Delete this invoice?')) return;
     const token = localStorage.getItem('adminToken');
-    await axios.delete(`${API_BASE_URL}/invoices/${id}`, {
+    await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/invoices/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     fetchInvoices();
@@ -165,7 +163,7 @@ const AdminInvoicePage: React.FC = () => {
   const handleEditInvoice = async () => {
     if (!editInvoice) return;
     const token = localStorage.getItem('adminToken');
-    await axios.put(`${API_BASE_URL}/invoices/${editInvoice._id}`, editInvoice, {
+    await axios.put(`${import.meta.env.VITE_API_BASE_URL}/invoices/${editInvoice._id}`, editInvoice, {
       headers: { Authorization: `Bearer ${token}` },
     });
     setShowEditModal(false);
@@ -278,7 +276,7 @@ const AdminInvoicePage: React.FC = () => {
                         <td className="py-3 px-4 font-medium text-gray-900">{invoice.name}</td>
                         <td className="py-3 px-4 text-blue-600">
                           <a
-                            href={BACKEND_BASE_URL + '/api/invoices/view/' + invoice.url.split('/').pop()}
+                            href={`${import.meta.env.VITE_BACKEND_BASE_URL}/api/invoices/view/${invoice.url.split('/').pop()}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hover:underline mr-2"
@@ -286,7 +284,7 @@ const AdminInvoicePage: React.FC = () => {
                             View
                           </a>
                           <a
-                            href={BACKEND_BASE_URL + '/api/invoices/file/' + invoice.url.split('/').pop()}
+                            href={`${import.meta.env.VITE_BACKEND_BASE_URL}/api/invoices/file/${invoice.url.split('/').pop()}`}
                             download
                             className="text-green-600 hover:underline"
                           >
@@ -300,7 +298,7 @@ const AdminInvoicePage: React.FC = () => {
                           ) : (
                             <div className="space-y-2">
                               {assignments.map(assignment => {
-                                const clinicId = typeof assignment.clinicId === 'string' ? assignment.clinicId : assignment.clinicId._id;
+                                const clinicId = typeof assignment.invoiceId === 'string' ? assignment.invoiceId : assignment.invoiceId._id;
                                 const clinicName = getClinicName(clinicId);
                                 const status = assignment.isCurrent ? 'Current' : 'History';
                                 const statusColor = assignment.isCurrent ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../../utils/api';
 
 // Types
 export interface Booking {
@@ -74,7 +73,7 @@ export const useEmployeeMediaDayBooking = () => {
     try {
       setIsLoading(true);
       const token = getAuthToken();
-      const response = await axios.get<Booking[]>(`${API_BASE_URL}/bookings/employee`, {
+      const response = await axios.get<Booking[]>(`${import.meta.env.VITE_API_BASE_URL}/bookings/employee`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -94,7 +93,7 @@ export const useEmployeeMediaDayBooking = () => {
       const token = getAuthToken();
       
       await axios.patch(
-        `${API_BASE_URL}/bookings/${bookingId}/accept-session`,
+        `${import.meta.env.VITE_API_BASE_URL}/bookings/${bookingId}/accept-session`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

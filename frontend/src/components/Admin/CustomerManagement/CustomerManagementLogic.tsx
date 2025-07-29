@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, ChangeEvent } from "react";
 import axios from "axios";
-import { API_BASE_URL } from '../../../utils/api';
 
 // Example: If you have a CustomerTableRow component
 export interface Customer {
@@ -78,7 +77,7 @@ export function useCustomerManagement() {
   const fetchCustomers = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await axios.get(`${API_BASE_URL}/customers`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('Fetched customers data:', res.data);
@@ -109,7 +108,7 @@ export function useCustomerManagement() {
   const handleAddCustomer = async () => {
     if (!validateForm()) return;
     try {
-      await axios.post(`${API_BASE_URL}/customers`, { ...formData });
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/customers`, { ...formData });
       setShowModal(false);
       setFormData({ name: "", username: "", email: "", password: "", location: "", address: "", bookingIntervalMonths: 1 });
       fetchCustomers();
@@ -125,7 +124,7 @@ export function useCustomerManagement() {
   const handleDeleteCustomer = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this customer?")) return;
     try {
-      await axios.delete(`${API_BASE_URL}/customers/${id}`);
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/customers/${id}`);
       setCustomers((prev) => prev.filter((cust) => cust._id !== id));
     } catch (err) {
       console.error("❌ Failed to delete customer", err);
@@ -181,7 +180,7 @@ export function useCustomerManagement() {
     if (!window.confirm("Are you sure you want to save these changes?")) return;
     try {
       console.log('Submitting edit data:', editFormData);
-      const response = await axios.put(`${API_BASE_URL}/customers/${editFormData._id}`, editFormData);
+      const response = await axios.put(`${import.meta.env.VITE_API_BASE_URL}/customers/${editFormData._id}`, editFormData);
       console.log('Edit response:', response.data);
       setEditModalOpen(false);
       fetchCustomers();

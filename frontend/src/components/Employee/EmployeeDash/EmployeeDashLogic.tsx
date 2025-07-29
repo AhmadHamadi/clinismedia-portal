@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
-import { API_BASE_URL } from '../../../utils/api';
 import type { Booking } from "../EmployeeMediaDayBooking/EmployeeMediaDayBookingLogic";
 
 export interface Employee {
@@ -43,7 +42,7 @@ export const useEmployeeDashboard = () => {
     try {
       setIsLoadingBookings(true);
       const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/bookings/employee`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/bookings/employee`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setBookings(response.data);
@@ -77,7 +76,7 @@ export const useEmployeeDashboard = () => {
         return;
       }
 
-      const response = await axios.get(`${API_BASE_URL}/employees/profile`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/employees/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

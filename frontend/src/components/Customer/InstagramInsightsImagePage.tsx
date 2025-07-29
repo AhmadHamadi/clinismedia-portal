@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_BASE_URL } from '../../utils/api';
 
 interface InstagramInsightImage {
   _id: string;
@@ -26,7 +25,7 @@ const InstagramInsightsImagePage: React.FC = () => {
       const user = JSON.parse(userStr);
       const clinicId = user.id || user._id;
       try {
-        const res = await axios.get(`${API_BASE_URL}/instagram-insights/my`, {
+        const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/instagram-insights/my`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setImages(res.data);
@@ -71,7 +70,7 @@ const InstagramInsightsImagePage: React.FC = () => {
                 {getMonthLabel(selectedImage.month)} Instagram Insights
               </h1>
               <img
-                src={BACKEND_BASE_URL + selectedImage.imageUrl}
+                src={`${import.meta.env.VITE_BACKEND_BASE_URL}${selectedImage.imageUrl}`}
                 alt="Instagram Insights"
                 className="max-w-full max-h-[80vh] rounded shadow-lg mb-6"
               />

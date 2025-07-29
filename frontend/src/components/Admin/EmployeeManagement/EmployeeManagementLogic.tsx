@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, ChangeEvent } from "react";
 import axios from "axios";
-import { API_BASE_URL } from '../../../utils/api';
 
 export interface Employee {
   _id: string;
@@ -70,7 +69,7 @@ export function useEmployeeManagement() {
   const fetchEmployees = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await axios.get(`${API_BASE_URL}/employees`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/employees`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setEmployees(res.data);
@@ -100,7 +99,7 @@ export function useEmployeeManagement() {
     if (!validateForm()) return;
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.post(`${API_BASE_URL}/employees`, formData, {
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/employees`, formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setShowModal(false);
@@ -119,7 +118,7 @@ export function useEmployeeManagement() {
     if (!window.confirm("Are you sure you want to delete this employee?")) return;
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.delete(`${API_BASE_URL}/employees/${id}`, {
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/employees/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setEmployees((prev) => prev.filter((emp) => emp._id !== id));
@@ -153,7 +152,7 @@ export function useEmployeeManagement() {
     if (!window.confirm("Are you sure you want to save these changes?")) return;
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.put(`${API_BASE_URL}/employees/${editFormData._id}`, editFormData, {
+      await axios.put(`${import.meta.env.VITE_API_BASE_URL}/employees/${editFormData._id}`, editFormData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setEditModalOpen(false);
@@ -213,4 +212,4 @@ export function useEmployeeManagement() {
     paginatedEmployees,
     totalPages,
   };
-} 
+}
