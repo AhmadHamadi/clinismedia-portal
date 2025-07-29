@@ -6,7 +6,6 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useMediaDayBooking } from './CustomerMediaDayBookingLogic';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
-import { API_BASE_URL } from '../../../utils/api';
 
 // Types
 interface MediaDayEvent extends Event {
@@ -110,7 +109,7 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     const fetchCustomer = async () => {
       try {
         const token = localStorage.getItem('customerToken');
-        const res = await axios.get(`${API_BASE_URL}/customers/profile`, {
+        const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers/profile`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setCustomer(res.data);

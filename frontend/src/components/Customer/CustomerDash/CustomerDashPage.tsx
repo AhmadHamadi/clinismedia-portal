@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useCustomerDashboard, Customer } from "./CustomerDashLogic";
 import { UserCircleIcon, MapPinIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_BASE_URL } from '../../../utils/api';
 
 // Booking type
 interface Booking {
@@ -28,7 +27,7 @@ const CustomerDashboard = () => {
       try {
         const token = localStorage.getItem('customerToken');
         if (!token) return;
-        const response = await axios.get(`${API_BASE_URL}/bookings/my-bookings`, {
+        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/bookings/my-bookings`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         setBookings(response.data);
@@ -146,7 +145,7 @@ const CustomerDashboard = () => {
             <div className="flex-shrink-0">
               {customer.customerSettings?.logoUrl ? (
                 <img
-                  src={BACKEND_BASE_URL + customer.customerSettings.logoUrl}
+                  src={`${import.meta.env.VITE_BACKEND_BASE_URL}${customer.customerSettings.logoUrl}`}
                   alt="Clinic Logo"
                   className="w-20 h-20 rounded-full object-cover border-2 border-[#98c6d5] bg-white"
                 />

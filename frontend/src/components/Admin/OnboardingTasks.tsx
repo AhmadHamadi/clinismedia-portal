@@ -1,7 +1,7 @@
 // src/components/Admin/OnboardingTasksPage.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../utils/api';
+import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes } from 'react-icons/fa';
 
 interface OnboardingTask {
   _id: string;
@@ -49,7 +49,7 @@ const OnboardingTasks: React.FC = () => {
   const fetchTasks = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await axios.get(`${API_BASE_URL}/onboarding-tasks`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Fetched onboarding tasks:', res.data);
@@ -67,14 +67,14 @@ const OnboardingTasks: React.FC = () => {
     
     try {
       // Fetch clinics (customers)
-      const clinicsRes = await axios.get(`${API_BASE_URL}/customers`, {
+      const clinicsRes = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Fetched clinics:', clinicsRes.data);
       setClinics(clinicsRes.data);
       
       // Fetch assignments
-      const assignmentsRes = await axios.get(`${API_BASE_URL}/onboarding-tasks/assignments/all`, {
+      const assignmentsRes = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks/assignments/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Fetched assignments:', assignmentsRes.data);
@@ -93,7 +93,7 @@ const OnboardingTasks: React.FC = () => {
   const handleAddTask = async () => {
     if (!newTask.title.trim()) return;
     const token = localStorage.getItem('adminToken');
-    await axios.post(`${API_BASE_URL}/onboarding-tasks`, newTask, {
+    await axios.post(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks`, newTask, {
       headers: { Authorization: `Bearer ${token}` },
     });
     setNewTask({ title: '', description: '', category: '' });
@@ -105,7 +105,7 @@ const OnboardingTasks: React.FC = () => {
   const handleEditTask = async () => {
     if (!editTask || !editTask.title.trim()) return;
     const token = localStorage.getItem('adminToken');
-    await axios.put(`${API_BASE_URL}/onboarding-tasks/${editTask._id}`, editTask, {
+    await axios.put(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks/${editTask._id}`, editTask, {
       headers: { Authorization: `Bearer ${token}` },
     });
     setShowEditModal(false);
@@ -117,7 +117,7 @@ const OnboardingTasks: React.FC = () => {
   const handleDeleteTask = async (id: string) => {
     if (!window.confirm('Delete this onboarding task?')) return;
     const token = localStorage.getItem('adminToken');
-    await axios.delete(`${API_BASE_URL}/onboarding-tasks/${id}`, {
+    await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     fetchTasks();
@@ -140,7 +140,7 @@ const OnboardingTasks: React.FC = () => {
     if (!selectedClinic) return;
     setLoadingAssignments(true);
     const token = localStorage.getItem('adminToken');
-    await axios.post(`${API_BASE_URL}/onboarding-tasks/assign`, {
+    await axios.post(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks/assign`, {
       clinicId: selectedClinic._id,
       taskIds: selectedTasks,
     }, {
@@ -154,7 +154,7 @@ const OnboardingTasks: React.FC = () => {
   // Mark task as completed for a clinic
   const handleMarkCompleted = async (clinicId: string, taskId: string) => {
     const token = localStorage.getItem('adminToken');
-    await axios.post(`${API_BASE_URL}/onboarding-tasks/mark-completed`, {
+    await axios.post(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks/mark-completed`, {
       clinicId, taskId
     }, {
       headers: { Authorization: `Bearer ${token}` },
@@ -312,7 +312,7 @@ const OnboardingTasks: React.FC = () => {
                         value={getAssignmentStatus(a)}
                         onChange={async e => {
                           const token = localStorage.getItem('adminToken');
-                          await axios.post(`${API_BASE_URL}/onboarding-tasks/update-status`, {
+                          await axios.post(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks/update-status`, {
                             clinicId: selectedClinic._id,
                             taskId: task._id,
                             status: e.target.value,
@@ -332,7 +332,7 @@ const OnboardingTasks: React.FC = () => {
                         title="Remove from clinic"
                         onClick={async () => {
                           const token = localStorage.getItem('adminToken');
-                          await axios.post(`${API_BASE_URL}/onboarding-tasks/remove-assignment`, {
+                          await axios.post(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks/remove-assignment`, {
                             clinicId: selectedClinic._id,
                             taskId: task._id,
                           }, {
@@ -377,7 +377,7 @@ const OnboardingTasks: React.FC = () => {
                   const token = localStorage.getItem('adminToken');
                   console.log('Assigning tasks:', { clinicId: selectedClinicId, taskIds: selectedTaskIds });
                   try {
-                    const response = await axios.post(`${API_BASE_URL}/onboarding-tasks/assign`, {
+                    const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/onboarding-tasks/assign`, {
                       clinicId: selectedClinicId,
                       taskIds: selectedTaskIds,
                     }, {

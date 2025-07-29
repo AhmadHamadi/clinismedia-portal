@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { API_BASE_URL } from '../../../utils/api';
 
 export interface Customer {
   _id: string;
@@ -35,7 +34,7 @@ export const useFacebookManagement = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('adminToken');
-      const response = await axios.get(`${API_BASE_URL}/customers`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCustomers(response.data);
@@ -53,13 +52,13 @@ export const useFacebookManagement = () => {
     setOauthError(null);
     
     // Redirect to Facebook OAuth
-    window.location.href = `${API_BASE_URL}/facebook/auth/${customer._id}`;
+    window.location.href = `${import.meta.env.VITE_API_BASE_URL}/facebook/auth/${customer._id}`;
   };
 
   const handleOAuthCallback = async (code: string, state: string) => {
     try {
       setOauthStatus('loading');
-      const response = await axios.get(`${API_BASE_URL}/facebook/callback?code=${code}&state=${state}`);
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/facebook/callback?code=${code}&state=${state}`);
       
       setPages(response.data.pages);
       setOauthStatus('pages');
@@ -79,7 +78,7 @@ export const useFacebookManagement = () => {
       
       console.log(`Connecting page "${selectedPage.name}" to clinic "${selectedCustomer.name}"`);
       
-      const response = await axios.post(`${API_BASE_URL}/facebook/save-page`, {
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/facebook/save-page`, {
         clinicId: selectedCustomer._id,
         pageId: selectedPage.id,
         pageName: selectedPage.name,
@@ -121,7 +120,7 @@ export const useFacebookManagement = () => {
   const handleDisconnectFacebook = async (customer: Customer) => {
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.patch(`${API_BASE_URL}/customers/${customer._id}/facebook-disconnect`, {}, {
+      await axios.patch(`${import.meta.env.VITE_API_BASE_URL}/customers/${customer._id}/facebook-disconnect`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -158,7 +157,7 @@ export const useFacebookManagement = () => {
   const assignFacebookPage = async (customer: Customer, page: FacebookPage) => {
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.post(`${API_BASE_URL}/facebook/save-page`, {
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/facebook/save-page`, {
         clinicId: customer._id,
         pageId: page.id,
         pageName: page.name,
@@ -179,7 +178,7 @@ export const useFacebookManagement = () => {
   const fetchAdminFacebookPages = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await axios.get(`${API_BASE_URL}/facebook/admin-token`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/facebook/admin-token`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const { facebookUserAccessToken, facebookUserTokenExpiry } = response.data;

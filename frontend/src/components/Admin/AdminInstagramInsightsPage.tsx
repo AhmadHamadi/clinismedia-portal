@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { API_BASE_URL, BACKEND_BASE_URL } from '../../utils/api';
 
 interface Clinic {
   _id: string;
@@ -30,7 +29,7 @@ const AdminInstagramInsightsPage: React.FC = () => {
   const fetchClinics = async () => {
     const token = localStorage.getItem('adminToken');
     try {
-      const res = await axios.get(`${API_BASE_URL}/customers`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setClinics(res.data);
@@ -42,7 +41,7 @@ const AdminInstagramInsightsPage: React.FC = () => {
   // Fetch images
   const fetchImages = async () => {
     const token = localStorage.getItem('adminToken');
-    let url = `${API_BASE_URL}/instagram-insights/list`;
+    let url = `${import.meta.env.VITE_API_BASE_URL}/instagram-insights/list`;
     const params: any = {};
     if (filterClinicId) params.clinicId = filterClinicId;
     if (filterMonth) params.month = filterMonth;
@@ -77,7 +76,7 @@ const AdminInstagramInsightsPage: React.FC = () => {
     formData.append('month', selectedMonth);
     formData.append('image', imageFile);
     try {
-      await axios.post(`${API_BASE_URL}/instagram-insights/upload`, formData, {
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/instagram-insights/upload`, formData, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSelectedClinicId('');
@@ -94,7 +93,7 @@ const AdminInstagramInsightsPage: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Delete this Instagram insight image?')) return;
     const token = localStorage.getItem('adminToken');
-    await axios.delete(`${API_BASE_URL}/instagram-insights/${id}`, {
+    await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/instagram-insights/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     fetchImages();
@@ -180,7 +179,7 @@ const AdminInstagramInsightsPage: React.FC = () => {
                   {getMonthLabel(img.month)}
                 </div>
                 <img
-                  src={BACKEND_BASE_URL + img.imageUrl}
+                  src={import.meta.env.VITE_BACKEND_BASE_URL + img.imageUrl}
                   alt="Instagram Insight"
                   className="max-w-full max-h-64 rounded shadow mb-2"
                 />

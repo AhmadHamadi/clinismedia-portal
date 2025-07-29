@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { API_BASE_URL } from '../../../utils/api';
 
 export interface Customer {
   _id: string;
@@ -31,7 +30,7 @@ export const useCustomerDashboard = () => {
         return;
       }
 
-      const response = await axios.get(`${API_BASE_URL}/customers/profile`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { API_BASE_URL } from '../../../utils/api';
 import type { DateObject } from 'react-multi-date-picker';
 
 // Types
@@ -128,7 +127,7 @@ export const useAdminMediaDayBooking = () => {
   const fetchCustomers = useCallback(async () => {
     try {
       const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/customers`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCustomers(response.data);
@@ -140,7 +139,7 @@ export const useAdminMediaDayBooking = () => {
   const fetchEmployees = useCallback(async () => {
     try {
       const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/employees`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/employees`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setEmployees(response.data);
@@ -152,7 +151,7 @@ export const useAdminMediaDayBooking = () => {
   const fetchBlockedDates = useCallback(async () => {
     try {
       const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/blocked-dates`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/blocked-dates`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -186,7 +185,7 @@ export const useAdminMediaDayBooking = () => {
     try {
       setIsLoading(true);
       const token = getAuthToken();
-      const response = await axios.get(`${API_BASE_URL}/bookings`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/bookings`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setBookings(response.data);
@@ -216,7 +215,7 @@ export const useAdminMediaDayBooking = () => {
       
       for (const date of datesToBlock) {
         await axios.post(
-          `${API_BASE_URL}/blocked-dates`,
+          `${import.meta.env.VITE_API_BASE_URL}/blocked-dates`,
           { date: date.toDate().toISOString() },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -235,7 +234,7 @@ export const useAdminMediaDayBooking = () => {
       // Delete each blocked date individually
       for (const dateId of dateIds) {
         await axios.delete(
-          `${API_BASE_URL}/blocked-dates/${dateId}`,
+          `${import.meta.env.VITE_API_BASE_URL}/blocked-dates/${dateId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
@@ -258,7 +257,7 @@ export const useAdminMediaDayBooking = () => {
     try {
       const token = getAuthToken();
       const dateString = date.toISOString().split('T')[0];
-      const response = await axios.get(`${API_BASE_URL}/bookings/accepted?date=${dateString}`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/bookings/accepted?date=${dateString}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAcceptedBookingsForDate(response.data);
@@ -316,7 +315,7 @@ export const useAdminMediaDayBooking = () => {
       const bookingDate = new Date(date);
       bookingDate.setHours(hour, minute, 0, 0);
       const response = await axios.post(
-        `${API_BASE_URL}/bookings/admin-create`,
+        `${import.meta.env.VITE_API_BASE_URL}/bookings/admin-create`,
         {
           customerId,
           date: bookingDate.toISOString(),
@@ -343,7 +342,7 @@ export const useAdminMediaDayBooking = () => {
     try {
       const token = getAuthToken();
       await axios.patch(
-        `${API_BASE_URL}/bookings/${bookingId}/status`,
+        `${import.meta.env.VITE_API_BASE_URL}/bookings/${bookingId}/status`,
         { 
           status: 'accepted',
           adminMessage,
@@ -369,7 +368,7 @@ export const useAdminMediaDayBooking = () => {
     try {
       const token = getAuthToken();
       await axios.patch(
-        `${API_BASE_URL}/bookings/${bookingId}/status`,
+        `${import.meta.env.VITE_API_BASE_URL}/bookings/${bookingId}/status`,
         { 
           status: 'declined',
           adminMessage: adminMessage
@@ -393,7 +392,7 @@ export const useAdminMediaDayBooking = () => {
       setIsUpdatingPhotography(true);
       const token = getAuthToken();
       await axios.patch(
-        `${API_BASE_URL}/bookings/${bookingId}/photography`,
+        `${import.meta.env.VITE_API_BASE_URL}/bookings/${bookingId}/photography`,
         {
           photographerId: selectedPhotographerId,
           employeeMessage: editEmployeeMessage
