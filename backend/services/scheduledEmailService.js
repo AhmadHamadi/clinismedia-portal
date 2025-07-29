@@ -61,7 +61,7 @@ class ScheduledEmailService {
           const bookingDate = formatDateForEmail(booking.date);
           
           // Send customer reminder
-          await EmailService.sendBookingReminder(clinicName, bookingDate);
+          await EmailService.sendBookingReminder(clinicName, bookingDate, customer.email);
           
           // Send photographer reminder if assigned
           if (booking.photographer) {
@@ -73,7 +73,7 @@ class ScheduledEmailService {
             const location = 'TBD'; // Can be updated when location field is added
             const time = 'TBD'; // Can be updated when time field is added
             
-            await EmailService.sendPhotographerReminder(photographerName, clinicName, bookingDate, location, time);
+            await EmailService.sendPhotographerReminder(photographerName, clinicName, bookingDate, photographer.email, location, time);
           }
         } catch (error) {
           console.error(`Failed to send reminder for booking ${booking._id}:`, error);

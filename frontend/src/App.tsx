@@ -39,113 +39,12 @@ function App() {
 
           {/* Customer Routes */}
           <Route 
-            path="/customer/dashboard" 
+            path="/customer/*" 
             element={
               <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="Customer Dashboard" hideBackButton={true}>
-                  <CustomerDashboard />
-                </CustomerPortalLayout>
+                <CustomerPortalLayout />
               </ProtectedRoute>
             } 
-          />
-
-          <Route 
-            path="/customer/notifications" 
-            element={
-              <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="Notifications">
-                  <NotificationPage />
-                </CustomerPortalLayout>
-              </ProtectedRoute>
-            } 
-          />
-
-          <Route 
-            path="/customer/media-day-booking"
-            element={
-              <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="View/Request Booking">
-                  <CustomerMediaDayBookingPage />
-                </CustomerPortalLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route 
-            path="/customer/google-integration"
-            element={
-              <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="Google Integration">
-                  <CustomerDashboard />
-                </CustomerPortalLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route 
-            path="/customer/facebook-integration"
-            element={
-              <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="Facebook Integration">
-                  <FacebookIntegrationPage />
-                </CustomerPortalLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route 
-            path="/customer/facebook-insights"
-            element={
-              <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="Facebook Insights">
-                  <FacebookInsightsPage />
-                </CustomerPortalLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route 
-            path="/customer/create-ticket"
-            element={
-              <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="Create a Ticket">
-                  <CustomerDashboard />
-                </CustomerPortalLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route 
-            path="/customer/invoices"
-            element={
-              <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="View Your Invoice">
-                  <CustomerInvoicePage />
-                </CustomerPortalLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route 
-            path="/customer/onboarding-tasks"
-            element={
-              <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="Onboarding Tasks">
-                  <CustomerOnboardingTasks />
-                </CustomerPortalLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route 
-            path="/customer/gallery"
-            element={
-              <ProtectedRoute requiredRole="customer">
-                <CustomerPortalLayout title="View Gallery">
-                  <CustomerGalleryPage />
-                </CustomerPortalLayout>
-              </ProtectedRoute>
-            }
           />
 
           {/* Employee Routes */}

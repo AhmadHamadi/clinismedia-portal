@@ -1,7 +1,7 @@
 // src/components/Admin/OnboardingTasksPage.tsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes, FaEnvelope } from 'react-icons/fa';
 
 interface OnboardingTask {
   _id: string;
@@ -42,6 +42,12 @@ const OnboardingTasks: React.FC = () => {
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedClinicId, setSelectedClinicId] = useState<string>('');
+
+  // Email notification state
+  const [selectedEmailClinic, setSelectedEmailClinic] = useState<string>('');
+  const [emailSubject, setEmailSubject] = useState('Onboarding Task Update');
+  const [emailBody, setEmailBody] = useState('Hi {clinicName},\n\nThis is an update regarding your onboarding tasks.\n\nBest regards,\nCliniMedia Team');
+  const [showEmailModal, setShowEmailModal] = useState(false);
 
   // Fetch tasks from backend and group by category
   const [categories, setCategories] = useState<string[]>([]);
@@ -162,6 +168,40 @@ const OnboardingTasks: React.FC = () => {
     fetchClinicsAndAssignments();
   };
 
+  // Send email notification
+  const handleSendEmail = async () => {
+    if (!selectedEmailClinic) {
+      alert('Please select a clinic first');
+      return;
+    }
+
+    const selectedClinicData = clinics.find(c => c._id === selectedEmailClinic);
+    if (!selectedClinicData) {
+      alert('Selected clinic not found');
+      return;
+    }
+
+    // Replace clinic name in email body
+    const emailBodyWithClinic = emailBody.replace('{clinicName}', selectedClinicData.name);
+
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/email-notification-settings/send-custom`, {
+        clinicId: selectedEmailClinic,
+        subject: emailSubject,
+        body: emailBodyWithClinic,
+        clinicEmail: selectedClinicData.email
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      alert(`✅ Email sent successfully to ${selectedClinicData.name}`);
+      setShowEmailModal(false);
+    } catch (error: any) {
+      alert(`❌ Failed to send email: ${error.response?.data?.message || 'Unknown error'}`);
+    }
+  };
+
   // Group tasks by category
   const tasksByCategory = categories.map(category => ({
     category,
@@ -171,9 +211,33 @@ const OnboardingTasks: React.FC = () => {
   const getAssignmentStatus = (a: any) => a.status || 'not_started';
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-100 font-sans gap-6 p-6">
-      {/* Left: Master Task List */}
-      <div className="w-full md:w-2/3 bg-white rounded-lg shadow-md p-6">
+    <div className="flex flex-col min-h-screen bg-gray-100 font-sans gap-6 p-6">
+      {/* Email Notification Section - At Top */}
+      <div className="w-full bg-white rounded-lg shadow-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-[#303b45]">Email Notifications</h2>
+          <button
+            onClick={() => setShowEmailModal(true)}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center gap-2"
+          >
+            <FaEnvelope /> Send Email
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="border rounded-lg p-4 bg-gray-50">
+            <h3 className="font-semibold text-black mb-2">Quick Email</h3>
+            <p className="text-sm text-gray-700 mb-2">Send custom emails to clinics</p>
+            <div className="text-xs text-gray-600">
+              <div>Subject: {emailSubject}</div>
+              <div>Template: Custom</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Master Task List - Now Below Email Section */}
+      <div className="w-full bg-white rounded-lg shadow-md p-6">
         <h1 className="text-2xl font-bold text-[#303b45] mb-4">Onboarding Tasks</h1>
         <div className="bg-white rounded-lg shadow-md p-4">
           <table className="w-full">
@@ -263,8 +327,9 @@ const OnboardingTasks: React.FC = () => {
           </div>
         </div>
       </div>
-      {/* Right: Clinic Onboarding Tasks */}
-      <div className="w-full md:w-1/3 bg-white rounded-lg shadow-md p-6">
+
+      {/* Clinic Onboarding Tasks - Now Below */}
+      <div className="w-full bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-bold mb-4 text-[#303b45]">Clinic Onboarding Tasks</h2>
         <div className="mb-4">
           <label className="block mb-2 font-semibold">Select Clinic:</label>
@@ -350,6 +415,82 @@ const OnboardingTasks: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Email Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-black">Send Email Notification</h2>
+              <button
+                onClick={() => setShowEmailModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-black">Select Clinic:</label>
+                <select
+                  value={selectedEmailClinic}
+                  onChange={(e) => setSelectedEmailClinic(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+                >
+                  <option value="">Choose a clinic...</option>
+                  {clinics.map(clinic => (
+                    <option key={clinic._id} value={clinic._id}>
+                      {clinic.name} ({clinic.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1 text-black">Email Subject:</label>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+                  placeholder="Enter email subject..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1 text-black">Email Body:</label>
+                <textarea
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  rows={8}
+                  className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+                  placeholder="Enter email body... Use {clinicName} to insert clinic name"
+                />
+                <p className="text-xs text-gray-600 mt-1">
+                  Available variables: {'{clinicName}'} (will be replaced with selected clinic name)
+                </p>
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowEmailModal(false)}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendEmail}
+                  disabled={!selectedEmailClinic}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Send Email
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal for selecting a clinic */}
       {showAssignModal && (

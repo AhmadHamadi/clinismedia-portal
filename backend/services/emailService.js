@@ -7,22 +7,22 @@ class EmailService {
     return `
       <div style="font-family: Arial, sans-serif; color: #222;">
         ${content}
-        <p>Warm regards,<br/>
+        <p>Best regards,<br/>
         CliniMedia</p>
         <img src="cid:clinimedia-logo" alt="Clinimedia Logo" style="display: block; margin: 24px 0; width: 180px;"/>
         <p style="margin: 0; font-size: 14px; color: #222;">
-          905-515-7090 | info@clinimedia.ca
+          289-946-6865 | info@clinimedia.ca
         </p>
       </div>
     `;
   }
 
   // Common email sending function
-  static async sendEmail(subject, content, errorMessage) {
+  static async sendEmail(subject, content, toEmail, errorMessage) {
     try {
       await transporter.sendMail({
         from: 'info@clinimedia.ca',
-        to: 'pauljared48@gmail.com', // Forward all to this email for now
+        to: toEmail, // Send to specific customer email
         subject,
         html: EmailService.createEmailTemplate(content),
         attachments: [
@@ -39,7 +39,7 @@ class EmailService {
     }
   }
 
-  static async sendBookingConfirmation(customerName, requestedDate) {
+  static async sendBookingConfirmation(customerName, requestedDate, customerEmail) {
     const content = `
       <p>Hi ${customerName},</p>
       <p>We've received your Media Day request for <strong>${requestedDate}</strong>.</p>
@@ -49,11 +49,12 @@ class EmailService {
     await EmailService.sendEmail(
       'Media Day Booking Received',
       content,
+      customerEmail,
       'Failed to send booking confirmation email:'
     );
   }
 
-  static async sendBookingAccepted(customerName, bookingDate) {
+  static async sendBookingAccepted(customerName, bookingDate, customerEmail) {
     const content = `
       <p>Hello ${customerName},</p>
       <p>Your Media Day on ${bookingDate} is confirmed.</p>
@@ -64,11 +65,12 @@ class EmailService {
     await EmailService.sendEmail(
       `Media Day Booking Confirmed – ${bookingDate}`,
       content,
+      customerEmail,
       'Failed to send booking accepted email:'
     );
   }
 
-  static async sendBookingDeclined(customerName, requestedDate) {
+  static async sendBookingDeclined(customerName, requestedDate, customerEmail) {
     const content = `
       <p>Hello ${customerName},</p>
       <p>Your Media Day booking request for <strong>${requestedDate}</strong> was unfortunately declined.</p>
@@ -79,6 +81,7 @@ class EmailService {
     await EmailService.sendEmail(
       `Media Day Booking Declined – ${requestedDate}`,
       content,
+      customerEmail,
       'Failed to send booking declined email:'
     );
   }
@@ -93,14 +96,61 @@ class EmailService {
       <p>Feel free to reach out if you have any questions.</p>
     `;
     
+    // Send to all photographers (first come, first served)
     await EmailService.sendEmail(
       `New Media Day Session Available – ${bookingDate}`,
       content,
+      'pauljared48@gmail.com', // Temporary - will be updated to send to all photographers
       'Failed to send photographer notification email:'
     );
   }
 
-  static async sendBookingReminder(customerName, bookingDate) {
+  static async sendPhotographerNotificationToAll(clinicName, bookingDate) {
+    const content = `
+      <p>Hi photographer,</p>
+      <p>We have a new Media Day session available and is now ready to be accepted!</p>
+      <p><strong>Clinic:</strong> ${clinicName}<br/>
+      <strong>Date:</strong> ${bookingDate}</p>
+      <p>If you're available and interested, please log in to your dashboard to view the details and accept the session.</p>
+      <p>Feel free to reach out if you have any questions.</p>
+    `;
+    
+    try {
+      // Get all photographers
+      const User = require('../models/User');
+      const photographers = await User.find({ role: 'employee' });
+      
+      // Send email to each photographer
+      for (const photographer of photographers) {
+        await EmailService.sendEmail(
+          `New Media Day Session Available – ${bookingDate}`,
+          content,
+          photographer.email,
+          'Failed to send photographer notification email:'
+        );
+      }
+    } catch (error) {
+      console.error('Failed to send photographer notifications:', error);
+    }
+  }
+
+  static async sendPhotographerBookingSecured(photographerName, clinicName, bookingDate, photographerEmail) {
+    const content = `
+      <p>Hi ${photographerName},</p>
+      <p>Congratulations! You have successfully secured the Media Day session for <strong>${clinicName}</strong> on <strong>${bookingDate}</strong>.</p>
+      <p>Please log in to your dashboard to view the full details and prepare for the session.</p>
+      <p>If you have any questions or need to make changes, please reach out to us.</p>
+    `;
+    
+    await EmailService.sendEmail(
+      `Media Day Session Secured – ${bookingDate}`,
+      content,
+      photographerEmail,
+      'Failed to send photographer booking secured email:'
+    );
+  }
+
+  static async sendBookingReminder(customerName, bookingDate, customerEmail) {
     const content = `
       <p>Hi ${customerName},</p>
       <p>Just a quick reminder that your Media Day is scheduled for tomorrow, ${bookingDate}.</p>
@@ -110,11 +160,12 @@ class EmailService {
     await EmailService.sendEmail(
       `Reminder: Your Media Day is Tomorrow – ${bookingDate}`,
       content,
+      customerEmail,
       'Failed to send booking reminder email:'
     );
   }
 
-  static async sendPhotographerReminder(photographerName, clinicName, bookingDate, location = 'TBD', time = 'TBD') {
+  static async sendPhotographerReminder(photographerName, clinicName, bookingDate, photographerEmail, location = 'TBD', time = 'TBD') {
     const content = `
       <p>Hi ${photographerName},</p>
       <p>Just a reminder that you're scheduled for a Media Day session tomorrow, ${bookingDate}.</p>
@@ -128,6 +179,7 @@ class EmailService {
     await EmailService.sendEmail(
       `Reminder: Media Day Session Tomorrow – ${bookingDate}`,
       content,
+      photographerEmail,
       'Failed to send photographer reminder email:'
     );
   }
@@ -160,6 +212,7 @@ class EmailService {
     await EmailService.sendEmail(
       subject,
       content,
+      customerEmail,
       'Failed to send proactive booking reminder:'
     );
   }
