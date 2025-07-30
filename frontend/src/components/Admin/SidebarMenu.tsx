@@ -37,8 +37,11 @@ const SidebarMenu = () => {
   };
 
   const handleLogout = async () => {
-    await logout('admin');
-    navigate("/login");
+    const confirmed = window.confirm("Are you sure you want to logout? You will need to login again to access your account.");
+    if (confirmed) {
+      await logout('admin');
+      navigate("/login");
+    }
   };
 
   return (
