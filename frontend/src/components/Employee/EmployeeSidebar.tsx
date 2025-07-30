@@ -1,7 +1,8 @@
-import { FaBars } from "react-icons/fa";
+import { FaBars, FaSignOutAlt } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import React, { useState } from "react";
 import logo1 from "../../assets/CliniMedia_Logo1.png";
+import { logout } from "../../utils/auth";
 
 interface EmployeeSidebarProps {
   sidebarOpen: boolean;
@@ -23,6 +24,14 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
       "text-left w-full p-2 rounded transition hover:bg-blue-100 text-[#303b45]";
     const activeClasses = "bg-[#98c6d5] text-white";
     return currentPath === path ? `${baseClasses} ${activeClasses}` : baseClasses;
+  };
+
+  const handleLogout = async () => {
+    const confirmed = window.confirm("Are you sure you want to logout? You will need to login again to access your account.");
+    if (confirmed) {
+      await logout('employee');
+      navigate("/login");
+    }
   };
 
   return (
@@ -51,6 +60,17 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
           </button>
         ))}
       </nav>
+
+      {/* Logout Button */}
+      <div className="p-4 border-t border-gray-200 mt-auto">
+        <button
+          onClick={handleLogout}
+          className="flex items-center w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+        >
+          <FaSignOutAlt />
+          <span className="ml-3">Logout</span>
+        </button>
+      </div>
     </div>
   );
 };

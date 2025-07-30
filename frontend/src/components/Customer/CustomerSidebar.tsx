@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaHome, FaCalendarAlt, FaTasks, FaGoogle, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt } from 'react-icons/fa';
 import logo1 from '../../assets/CliniMedia_Logo1.png';
@@ -22,9 +22,12 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
   ];
 
   const handleLogout = async () => {
-    await logout('customer');
-    onLogout();
-    navigate("/login");
+    const confirmed = window.confirm("Are you sure you want to logout? You will need to login again to access your account.");
+    if (confirmed) {
+      await logout('customer');
+      onLogout();
+      navigate("/login");
+    }
   };
 
   return (
