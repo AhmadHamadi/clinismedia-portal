@@ -37,8 +37,8 @@ router.post('/upload', authenticateToken, authorizeRole(['admin']), upload.singl
   }
 });
 
-// GET invoice file (authenticated)
-router.get('/file/:filename', authenticateToken, (req, res) => {
+// GET invoice file (no authentication required)
+router.get('/file/:filename', (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(__dirname, '../uploads/invoices', filename);
   
@@ -49,8 +49,8 @@ router.get('/file/:filename', authenticateToken, (req, res) => {
   }
 });
 
-// GET invoice view (authenticated)
-router.get('/view/:filename', authenticateToken, (req, res) => {
+// GET invoice view (no authentication required)
+router.get('/view/:filename', (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(__dirname, '../uploads/invoices', filename);
   
