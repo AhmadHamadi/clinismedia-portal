@@ -80,7 +80,7 @@ const CustomerInvoicePage: React.FC = () => {
                 </p>
                 <div className="flex gap-4">
                   <a
-                    href={`${import.meta.env.VITE_BACKEND_BASE_URL}/api/invoices/view/${currentInvoice.invoiceId.url.split('/').pop()}`}
+                    href={`${import.meta.env.VITE_API_BASE_URL}/invoices/view/${currentInvoice.invoiceId.url.split('/').pop()}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 hover:scale-105 transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-blue-600/40"
@@ -88,7 +88,7 @@ const CustomerInvoicePage: React.FC = () => {
                     View Invoice
                   </a>
                   <a
-                    href={`${import.meta.env.VITE_BACKEND_BASE_URL}/api/invoices/file/${currentInvoice.invoiceId.url.split('/').pop()}`}
+                    href={`${import.meta.env.VITE_API_BASE_URL}/invoices/file/${currentInvoice.invoiceId.url.split('/').pop()}`}
                     download
                     className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 hover:scale-105 transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-green-600/40"
                   >
@@ -128,7 +128,7 @@ const CustomerInvoicePage: React.FC = () => {
                   </p>
                   <div className="flex gap-2">
                     <a
-                      href={`${import.meta.env.VITE_BACKEND_BASE_URL}/api/invoices/view/${item.invoiceId.url.split('/').pop()}`}
+                      href={`${import.meta.env.VITE_API_BASE_URL}/invoices/view/${item.invoiceId.url.split('/').pop()}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline text-sm font-medium"
@@ -136,7 +136,7 @@ const CustomerInvoicePage: React.FC = () => {
                       View
                     </a>
                     <a
-                      href={`${import.meta.env.VITE_BACKEND_BASE_URL}/api/invoices/file/${item.invoiceId.url.split('/').pop()}`}
+                      href={`${import.meta.env.VITE_API_BASE_URL}/invoices/file/${item.invoiceId.url.split('/').pop()}`}
                       download
                       className="text-green-600 hover:underline text-sm font-medium"
                     >

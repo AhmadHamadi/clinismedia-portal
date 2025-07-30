@@ -43,6 +43,8 @@ app.use('/api/invoices', invoicesRoutes);
 app.use('/api/instagram-insights', instagramInsightsRoutes);
 app.use('/api/email-notification-settings', emailNotificationSettingsRoutes);
 app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
+app.use('/uploads/invoices', express.static(__dirname + '/uploads/invoices'));
+app.use('/uploads/customer-logos', express.static(__dirname + '/uploads/customer-logos'));
 
 // Root route
 app.get("/", (req, res) => {
