@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Calendar, dateFnsLocalizer, Event } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale';
@@ -79,6 +79,8 @@ const CalendarEventDot = ({ event }: { event: any }) => {
 };
 
 const CustomerMediaDayBookingPage: React.FC = () => {
+  const [nextAllowedBookingDate, setNextAllowedBookingDate] = useState<Date | null>(null);
+  
   const {
     selectedDate,
     selectedTime,
