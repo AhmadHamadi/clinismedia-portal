@@ -63,7 +63,13 @@ router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
 // Get all bookings for employees (Employee only)
 router.get('/employee', authenticateToken, authorizeRole('employee'), async (req, res) => {
   try {
-    const bookings = await Booking.find()
+    const bookings = await Booking.find({
+      // Exclude bookings that this employee has declined
+      $or: [
+        { declinedBy: { $exists: false } },
+        { declinedBy: { $nin: [req.user._id] } }
+      ]
+    })
       .populate('customer', 'name email location')
       .populate('photographer', 'name email')
       .sort({ date: 1 });
@@ -104,10 +110,22 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
     }).sort({ date: -1 });
     if (lastBooking) {
       const nextAllowedDate = new Date(lastBooking.date);
-      nextAllowedDate.setMonth(nextAllowedDate.getMonth() + interval);
+      
+      // For monthly clinics: next available date is beginning of next month
+      if (interval === 1) {
+        nextAllowedDate.setMonth(nextAllowedDate.getMonth() + 1);
+        nextAllowedDate.setDate(1); // Set to first day of next month
+      } 
+      // For quarterly clinics: next available date is beginning of 3rd month after media day
+      else if (interval === 3) {
+        nextAllowedDate.setMonth(nextAllowedDate.getMonth() + 3);
+        nextAllowedDate.setDate(1); // Set to first day of the 3rd month
+      }
+      
       if (new Date(date) < nextAllowedDate) {
+        const intervalText = interval === 1 ? 'month' : '3 months';
         return res.status(400).json({
-          message: `You can only book once every ${interval === 1 ? 'month' : '3 months'}. Next available booking: ${nextAllowedDate.toLocaleDateString()}`
+          message: `You can only book once every ${intervalText}. Next available booking: ${nextAllowedDate.toLocaleDateString()}`
         });
       }
     }
@@ -405,6 +423,40 @@ router.patch('/:id/accept-session', authenticateToken, authorizeRole('employee')
 
     // Update photographer field
     booking.photographer = req.user._id;
+    
+    const updatedBooking = await booking.save();
+    const populatedBooking = await Booking.findById(updatedBooking._id)
+      .populate('customer', 'name email location')
+      .populate('photographer', 'name email');
+    res.json(populatedBooking);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Decline photography session (Employee only)
+router.patch('/:id/decline-session', authenticateToken, authorizeRole('employee'), async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Check if booking is in accepted status (admin approved)
+    if (booking.status !== 'accepted') {
+      return res.status(400).json({ message: 'This session is not available for decline' });
+    }
+
+    // Check if this employee has already declined this booking
+    if (booking.declinedBy && booking.declinedBy.includes(req.user._id)) {
+      return res.status(400).json({ message: 'You have already declined this session' });
+    }
+
+    // Add employee to declinedBy array
+    if (!booking.declinedBy) {
+      booking.declinedBy = [];
+    }
+    booking.declinedBy.push(req.user._id);
     
     const updatedBooking = await booking.save();
     const populatedBooking = await Booking.findById(updatedBooking._id)

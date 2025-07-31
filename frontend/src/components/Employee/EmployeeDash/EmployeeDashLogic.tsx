@@ -58,13 +58,30 @@ export const useEmployeeDashboard = () => {
     fetchBookings();
   }, [fetchBookings]);
 
-  // Only show accepted bookings for this employee in the future
+  // Show accepted bookings for this employee in the future, or unassigned accepted bookings
   const acceptedBookings = useMemo(() => {
     const now = new Date();
-    return bookings.filter(
-      b => b.status === 'accepted' && b.photographer && b.photographer._id === currentEmployeeId && new Date(b.date) > now
-    ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return bookings.filter(booking => {
+      const isAccepted = booking.status === 'accepted';
+      const isInFuture = new Date(booking.date) > now;
+      const isAssignedToMe = booking.photographer && booking.photographer._id === currentEmployeeId;
+      const isUnassigned = !booking.photographer; // Show unassigned accepted bookings too
+      
+      return isAccepted && isInFuture && (isAssignedToMe || isUnassigned);
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [bookings, currentEmployeeId]);
+
+  // Count available bookings for notification badge
+  const availableBookingsCount = useMemo(() => {
+    const now = new Date();
+    return bookings.filter(booking => {
+      const isAccepted = booking.status === 'accepted';
+      const isInFuture = new Date(booking.date) > now;
+      const isUnassigned = !booking.photographer; // Only count unassigned bookings
+      
+      return isAccepted && isInFuture && isUnassigned;
+    }).length;
+  }, [bookings]);
 
   const fetchEmployeeData = async () => {
     try {
@@ -107,5 +124,6 @@ export const useEmployeeDashboard = () => {
     handleLogout,
     acceptedBookings,
     isLoadingBookings,
+    availableBookingsCount,
   };
 };

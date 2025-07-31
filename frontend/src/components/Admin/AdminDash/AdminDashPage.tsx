@@ -2,10 +2,13 @@
 import React from 'react';
 import { useNavigate } from "react-router-dom";
 import logo1 from "../../../assets/CliniMedia_Logo1.png";
-import { DashboardBox } from "./AdminDashLogic";
+import { DashboardBox, useAdminDashboard } from "./AdminDashLogic";
 
 const AdminDash = () => {
   const navigate = useNavigate();
+  const { pendingBookingsCount, loading } = useAdminDashboard();
+
+  console.log('AdminDash render - pendingBookingsCount:', pendingBookingsCount);
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 font-sans">
@@ -37,6 +40,7 @@ const AdminDash = () => {
           title="Media Day Calendar"
           description="View and manage media day events"
           onClick={() => navigate("/admin/media")}
+          notificationCount={pendingBookingsCount}
         />
         <DashboardBox
           title="Onboarding Tasks"

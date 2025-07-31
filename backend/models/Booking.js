@@ -20,6 +20,10 @@ const bookingSchema = new mongoose.Schema({
     ref: 'User',
     default: null
   },
+  declinedBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   notes: {
     type: String,
     trim: true

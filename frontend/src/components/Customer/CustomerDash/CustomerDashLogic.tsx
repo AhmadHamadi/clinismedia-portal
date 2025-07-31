@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 
 export interface Customer {
   _id: string;
@@ -59,5 +59,75 @@ export const useCustomerDashboard = () => {
     loading,
     error,
     handleLogout,
+  };
+};
+
+interface NotificationCounts {
+  meta_insights: number;
+  invoice: number;
+  gallery: number;
+}
+
+export const useCustomerNotifications = () => {
+  const [notificationCounts, setNotificationCounts] = useState<NotificationCounts>({
+    meta_insights: 0,
+    invoice: 0,
+    gallery: 0
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchNotificationCounts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('customerToken');
+      if (!token) return;
+
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/customer-notifications/counts`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setNotificationCounts(response.data);
+    } catch (err: any) {
+      console.error('Error fetching notification counts:', err);
+      setError(err.response?.data?.message || 'Failed to fetch notifications');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const markNotificationsAsRead = useCallback(async (type: 'meta_insights' | 'invoice' | 'gallery') => {
+    try {
+      const token = localStorage.getItem('customerToken');
+      if (!token) return;
+
+      await axios.patch(
+        `${import.meta.env.VITE_API_BASE_URL}/customer-notifications/mark-read/${type}`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Update local state
+      setNotificationCounts(prev => ({
+        ...prev,
+        [type]: 0
+      }));
+    } catch (err: any) {
+      console.error('Error marking notifications as read:', err);
+      setError(err.response?.data?.message || 'Failed to mark notifications as read');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotificationCounts();
+  }, [fetchNotificationCounts]);
+
+  return {
+    notificationCounts,
+    loading,
+    error,
+    fetchNotificationCounts,
+    markNotificationsAsRead
   };
 };

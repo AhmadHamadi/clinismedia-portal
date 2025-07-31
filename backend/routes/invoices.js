@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const Invoice = require('../models/Invoice');
 const AssignedInvoice = require('../models/AssignedInvoice');
+const CustomerNotification = require('../models/CustomerNotification');
 const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
@@ -107,6 +108,21 @@ router.post('/assign', authenticateToken, authorizeRole(['admin']), async (req, 
       assignments.push(assignment);
     }
     await AssignedInvoice.insertMany(assignments);
+
+    // Create customer notification for each assigned invoice
+    for (const invoiceId of invoiceIds) {
+      const invoice = await Invoice.findById(invoiceId);
+      if (invoice) {
+        const notification = new CustomerNotification({
+          customer: clinicId,
+          type: 'invoice',
+          contentId: invoiceId,
+          contentTitle: `New Invoice: ${invoice.name}`,
+        });
+        await notification.save();
+      }
+    }
+
     res.json({ message: 'Invoices assigned successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

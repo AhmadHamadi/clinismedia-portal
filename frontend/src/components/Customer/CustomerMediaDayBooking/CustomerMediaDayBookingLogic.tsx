@@ -265,7 +265,7 @@ export const useMediaDayBooking = () => {
           'Content-Type': 'application/json'
         }
       });
-      setSuccess('Booking created successfully!');
+      setSuccess('Booking is pending');
       resetForm();
       await fetchBookings();
     } catch (err: any) {

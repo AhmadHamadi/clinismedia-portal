@@ -98,10 +98,31 @@ export const useEmployeeMediaDayBooking = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
+      // Refresh bookings after accepting
       await fetchBookings();
     } catch (err: any) {
       setError(err.response?.data?.message || ERROR_MESSAGES.ACCEPT_ERROR);
-      throw err;
+    } finally {
+      setIsAcceptingSession(false);
+    }
+  }, [getAuthToken, fetchBookings]);
+
+  // Decline photography session
+  const declineSession = useCallback(async (bookingId: string) => {
+    try {
+      setIsAcceptingSession(true); // Reuse the same loading state
+      const token = getAuthToken();
+      
+      await axios.patch(
+        `${import.meta.env.VITE_API_BASE_URL}/bookings/${bookingId}/decline-session`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Refresh bookings after declining
+      await fetchBookings();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to decline session');
     } finally {
       setIsAcceptingSession(false);
     }
@@ -174,5 +195,6 @@ export const useEmployeeMediaDayBooking = () => {
     clearError,
     fetchBookings,
     acceptSession,
+    declineSession,
   };
 };

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const GalleryItem = require('../models/GalleryItem');
 const AssignedGalleryItem = require('../models/AssignedGalleryItem');
+const CustomerNotification = require('../models/CustomerNotification');
 const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
@@ -84,6 +85,21 @@ router.post('/assign', authenticateToken, authorizeRole(['admin']), async (req, 
     }
     
     await AssignedGalleryItem.insertMany(assignments);
+
+    // Create customer notification for each assigned gallery item
+    for (const galleryItemId of galleryItemIds) {
+      const galleryItem = await GalleryItem.findById(galleryItemId);
+      if (galleryItem) {
+        const notification = new CustomerNotification({
+          customer: clinicId,
+          type: 'gallery',
+          contentId: galleryItemId,
+          contentTitle: `New Gallery Item: ${galleryItem.name}`,
+        });
+        await notification.save();
+      }
+    }
+
     res.json({ message: 'Gallery items assigned successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

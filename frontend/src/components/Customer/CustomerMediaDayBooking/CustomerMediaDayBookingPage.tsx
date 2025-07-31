@@ -122,11 +122,10 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     fetchCustomer();
   }, []);
 
-  // Calculate next allowed booking date for the customer
-  const [nextAllowedBookingDate, setNextAllowedBookingDate] = React.useState<Date | null>(null);
-
-  React.useEffect(() => {
-    if (!customer) return;
+  // Calculate next allowed booking date based on last accepted booking
+  useEffect(() => {
+    if (!customer || !bookings) return;
+    
     // Find last accepted booking
     const acceptedBookings = bookings.filter(b => b.status === 'accepted');
     if (acceptedBookings.length === 0) {
@@ -136,7 +135,18 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     const lastBooking = acceptedBookings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     const interval = customer.bookingIntervalMonths || 1;
     const nextDate = new Date(lastBooking.date);
-    nextDate.setMonth(nextDate.getMonth() + interval);
+    
+    // For monthly clinics: next available date is beginning of next month
+    if (interval === 1) {
+      nextDate.setMonth(nextDate.getMonth() + 1);
+      nextDate.setDate(1); // Set to first day of next month
+    } 
+    // For quarterly clinics: next available date is beginning of 3rd month after media day
+    else if (interval === 3) {
+      nextDate.setMonth(nextDate.getMonth() + 3);
+      nextDate.setDate(1); // Set to first day of the 3rd month
+    }
+    
     setNextAllowedBookingDate(nextDate);
   }, [customer, bookings]);
 

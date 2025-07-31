@@ -97,8 +97,9 @@ const BookingCard: React.FC<{
   booking: Booking;
   showAcceptButton?: boolean;
   onAccept?: (bookingId: string) => void;
+  onDecline?: (bookingId: string) => void;
   isAccepting?: boolean;
-}> = ({ booking, showAcceptButton = false, onAccept, isAccepting = false }) => (
+}> = ({ booking, showAcceptButton = false, onAccept, onDecline, isAccepting = false }) => (
   <div className="bg-gray-50 rounded-2xl shadow-lg px-8 py-6 flex flex-col transition-all duration-200 hover:shadow-2xl">
     <div>
       <h3 className="text-xl font-semibold text-[#303b45] mb-2">
@@ -132,25 +133,46 @@ const BookingCard: React.FC<{
       </div>
     )}
     
-    {showAcceptButton && onAccept && (
+    {showAcceptButton && onAccept && onDecline && (
       <div className="border-t border-gray-100 pt-4">
-        <button 
-          onClick={() => onAccept(booking._id)}
-          disabled={isAccepting}
-          className="bg-[#98c6d5] hover:bg-[#7bb3c4] disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-        >
-          {isAccepting ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              Accepting...
-            </>
-          ) : (
-            <>
-              <Icons.check className="w-4 h-4" />
-              Accept Session
-            </>
-          )}
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => onAccept(booking._id)}
+            disabled={isAccepting}
+            className="flex-1 bg-[#98c6d5] hover:bg-[#7bb3c4] disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            {isAccepting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Accepting...
+              </>
+            ) : (
+              <>
+                <Icons.check className="w-4 h-4" />
+                Accept Session
+              </>
+            )}
+          </button>
+          <button 
+            onClick={() => onDecline(booking._id)}
+            disabled={isAccepting}
+            className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            {isAccepting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Declining...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Decline Session
+              </>
+            )}
+          </button>
+        </div>
       </div>
     )}
   </div>
@@ -199,6 +221,7 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
     calendarEvents,
     clearError,
     acceptSession,
+    declineSession,
     isAcceptingSession,
   } = useEmployeeMediaDayBooking();
 
@@ -206,6 +229,15 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
   const handleAcceptSession = async (bookingId: string) => {
     try {
       await acceptSession(bookingId);
+    } catch (err) {
+      // Error is already handled in the logic
+    }
+  };
+
+  // Handle decline session
+  const handleDeclineSession = async (bookingId: string) => {
+    try {
+      await declineSession(bookingId);
     } catch (err) {
       // Error is already handled in the logic
     }
@@ -274,6 +306,69 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
           </div>
         )}
 
+        {/* My Photography Sessions */}
+        <div className="bg-white border-8 rounded-2xl shadow-xl p-8 mb-8">
+          <h2 className="text-2xl md:text-3xl font-extrabold mb-8 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow tracking-wide font-sans text-left">
+            My Photography Sessions
+          </h2>
+          <div className="flex bg-gray-100 rounded-lg p-1 mb-6 w-fit">
+            <TabButton
+              isActive={activeTab === 'available'}
+              onClick={() => setActiveTab('available')}
+              activeColor="bg-[#60a5fa]"
+            >
+              Available Sessions
+            </TabButton>
+            <TabButton
+              isActive={activeTab === 'accepted'}
+              onClick={() => setActiveTab('accepted')}
+              activeColor="bg-green-500"
+            >
+              Accepted Sessions
+            </TabButton>
+          </div>
+          <div className="space-y-6">
+            {activeTab === 'accepted' ? (
+              // Accepted Sessions
+              acceptedBookings.length > 0 ? (
+                acceptedBookings.map((booking) => (
+                  <BookingCard 
+                    key={booking._id} 
+                    booking={booking} 
+                    onAccept={handleAcceptSession} 
+                    onDecline={handleDeclineSession} 
+                    isAccepting={isAcceptingSession} 
+                  />
+                ))
+              ) : (
+                <EmptyState
+                  title="No Accepted Sessions"
+                  message="You don't have any confirmed photography sessions yet."
+                />
+              )
+            ) : (
+              // Available Sessions
+              availableBookings.length > 0 ? (
+                availableBookings.map((booking) => (
+                  <BookingCard
+                    key={booking._id}
+                    booking={booking}
+                    showAcceptButton
+                    onAccept={handleAcceptSession}
+                    onDecline={handleDeclineSession}
+                    isAccepting={isAcceptingSession}
+                  />
+                ))
+              ) : (
+                <EmptyState
+                  title="No Available Sessions"
+                  message="There are no photography sessions available at the moment."
+                />
+              )
+            )}
+          </div>
+        </div>
+
         {/* Calendar Card */}
         <div className="bg-white rounded-2xl shadow-xl p-3 mb-12 transform transition-all duration-300 hover:shadow-2xl relative border-8 border-[#e5e7eb]">
           {/* Booking Legend (top right corner) */}
@@ -307,62 +402,6 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
               }}
               className="rounded-lg"
             />
-          </div>
-        </div>
-
-        {/* My Photography Sessions */}
-        <div className="bg-white border-8 rounded-2xl shadow-xl p-8 mb-8">
-          <h2 className="text-2xl md:text-3xl font-extrabold mb-8 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow tracking-wide font-sans text-left">
-            My Photography Sessions
-          </h2>
-          <div className="flex bg-gray-100 rounded-lg p-1 mb-6 w-fit">
-            <TabButton
-              isActive={activeTab === 'available'}
-              onClick={() => setActiveTab('available')}
-              activeColor="bg-[#60a5fa]"
-            >
-              Available Sessions
-            </TabButton>
-            <TabButton
-              isActive={activeTab === 'accepted'}
-              onClick={() => setActiveTab('accepted')}
-              activeColor="bg-green-500"
-            >
-              Accepted Sessions
-            </TabButton>
-          </div>
-          <div className="space-y-6">
-            {activeTab === 'accepted' ? (
-              // Accepted Sessions
-              acceptedBookings.length > 0 ? (
-                acceptedBookings.map((booking) => (
-                  <BookingCard key={booking._id} booking={booking} />
-                ))
-              ) : (
-                <EmptyState
-                  title="No Accepted Sessions"
-                  message="You don't have any confirmed photography sessions yet."
-                />
-              )
-            ) : (
-              // Available Sessions
-              availableBookings.length > 0 ? (
-                availableBookings.map((booking) => (
-                  <BookingCard
-                    key={booking._id}
-                    booking={booking}
-                    showAcceptButton
-                    onAccept={handleAcceptSession}
-                    isAccepting={isAcceptingSession}
-                  />
-                ))
-              ) : (
-                <EmptyState
-                  title="No Available Sessions"
-                  message="There are no photography sessions available at the moment."
-                />
-              )
-            )}
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const InstagramInsightImage = require('../models/InstagramInsightImage');
+const CustomerNotification = require('../models/CustomerNotification');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 const User = require('../models/User');
@@ -36,6 +37,16 @@ router.post('/upload', authenticateToken, authorizeRole(['admin']), upload.singl
       imageUrl,
     });
     await image.save();
+
+    // Create customer notification
+    const notification = new CustomerNotification({
+      customer: clinicId,
+      type: 'meta_insights',
+      contentId: image._id,
+      contentTitle: `Instagram Insights for ${month}`,
+    });
+    await notification.save();
+
     res.status(201).json({ message: 'Instagram insight image uploaded', image });
   } catch (err) {
     console.error('Upload error:', err);
