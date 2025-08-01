@@ -109,6 +109,34 @@ router.delete("/:id", authenticateToken, authorizeRole(['admin']), async (req, r
   }
 });
 
+// PUT update customer by ID (admin only)
+router.put("/:id", authenticateToken, authorizeRole(['admin']), uploadLogo.single('logo'), async (req, res) => {
+  try {
+    const { name, username, email, location, address, bookingIntervalMonths } = req.body;
+    const logoUrl = req.file ? `/uploads/customer-logos/${req.file.filename}` : undefined;
+
+    const updateData = { name, username, email, location, address, bookingIntervalMonths };
+    if (logoUrl) {
+      updateData.customerSettings = { logoUrl };
+    }
+
+    const customer = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    ).select("-password");
+
+    if (!customer) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    res.status(200).json(customer);
+  } catch (err) {
+    console.error("❌ Failed to update customer:", err.message);
+    res.status(500).json({ error: "Server error updating customer" });
+  }
+});
+
 // PUT update customer profile (authenticated)
 router.put("/profile", authenticateToken, uploadLogo.single('logo'), async (req, res) => {
   try {
