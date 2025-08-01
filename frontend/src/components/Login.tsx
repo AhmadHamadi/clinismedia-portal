@@ -1,7 +1,7 @@
 import { MdOutlinePerson } from "react-icons/md"; // person icon for username
 import { FaFingerprint } from "react-icons/fa";
 import { FaRegEye, FaRegEyeSlash } from "react-icons/fa";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import logo from "../assets/CliniMedia_Logo.png";
@@ -13,6 +13,8 @@ const Login = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const navigate = useNavigate();
+  
+
 
   const togglePasswordView = () => setShowPassword(!showPassword);
 

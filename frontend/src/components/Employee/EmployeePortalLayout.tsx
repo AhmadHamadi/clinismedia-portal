@@ -13,6 +13,8 @@ const EmployeePortalLayout: React.FC<EmployeePortalLayoutProps> = ({ children, t
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true); // State to manage sidebar open/close
 
+
+
   const handleBack = () => {
     navigate(-1); // Go back to the previous page
   };

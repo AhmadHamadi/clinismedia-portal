@@ -15,11 +15,13 @@ import FacebookIntegrationPage from "./components/Customer/FacebookIntegrationPa
 import FacebookInsightsPage from "./components/Customer/FacebookInsightsPage";
 import CustomerGalleryPage from "./components/Customer/CustomerGalleryPage";
 import CustomerInvoicePage from "./components/Customer/CustomerInvoicePage";
+import PageTitle from "./components/PageTitle";
 
 function App() {
   return (
     <div>
       <Router>
+        <PageTitle />
         <Routes>
           {/* Redirect root path to Login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
