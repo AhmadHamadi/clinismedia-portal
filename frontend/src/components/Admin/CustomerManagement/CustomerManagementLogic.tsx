@@ -124,7 +124,10 @@ export function useCustomerManagement() {
   const handleDeleteCustomer = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this customer?")) return;
     try {
-      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/customers/${id}`);
+      const token = localStorage.getItem('adminToken');
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/customers/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setCustomers((prev) => prev.filter((cust) => cust._id !== id));
     } catch (err) {
       console.error("❌ Failed to delete customer", err);
@@ -179,14 +182,14 @@ export function useCustomerManagement() {
     e.preventDefault();
     if (!window.confirm("Are you sure you want to save these changes?")) return;
     try {
-      console.log('Submitting edit data:', editFormData);
-      const response = await axios.put(`${import.meta.env.VITE_API_BASE_URL}/customers/${editFormData._id}`, editFormData);
-      console.log('Edit response:', response.data);
+      const token = localStorage.getItem('adminToken');
+      const response = await axios.put(`${import.meta.env.VITE_API_BASE_URL}/customers/${editFormData._id}`, editFormData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setEditModalOpen(false);
       fetchCustomers();
     } catch (err: any) {
       console.error('Edit submission error:', err);
-      alert("Failed to update customer.");
     }
   };
 
