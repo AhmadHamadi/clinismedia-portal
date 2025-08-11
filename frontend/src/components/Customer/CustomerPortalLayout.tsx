@@ -1,5 +1,6 @@
-import React from 'react';
-import { useNavigate, Outlet, Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useNavigate, Outlet, Routes, Route, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import CustomerSidebar from './CustomerSidebar';
 import CustomerDashboard from './CustomerDash/CustomerDashPage';
 import CustomerMediaDayBookingPage from './CustomerMediaDayBooking/CustomerMediaDayBookingPage';
@@ -12,6 +13,58 @@ import NotificationPage from './NotificationPage';
 
 const CustomerPortalLayout: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Auto-clear notification badges when visiting sections
+  useEffect(() => {
+    const clearNotificationBadge = async (section: string) => {
+      try {
+        const token = localStorage.getItem('customerToken');
+        if (!token) return;
+
+        await axios.post(`${import.meta.env.VITE_API_BASE_URL}/customer-notifications/mark-read/${section}`, {}, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        // Dispatch custom event to refresh notification counts in sidebar and dashboard
+        window.dispatchEvent(new CustomEvent('refreshCustomerNotifications'));
+      } catch (error) {
+        console.error(`Failed to mark ${section} as read:`, error);
+      }
+    };
+
+    // Clear appropriate badge based on current route
+    if (location.pathname === '/customer/facebook-insights') {
+      clearNotificationBadge('metaInsights');
+    } else if (location.pathname === '/customer/gallery') {
+      clearNotificationBadge('gallery');
+    } else if (location.pathname === '/customer/invoices') {
+      clearNotificationBadge('invoices');
+    } else if (location.pathname === '/customer/onboarding-tasks') {
+      clearNotificationBadge('onboarding');
+    } else if (location.pathname === '/customer/notifications') {
+      // Clear all badges when visiting notifications page
+      const clearAllBadges = async () => {
+        try {
+          const token = localStorage.getItem('customerToken');
+          if (!token) return;
+
+          await axios.post(`${import.meta.env.VITE_API_BASE_URL}/customer-notifications/mark-all-read`, {}, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          window.dispatchEvent(new CustomEvent('refreshCustomerNotifications'));
+        } catch (error) {
+          console.error('Failed to mark all sections as read:', error);
+        }
+      };
+      clearAllBadges();
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('customerToken');
