@@ -1,13 +1,46 @@
 // src/components/SidebarMenu.tsx
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import axios from "axios";
 import logo1 from "../../assets/CliniMedia_Logo1.png";
 import { logout } from "../../utils/auth";
 
 const SidebarMenu = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
   const navigate = useNavigate();
   const currentPath = window.location.pathname;
+
+  // Fetch pending bookings count
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const token = localStorage.getItem('adminToken');
+        if (!token) {
+          console.log('No admin token found');
+          return;
+        }
+
+        console.log('Fetching pending bookings count...');
+        console.log('API Base URL:', import.meta.env.VITE_API_BASE_URL);
+        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/bookings/pending-count`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        console.log('Pending bookings response:', response.data);
+        setPendingBookingsCount(response.data.count);
+      } catch (error: any) {
+        console.error('Failed to fetch pending bookings count:', error);
+        console.error('Error details:', error.response?.data);
+      }
+    };
+
+    fetchPendingCount();
+    // Poll every 30 seconds for real-time updates
+    const interval = setInterval(fetchPendingCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Emit custom event when sidebar state changes
   useEffect(() => {
@@ -61,14 +94,27 @@ const SidebarMenu = () => {
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {navItems.map(({ label, path }) => (
-          <button
-            key={path}
-            onClick={() => navigate(path)}
-            className={getButtonClasses(path)}
-            title={!sidebarOpen ? label : undefined}
-          >
-            {sidebarOpen ? label : label.charAt(0)}
-          </button>
+          <div key={path} className="relative">
+            <button
+              onClick={() => navigate(path)}
+              className={getButtonClasses(path)}
+              title={!sidebarOpen ? label : undefined}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span>{sidebarOpen ? label : label.charAt(0)}</span>
+                {label === "Media Day Calendar" && pendingBookingsCount > 0 && sidebarOpen && (
+                  <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    {pendingBookingsCount}
+                  </span>
+                )}
+              </div>
+            </button>
+            {label === "Media Day Calendar" && pendingBookingsCount > 0 && !sidebarOpen && (
+              <span className="absolute top-0 right-0 inline-flex items-center justify-center w-4 h-4 text-xs font-bold leading-none text-white bg-red-600 rounded-full transform translate-x-1 -translate-y-1">
+                {pendingBookingsCount > 9 ? '9+' : pendingBookingsCount}
+              </span>
+            )}
+          </div>
         ))}
       </nav>
 

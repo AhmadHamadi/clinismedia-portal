@@ -1,11 +1,38 @@
 // src/components/Admin/AdminDash/AdminDashPage.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import logo1 from "../../../assets/CliniMedia_Logo1.png";
 import { DashboardBox } from "./AdminDashLogic";
 
 const AdminDash = () => {
+  const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
   const navigate = useNavigate();
+
+  // Fetch pending bookings count
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const token = localStorage.getItem('adminToken');
+        if (!token) return;
+
+        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/bookings/pending-count`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setPendingBookingsCount(response.data.count);
+      } catch (error: any) {
+        console.error('Failed to fetch pending bookings count:', error);
+        console.error('Error details:', error.response?.data);
+      }
+    };
+
+    fetchPendingCount();
+    // Poll every 30 seconds for real-time updates
+    const interval = setInterval(fetchPendingCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 font-sans">
@@ -37,6 +64,7 @@ const AdminDash = () => {
           title="Media Day Calendar"
           description="View and manage media day events"
           onClick={() => navigate("/admin/media")}
+          notificationCount={pendingBookingsCount}
         />
         <DashboardBox
           title="Onboarding Tasks"
