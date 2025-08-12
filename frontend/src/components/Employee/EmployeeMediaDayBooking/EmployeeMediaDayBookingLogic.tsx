@@ -99,6 +99,9 @@ export const useEmployeeMediaDayBooking = () => {
       );
       
       await fetchBookings();
+      
+      // Dispatch custom event to refresh notifications across all components
+      window.dispatchEvent(new CustomEvent('refreshEmployeeNotifications'));
     } catch (err: any) {
       setError(err.response?.data?.message || ERROR_MESSAGES.ACCEPT_ERROR);
       throw err;
