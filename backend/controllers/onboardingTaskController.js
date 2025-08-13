@@ -76,6 +76,25 @@ exports.assignTasksToClinic = async (req, res) => {
     
     await AssignedOnboardingTask.insertMany(assignments);
     
+    // Automatically increment customer notification count for onboarding
+    try {
+      const CustomerNotification = require('../models/CustomerNotification');
+      let notification = await CustomerNotification.findOne({ customerId: clinicId });
+      
+      if (!notification) {
+        notification = new CustomerNotification({ customerId: clinicId });
+      }
+      
+      notification.onboarding.unreadCount += 1;
+      notification.onboarding.lastUpdated = new Date();
+      await notification.save();
+      
+      console.log(`✅ Onboarding notification incremented for customer ${clinicId}`);
+    } catch (notificationError) {
+      console.error('❌ Failed to increment onboarding notification:', notificationError);
+      // Don't fail the main operation if notification fails
+    }
+    
     // Send email notifications for each assigned task
     for (const taskId of taskIds) {
       const task = await OnboardingTask.findById(taskId);

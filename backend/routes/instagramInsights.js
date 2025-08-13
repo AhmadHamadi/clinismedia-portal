@@ -36,6 +36,26 @@ router.post('/upload', authenticateToken, authorizeRole(['admin']), upload.singl
       imageUrl,
     });
     await image.save();
+    
+    // Automatically increment customer notification count for meta insights
+    try {
+      const CustomerNotification = require('../models/CustomerNotification');
+      let notification = await CustomerNotification.findOne({ customerId: clinicId });
+      
+      if (!notification) {
+        notification = new CustomerNotification({ customerId: clinicId });
+      }
+      
+      notification.metaInsights.unreadCount += 1;
+      notification.metaInsights.lastUpdated = new Date();
+      await notification.save();
+      
+      console.log(`✅ Meta Insights notification incremented for customer ${clinicId}`);
+    } catch (notificationError) {
+      console.error('❌ Failed to increment meta insights notification:', notificationError);
+      // Don't fail the main operation if notification fails
+    }
+    
     res.status(201).json({ message: 'Instagram insight image uploaded', image });
   } catch (err) {
     console.error('Upload error:', err);

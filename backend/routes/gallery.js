@@ -84,6 +84,26 @@ router.post('/assign', authenticateToken, authorizeRole(['admin']), async (req, 
     }
     
     await AssignedGalleryItem.insertMany(assignments);
+    
+    // Automatically increment customer notification count for gallery
+    try {
+      const CustomerNotification = require('../models/CustomerNotification');
+      let notification = await CustomerNotification.findOne({ customerId: clinicId });
+      
+      if (!notification) {
+        notification = new CustomerNotification({ customerId: clinicId });
+      }
+      
+      notification.gallery.unreadCount += 1;
+      notification.gallery.lastUpdated = new Date();
+      await notification.save();
+      
+      console.log(`✅ Gallery notification incremented for customer ${clinicId}`);
+    } catch (notificationError) {
+      console.error('❌ Failed to increment gallery notification:', notificationError);
+      // Don't fail the main operation if notification fails
+    }
+    
     res.json({ message: 'Gallery items assigned successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
