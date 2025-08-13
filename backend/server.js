@@ -30,6 +30,7 @@ const galleryRoutes = require('./routes/gallery');
 const invoicesRoutes = require('./routes/invoices');
 const instagramInsightsRoutes = require('./routes/instagramInsights');
 const emailNotificationSettingsRoutes = require('./routes/emailNotificationSettings');
+const customerNotificationsRoutes = require('./routes/customerNotifications');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
@@ -42,7 +43,10 @@ app.use('/api/gallery', galleryRoutes);
 app.use('/api/invoices', invoicesRoutes);
 app.use('/api/instagram-insights', instagramInsightsRoutes);
 app.use('/api/email-notification-settings', emailNotificationSettingsRoutes);
+app.use('/api/customer-notifications', customerNotificationsRoutes);
 app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
+app.use('/uploads/invoices', express.static(__dirname + '/uploads/invoices'));
+app.use('/uploads/customer-logos', express.static(__dirname + '/uploads/customer-logos'));
 
 // Root route
 app.get("/", (req, res) => {

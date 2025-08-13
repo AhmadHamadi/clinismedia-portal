@@ -21,6 +21,12 @@ const CustomerDashboard = () => {
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
+  const [unreadCounts, setUnreadCounts] = useState({
+    metaInsights: 0,
+    gallery: 0,
+    invoices: 0,
+    onboarding: 0
+  });
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -38,6 +44,40 @@ const CustomerDashboard = () => {
       }
     };
     fetchBookings();
+  }, []);
+
+  // Fetch unread counts
+  useEffect(() => {
+    const fetchUnreadCounts = async () => {
+      try {
+        const token = localStorage.getItem('customerToken');
+        if (!token) return;
+
+        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customer-notifications/unread-counts`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setUnreadCounts(response.data);
+      } catch (error) {
+        console.error('Failed to fetch unread counts:', error);
+      }
+    };
+
+    fetchUnreadCounts();
+    // Poll every 5 seconds for updates
+    const interval = setInterval(fetchUnreadCounts, 5000);
+    
+    // Listen for refresh events from portal layout
+    const handleRefreshNotifications = () => {
+      fetchUnreadCounts();
+    };
+    window.addEventListener('refreshCustomerNotifications', handleRefreshNotifications);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('refreshCustomerNotifications', handleRefreshNotifications);
+    };
   }, []);
 
   const getUpcomingMediaDay = (): (MediaDay & { status: string }) | null => {
@@ -245,8 +285,14 @@ const CustomerDashboard = () => {
               {/* Meta Insights - Meta logo */}
               <button
                 onClick={() => navigate("/customer/facebook-insights")}
-                className="flex flex-col items-center p-3 bg-[#e7f0fd] rounded-lg hover:bg-[#c7e0fa] transition"
+                className="flex flex-col items-center p-3 bg-[#e7f0fd] rounded-lg hover:bg-[#c7e0fa] transition relative"
               >
+                {/* Notification badge */}
+                {unreadCounts.metaInsights > 0 && (
+                  <span className="absolute top-2 right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    {unreadCounts.metaInsights}
+                  </span>
+                )}
                 {/* Meta SVG Logo */}
                 <svg className="w-6 h-6 mb-1" viewBox="0 0 40 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M10.5 19C13.5 7 26.5 7 29.5 19" stroke="#1877f3" strokeWidth="2.5" strokeLinecap="round"/>
@@ -258,8 +304,14 @@ const CustomerDashboard = () => {
               {/* Gallery - green */}
               <button
                 onClick={() => navigate("/customer/gallery")}
-                className="flex flex-col items-center p-3 bg-[#d1fae5] rounded-lg hover:bg-[#6ee7b7] transition"
+                className="flex flex-col items-center p-3 bg-[#d1fae5] rounded-lg hover:bg-[#6ee7b7] transition relative"
               >
+                {/* Notification badge */}
+                {unreadCounts.gallery > 0 && (
+                  <span className="absolute top-2 right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    {unreadCounts.gallery}
+                  </span>
+                )}
                 <svg className="w-6 h-6 text-[#22c55e] mb-1" fill="none" viewBox="0 0 24 24" stroke="#22c55e" strokeWidth="1.5">
                   <rect x="3" y="7" width="18" height="12" rx="2" stroke="#22c55e" strokeWidth="1.5" />
                   <circle cx="12" cy="13" r="3" stroke="#22c55e" strokeWidth="1.5" />
@@ -270,8 +322,14 @@ const CustomerDashboard = () => {
               {/* Invoices - red */}
               <button
                 onClick={() => navigate("/customer/invoices")}
-                className="flex flex-col items-center p-3 bg-[#fee2e2] rounded-lg hover:bg-[#fca5a5] transition"
+                className="flex flex-col items-center p-3 bg-[#fee2e2] rounded-lg hover:bg-[#fca5a5] transition relative"
               >
+                {/* Notification badge */}
+                {unreadCounts.invoices > 0 && (
+                  <span className="absolute top-2 right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    {unreadCounts.invoices}
+                  </span>
+                )}
                 <svg className="w-6 h-6 text-[#ef4444] mb-1" fill="none" viewBox="0 0 24 24" stroke="#ef4444" strokeWidth="1.5">
                   <rect x="5" y="3" width="14" height="18" rx="2" stroke="#ef4444" strokeWidth="1.5" />
                   <path d="M9 7h6M9 11h6M9 15h3" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
@@ -281,8 +339,14 @@ const CustomerDashboard = () => {
               {/* Onboarding - blue */}
               <button
                 onClick={() => navigate("/customer/onboarding-tasks")}
-                className="flex flex-col items-center p-3 bg-[#e0f2fe] rounded-lg hover:bg-[#bae6fd] transition"
+                className="flex flex-col items-center p-3 bg-[#e0f2fe] rounded-lg hover:bg-[#bae6fd] transition relative"
               >
+                {/* Notification badge */}
+                {unreadCounts.onboarding > 0 && (
+                  <span className="absolute top-2 right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    {unreadCounts.onboarding}
+                  </span>
+                )}
                 <svg className="w-6 h-6 text-[#3b82f6] mb-1" fill="none" viewBox="0 0 24 24" stroke="#3b82f6" strokeWidth="1.5">
                   <rect x="4" y="4" width="16" height="16" rx="4" stroke="#3b82f6" strokeWidth="1.5" />
                   <path d="M8 12l3 3 5-5" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

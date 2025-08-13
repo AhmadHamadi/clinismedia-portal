@@ -20,6 +20,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "jest --detectOpenHandles"
+    "test": "jest --detectOpenHandles",
+    "setup-test-db": "node scripts/setupTestDatabase.js",
+    "check-production": "node scripts/checkProductionSetup.js"
   }
 }

@@ -46,6 +46,17 @@ const sendEmailAsync = async (emailFunction, ...args) => {
   }
 };
 
+// Get count of pending bookings (Admin only)
+router.get('/pending-count', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const pendingCount = await Booking.countDocuments({ status: 'pending' });
+    res.json({ count: pendingCount });
+  } catch (error) {
+    console.error('Error fetching pending bookings count:', error);
+    res.status(500).json({ message: 'Failed to fetch pending bookings count' });
+  }
+});
+
 // Get all bookings (Admin only)
 router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {

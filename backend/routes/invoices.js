@@ -37,8 +37,8 @@ router.post('/upload', authenticateToken, authorizeRole(['admin']), upload.singl
   }
 });
 
-// GET invoice file (authenticated)
-router.get('/file/:filename', authenticateToken, (req, res) => {
+// GET invoice file (no authentication required)
+router.get('/file/:filename', (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(__dirname, '../uploads/invoices', filename);
   
@@ -49,8 +49,8 @@ router.get('/file/:filename', authenticateToken, (req, res) => {
   }
 });
 
-// GET invoice view (authenticated)
-router.get('/view/:filename', authenticateToken, (req, res) => {
+// GET invoice view (no authentication required)
+router.get('/view/:filename', (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(__dirname, '../uploads/invoices', filename);
   
@@ -107,6 +107,26 @@ router.post('/assign', authenticateToken, authorizeRole(['admin']), async (req, 
       assignments.push(assignment);
     }
     await AssignedInvoice.insertMany(assignments);
+    
+    // Automatically increment customer notification count for invoices
+    try {
+      const CustomerNotification = require('../models/CustomerNotification');
+      let notification = await CustomerNotification.findOne({ customerId: clinicId });
+      
+      if (!notification) {
+        notification = new CustomerNotification({ customerId: clinicId });
+      }
+      
+      notification.invoices.unreadCount += 1;
+      notification.invoices.lastUpdated = new Date();
+      await notification.save();
+      
+      console.log(`✅ Invoice notification incremented for customer ${clinicId}`);
+    } catch (notificationError) {
+      console.error('❌ Failed to increment invoice notification:', notificationError);
+      // Don't fail the main operation if notification fails
+    }
+    
     res.json({ message: 'Invoices assigned successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
