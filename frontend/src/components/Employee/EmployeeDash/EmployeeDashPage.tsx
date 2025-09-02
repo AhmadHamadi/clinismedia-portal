@@ -3,11 +3,41 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useEmployeeDashboard, Employee } from "./EmployeeDashLogic";
 import { UserCircleIcon, CalendarIcon, ClockIcon, MapPinIcon } from '@heroicons/react/24/solid';
+import type { Booking } from "../EmployeeMediaDayBooking/EmployeeMediaDayBookingLogic";
 
 const EmployeeDashboard = () => {
   const navigate = useNavigate();
   const { employee, loading, error, handleLogout, acceptedBookings, isLoadingBookings } = useEmployeeDashboard();
   const [availableSessionsCount, setAvailableSessionsCount] = useState(0);
+
+  // Helper function to render session details
+  const renderSessionDetails = (nextSession: Booking) => {
+    const dateObj = new Date(nextSession.date);
+    return (
+      <>
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="w-4 h-4 text-[#98c6d5]" />
+          <span>{dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <ClockIcon className="w-4 h-4 text-[#98c6d5]" />
+          <span>{dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <UserCircleIcon className="w-4 h-4 text-[#98c6d5]" />
+          <span className="font-semibold">Client:</span>
+          <span>{nextSession.customer?.name || 'N/A'}</span>
+        </div>
+        {nextSession.customer?.location && (
+          <div className="flex items-center gap-2">
+            <MapPinIcon className="w-4 h-4 text-[#98c6d5]" />
+            <span className="font-semibold">Location:</span>
+            <span>{nextSession.customer.location}</span>
+          </div>
+        )}
+      </>
+    );
+  };
 
   // Fetch available photography sessions count
   useEffect(() => {
@@ -145,9 +175,9 @@ const EmployeeDashboard = () => {
                 <div className="flex items-center gap-1 text-gray-600 text-xs">
                   <span className="font-semibold">Department:</span> {employee.department.charAt(0).toUpperCase() + employee.department.slice(1)}
                 </div>
-                {('createdAt' in employee && employee.createdAt) && (
+                {employee.createdAt && (
                   <div className="text-gray-400 text-xs">
-                    Member since {new Date((employee as any).createdAt).toLocaleDateString()}
+                    Member since {new Date(employee.createdAt).toLocaleDateString()}
                   </div>
                 )}
               </div>
@@ -163,34 +193,9 @@ const EmployeeDashboard = () => {
               {isLoadingBookings ? (
                 <div className="text-gray-500 text-sm">Loading...</div>
               ) : acceptedBookings && acceptedBookings.length > 0 ? (
-                (() => {
-                  const nextSession = acceptedBookings[0];
-                  const dateObj = new Date(nextSession.date);
-                  return (
-                    <div className="flex flex-col gap-1 text-gray-700 text-sm">
-                      <div className="flex items-center gap-2">
-                        <CalendarIcon className="w-4 h-4 text-[#98c6d5]" />
-                        <span>{dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <ClockIcon className="w-4 h-4 text-[#98c6d5]" />
-                        <span>{dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <UserCircleIcon className="w-4 h-4 text-[#98c6d5]" />
-                        <span className="font-semibold">Client:</span>
-                        <span>{nextSession.customer?.name || 'N/A'}</span>
-                      </div>
-                      {nextSession.customer?.location && (
-                        <div className="flex items-center gap-2">
-                          <MapPinIcon className="w-4 h-4 text-[#98c6d5]" />
-                          <span className="font-semibold">Location:</span>
-                          <span>{nextSession.customer.location}</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()
+                <div className="flex flex-col gap-1 text-gray-700 text-sm">
+                  {renderSessionDetails(acceptedBookings[0])}
+                </div>
               ) : (
                 <div className="flex flex-col gap-1 text-gray-700 text-sm">
                   <div className="flex items-center gap-2">
