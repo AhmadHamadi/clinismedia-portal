@@ -8,6 +8,7 @@ export interface Employee {
   email: string;
   username: string;
   department: string;
+  createdAt?: string;
 }
 
 export const useEmployeeDashboard = () => {
