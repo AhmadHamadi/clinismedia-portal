@@ -125,7 +125,21 @@ const Login = () => {
           </button>
         </form>
 
-        {/* Removed the 'Or' separator and social login buttons */}
+        {/* Help section */}
+        <div className="w-full mt-4 p-3 bg-gray-800 rounded-lg border border-gray-700">
+          <p className="text-gray-300 text-xs text-center">
+            Forgot password or need to change username?
+          </p>
+          <p className="text-blue-400 text-xs text-center mt-1">
+            Please contact{" "}
+            <a 
+              href="mailto:info@clinimedia.ca" 
+              className="underline hover:text-blue-300"
+            >
+              info@clinimedia.ca
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );
