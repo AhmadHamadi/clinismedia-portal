@@ -8,17 +8,17 @@ const authorizeRole = require('../middleware/authorizeRole');
 // Facebook OAuth routes (authenticated)
 router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), (req, res) => {
   const clinicId = req.params.clinicId;
-  const redirectUri = `${process.env.FRONTEND_URL}/admin/facebook`;
+  const redirectUri = process.env.FB_REDIRECT_URI;
   
-  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${process.env.FACEBOOK_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=pages_show_list,pages_read_engagement,pages_manage_metadata,pages_read_user_content,pages_manage_posts,pages_manage_engagement`;
+  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=4066501436955681&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=pages_show_list,pages_read_engagement,pages_manage_metadata,pages_read_user_content,pages_manage_posts,pages_manage_engagement`;
   
   res.json({ authUrl });
 });
 
-router.get('/callback', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+router.get('/callback', async (req, res) => {
   const { code, state: clinicId } = req.query;
   const redirectUri = process.env.FB_REDIRECT_URI;
-  const clientId = process.env.FB_APP_ID;
+  const clientId = '4066501436955681';
   const clientSecret = process.env.FB_APP_SECRET;
 
   console.log(`Facebook OAuth callback received for clinic: ${clinicId}`);
@@ -55,9 +55,9 @@ router.get('/callback', authenticateToken, authorizeRole(['admin']), async (req,
 
     console.log(`Found ${pages.length} Facebook pages for clinic: ${clinicId}`);
 
-    // Instead of saving, return the list of pages and the userAccessToken to the frontend
-    // (Frontend will POST the selected page info to a new endpoint)
-    res.json({ pages, userAccessToken, tokenExpiry, clinicId });
+    // Redirect to frontend with the pages data
+    const frontendUrl = `${process.env.FRONTEND_URL}/admin/facebook?pages=${encodeURIComponent(JSON.stringify(pages))}&userAccessToken=${userAccessToken}&tokenExpiry=${tokenExpiry}&clinicId=${clinicId}`;
+    res.redirect(frontendUrl);
   } catch (error) {
     console.error('Facebook OAuth callback error:', error.response?.data || error.message);
     res.status(500).send('Facebook OAuth failed');
