@@ -140,6 +140,9 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
       const clinicName = customer.name || 'Customer';
       const requestedDate = formatDateForEmail(date);
       await sendEmailAsync(EmailService.sendBookingConfirmation, clinicName, requestedDate, customer.email);
+      
+      // Send admin notification email
+      await sendEmailAsync(EmailService.sendAdminBookingNotification, clinicName, customer.email, requestedDate, notes);
     })();
   } catch (error) {
     res.status(400).json({ message: error.message });

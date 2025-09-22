@@ -216,6 +216,26 @@ class EmailService {
       'Failed to send proactive booking reminder:'
     );
   }
+
+  static async sendAdminBookingNotification(customerName, customerEmail, bookingDate, notes = '') {
+    const content = `
+      <p>Hi Admin,</p>
+      <p>A new Media Day booking has been requested!</p>
+      <p><strong>Clinic:</strong> ${customerName}<br/>
+      <strong>Customer Email:</strong> ${customerEmail}<br/>
+      <strong>Requested Date:</strong> ${bookingDate}<br/>
+      <strong>Notes:</strong> ${notes || 'No additional notes'}</p>
+      <p>Please log in to the admin dashboard to review and accept/decline this booking.</p>
+      <p>Best regards,<br/>CliniMedia Portal System</p>
+    `;
+    
+    await EmailService.sendEmail(
+      `New Media Day Booking Request - ${customerName} - ${bookingDate}`,
+      content,
+      'portal-notifications@clinimedia.ca',
+      'Failed to send admin booking notification:'
+    );
+  }
 }
 
 module.exports = EmailService; 
