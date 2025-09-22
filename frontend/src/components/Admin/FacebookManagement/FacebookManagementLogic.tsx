@@ -46,13 +46,24 @@ export const useFacebookManagement = () => {
     }
   };
 
-  const handleConnectFacebook = (customer: Customer) => {
+  const handleConnectFacebook = async (customer: Customer) => {
     setSelectedCustomer(customer);
     setOauthStatus('loading');
     setOauthError(null);
     
-    // Redirect to Facebook OAuth
-    window.location.href = `${import.meta.env.VITE_API_BASE_URL}/facebook/auth/${customer._id}`;
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/facebook/auth/${customer._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Redirect to Facebook OAuth URL
+      window.location.href = response.data.authUrl;
+    } catch (err) {
+      console.error("Failed to get Facebook auth URL", err);
+      setOauthError("Failed to initiate Facebook connection");
+      setOauthStatus('error');
+    }
   };
 
   const handleOAuthCallback = async (code: string, state: string) => {
@@ -203,13 +214,23 @@ export const useFacebookManagement = () => {
   // Check for OAuth callback in URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
+    const pages = urlParams.get('pages');
+    const userAccessToken = urlParams.get('userAccessToken');
+    const tokenExpiry = urlParams.get('tokenExpiry');
+    const clinicId = urlParams.get('clinicId');
     
-    if (code && state) {
-      handleOAuthCallback(code, state);
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+    if (pages && userAccessToken) {
+      try {
+        const parsedPages = JSON.parse(decodeURIComponent(pages));
+        setPages(parsedPages);
+        setOauthStatus('pages');
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (err) {
+        console.error("Failed to parse pages data", err);
+        setOauthError("Failed to parse Facebook pages data");
+        setOauthStatus('error');
+      }
     }
   }, []);
 
