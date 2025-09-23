@@ -155,12 +155,7 @@ export const useAdminMediaDayBooking = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const filteredBlockedDates = response.data.filter((block: any) => {
-        if (block.bookingId && block.bookingId.status) {
-          return block.bookingId.status !== 'accepted';
-        }
-        return true;
-      });
+      const filteredBlockedDates = response.data; // No filtering needed - API only returns manual blocks
       
       setBlockedDatesEvents(
         filteredBlockedDates.map((block: any) => ({
