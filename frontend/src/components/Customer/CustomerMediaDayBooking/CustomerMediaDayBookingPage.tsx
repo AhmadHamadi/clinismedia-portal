@@ -135,8 +135,32 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     }
     const lastBooking = acceptedBookings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     const interval = customer.bookingIntervalMonths || 1;
-    const nextDate = new Date(lastBooking.date);
-    nextDate.setMonth(nextDate.getMonth() + interval);
+    
+    // Calculate next allowed date with start-of-period logic
+    const lastDate = new Date(lastBooking.date);
+    let nextDate;
+    
+    if (interval === 1) {
+      // Monthly: Next booking must be at start of next month
+      nextDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1);
+    } else if (interval === 3) {
+      // Quarterly: Next booking must be at start of next quarter
+      const currentQuarter = Math.floor(lastDate.getMonth() / 3);
+      const nextQuarterStartMonth = (currentQuarter + 1) * 3;
+      
+      // If we're at Q4, move to Q1 of next year
+      if (nextQuarterStartMonth >= 12) {
+        nextDate = new Date(lastDate.getFullYear() + 1, 0, 1); // January 1st
+      } else {
+        nextDate = new Date(lastDate.getFullYear(), nextQuarterStartMonth, 1);
+      }
+    } else {
+      // Fallback to old logic for other intervals
+      nextDate = new Date(lastDate);
+      nextDate.setMonth(nextDate.getMonth() + interval);
+      nextDate.setDate(1);
+    }
+    
     setNextAllowedBookingDate(nextDate);
   }, [customer, bookings]);
 

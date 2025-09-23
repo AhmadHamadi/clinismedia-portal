@@ -46,6 +46,34 @@ const sendEmailAsync = async (emailFunction, ...args) => {
   }
 };
 
+// Calculate next allowed booking date with start-of-period logic
+const getNextEligibleMonth = (lastBookingDate, interval) => {
+  const lastDate = new Date(lastBookingDate);
+  
+  if (interval === 1) {
+    // Monthly: Next booking must be at start of next month
+    return new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1);
+  } else if (interval === 3) {
+    // Quarterly: Next booking must be at start of next quarter
+    const currentQuarter = Math.floor(lastDate.getMonth() / 3);
+    const nextQuarterStartMonth = (currentQuarter + 1) * 3;
+    
+    // If we're at Q4, move to Q1 of next year
+    if (nextQuarterStartMonth >= 12) {
+      return new Date(lastDate.getFullYear() + 1, 0, 1); // January 1st
+    } else {
+      return new Date(lastDate.getFullYear(), nextQuarterStartMonth, 1);
+    }
+  } else {
+    // Fallback to old logic for other intervals
+    const next = new Date(lastDate);
+    next.setMonth(next.getMonth() + interval);
+    next.setDate(1);
+    next.setHours(0, 0, 0, 0);
+    return next;
+  }
+};
+
 // Get count of pending bookings (Admin only)
 router.get('/pending-count', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
@@ -106,19 +134,21 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
 
     await checkDateAvailability(date);
 
-    // Enforce booking interval
+    // Enforce booking interval with start-of-period logic
     const customer = await User.findById(req.user._id);
     const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 3 for quarterly
     const lastBooking = await Booking.findOne({
       customer: req.user._id,
       status: 'accepted'
     }).sort({ date: -1 });
+    
     if (lastBooking) {
-      const nextAllowedDate = new Date(lastBooking.date);
-      nextAllowedDate.setMonth(nextAllowedDate.getMonth() + interval);
+      const nextAllowedDate = getNextEligibleMonth(lastBooking.date, interval);
+      
       if (new Date(date) < nextAllowedDate) {
+        const intervalText = interval === 1 ? 'month' : interval === 3 ? 'quarter' : `${interval} months`;
         return res.status(400).json({
-          message: `You can only book once every ${interval === 1 ? 'month' : '3 months'}. Next available booking: ${nextAllowedDate.toLocaleDateString()}`
+          message: `You can only book once every ${intervalText}. Next available booking: ${nextAllowedDate.toLocaleDateString()}`
         });
       }
     }
@@ -158,8 +188,27 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
       return res.status(400).json({ message: 'Customer ID and date are required' });
     }
 
-    // Admin can book any date - no availability checks needed
-    // await checkDateAvailability(date); // Removed for admin flexibility
+    // Admin can book any date, but still enforce booking intervals
+    await checkDateAvailability(date);
+    
+    // Enforce booking interval with start-of-period logic (same as customer booking)
+    const customer = await User.findById(customerId);
+    const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 3 for quarterly
+    const lastBooking = await Booking.findOne({
+      customer: customerId,
+      status: 'accepted'
+    }).sort({ date: -1 });
+    
+    if (lastBooking) {
+      const nextAllowedDate = getNextEligibleMonth(lastBooking.date, interval);
+      
+      if (new Date(date) < nextAllowedDate) {
+        const intervalText = interval === 1 ? 'month' : interval === 3 ? 'quarter' : `${interval} months`;
+        return res.status(400).json({
+          message: `Customer can only book once every ${intervalText}. Next available booking: ${nextAllowedDate.toLocaleDateString()}`
+        });
+      }
+    }
 
     const booking = new Booking({
       customer: customerId,
@@ -256,8 +305,10 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
       .populate('customer', 'name email location')
       .populate('photographer', 'name email');
     
-    // If booking is accepted, create blocked dates for the next few months
-    if (status === 'accepted') {
+    // Automatic blocked dates removed - now using booking interval logic instead
+    console.log(`✅ Booking ${status} - using interval-based restrictions instead of automatic blocking`);
+    
+    if (false) { // Disabled automatic blocking
       try {
         const customer = await User.findById(booking.customer);
         const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 3 for quarterly
@@ -330,7 +381,8 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
         console.error('❌ Error creating blocked dates:', blockError);
         // Don't fail the booking update if blocking fails
       }
-    } else if (status === 'declined') {
+    } // End of disabled automatic blocking
+    else if (status === 'declined') {
       // Remove any blocked dates associated with this booking
       try {
         const deletedCount = await BlockedDate.deleteMany({ bookingId: booking._id });
@@ -354,6 +406,8 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
         
         // Also notify photographers about the available session
         await sendEmailAsync(EmailService.sendPhotographerNotificationToAll, clinicName, bookingDate);
+        
+        // Google Calendar integration removed - keeping it simple!
       })();
     } else if (status === 'declined') {
       // Send booking declined email asynchronously
@@ -362,6 +416,8 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
         const clinicName = customer.name || 'Customer';
         const requestedDate = formatDateForEmail(booking.date);
         await sendEmailAsync(EmailService.sendBookingDeclined, clinicName, requestedDate, customer.email);
+        
+        // Google Calendar integration removed - keeping it simple!
       })();
     }
   } catch (error) {

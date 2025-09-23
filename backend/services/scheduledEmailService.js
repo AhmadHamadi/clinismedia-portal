@@ -12,12 +12,30 @@ const formatDateForEmail = (date) => {
 };
 
 const getNextEligibleMonth = (lastBookingDate, interval) => {
-  // Returns a Date object for the first day of the next eligible month
-  const next = new Date(lastBookingDate);
-  next.setMonth(next.getMonth() + interval);
-  next.setDate(1);
-  next.setHours(0, 0, 0, 0);
-  return next;
+  const lastDate = new Date(lastBookingDate);
+  
+  if (interval === 1) {
+    // Monthly: Next booking must be at start of next month
+    return new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1);
+  } else if (interval === 3) {
+    // Quarterly: Next booking must be at start of next quarter
+    const currentQuarter = Math.floor(lastDate.getMonth() / 3);
+    const nextQuarterStartMonth = (currentQuarter + 1) * 3;
+    
+    // If we're at Q4, move to Q1 of next year
+    if (nextQuarterStartMonth >= 12) {
+      return new Date(lastDate.getFullYear() + 1, 0, 1); // January 1st
+    } else {
+      return new Date(lastDate.getFullYear(), nextQuarterStartMonth, 1);
+    }
+  } else {
+    // Fallback to old logic for other intervals
+    const next = new Date(lastDate);
+    next.setMonth(next.getMonth() + interval);
+    next.setDate(1);
+    next.setHours(0, 0, 0, 0);
+    return next;
+  }
 };
 
 const hasBookingForMonth = async (customerId, year, month) => {
