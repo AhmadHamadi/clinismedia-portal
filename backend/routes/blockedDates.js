@@ -20,10 +20,10 @@ const checkDateAvailability = async (date) => {
   }
 };
 
-// Get all blocked dates (Admin and Customer)
+// Get all blocked dates (Admin and Customer) - only manual blocks
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const blockedDates = await BlockedDate.find({})
+    const blockedDates = await BlockedDate.find({ isManualBlock: true })
       .populate('bookingId', 'customer status')
       .sort({ date: 1 });
     res.json(blockedDates);
