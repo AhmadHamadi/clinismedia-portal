@@ -544,4 +544,34 @@ router.get('/accepted', authenticateToken, async (req, res) => {
   }
 });
 
+// Cancel a pending booking (Customer only)
+router.delete('/:id', authenticateToken, authorizeRole('customer'), async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+    
+    // Check if the booking belongs to the customer
+    if (booking.customer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'You can only cancel your own bookings' });
+    }
+    
+    // Only allow cancellation of pending bookings
+    if (booking.status !== 'pending') {
+      return res.status(400).json({ 
+        message: 'You can only cancel pending bookings. Accepted bookings cannot be cancelled.' 
+      });
+    }
+    
+    // Delete the booking
+    await Booking.findByIdAndDelete(req.params.id);
+    
+    res.json({ message: 'Booking cancelled successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router; 

@@ -97,6 +97,7 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     handleDateSelect,
     handleTimeSelect,
     handleSubmit,
+    cancelBooking,
     setIsTimeModalOpen,
     setNotes,
     setTemporaryError,
@@ -425,7 +426,7 @@ const CustomerMediaDayBookingPage: React.FC = () => {
                     key={booking._id}
                     className="bg-gray-50 rounded-2xl shadow-lg px-8 py-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 transition-all duration-200 hover:shadow-2xl"
                   >
-                    <div>
+                    <div className="flex-1">
                       <h3 className="text-base font-semibold text-[#303b45] mb-1 tracking-tight">
                         {formatDateTime(booking.date)}
                       </h3>
@@ -438,9 +439,23 @@ const CustomerMediaDayBookingPage: React.FC = () => {
                         </p>
                       )}
                     </div>
-                    <div className={`flex items-center px-4 py-2 rounded-full text-base font-semibold shadow-sm ${statusStyles}`}>
-                      {statusIcon}
-                      {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                    <div className="flex items-center gap-3">
+                      <div className={`flex items-center px-4 py-2 rounded-full text-base font-semibold shadow-sm ${statusStyles}`}>
+                        {statusIcon}
+                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                      </div>
+                      {booking.status === 'pending' && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to cancel this booking request?')) {
+                              cancelBooking(booking._id);
+                            }
+                          }}
+                          className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
