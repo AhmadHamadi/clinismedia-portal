@@ -278,6 +278,27 @@ export const useMediaDayBooking = () => {
     }
   }, [selectedDate, selectedTime, hasPendingBooking, notes, getAuthToken, parseTimeToDate, clearMessages, resetForm, fetchBookings, acceptedBookingsForDate]);
 
+  // Cancel booking function
+  const cancelBooking = useCallback(async (bookingId: string) => {
+    try {
+      const token = localStorage.getItem('customerToken');
+      if (!token) return;
+
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/bookings/${bookingId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Refresh bookings after cancellation
+      await fetchBookings();
+      
+      setSuccess('Booking cancelled successfully! You can now book another date.');
+      setTemporaryError('');
+    } catch (error: any) {
+      console.error('Failed to cancel booking:', error);
+      setTemporaryError(error.response?.data?.message || 'Failed to cancel booking');
+    }
+  }, [fetchBookings, setSuccess, setTemporaryError]);
+
   // Effects
   useEffect(() => {
     fetchBookings();
@@ -310,6 +331,7 @@ export const useMediaDayBooking = () => {
     handleDateSelect,
     handleTimeSelect,
     handleSubmit,
+    cancelBooking,
     setIsTimeModalOpen,
     setNotes,
     setTemporaryError,
