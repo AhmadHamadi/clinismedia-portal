@@ -10,7 +10,8 @@ router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), (req,
   const clinicId = req.params.clinicId;
   const redirectUri = process.env.FB_REDIRECT_URI;
   
-  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=4066501436955681&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=pages_show_list,pages_read_engagement,pages_manage_metadata,pages_read_user_content,pages_manage_posts,pages_manage_engagement`;
+      // Request ads_read permission for Facebook Ads integration
+      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=4066501436955681&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=pages_show_list,pages_read_engagement,pages_manage_metadata,pages_read_user_content,pages_manage_posts,pages_manage_engagement,ads_read`;
   
   res.json({ authUrl });
 });
@@ -45,6 +46,20 @@ router.get('/callback', async (req, res) => {
     );
     if (!adminUser) {
       console.warn('No admin user found to save Facebook user access token.');
+    }
+
+    // Also save the user access token to the specific clinic/customer
+    // This allows them to access their own ad accounts
+    const clinicUser = await User.findByIdAndUpdate(
+      clinicId,
+      {
+        facebookUserAccessToken: userAccessToken,
+        facebookUserTokenExpiry: tokenExpiry,
+      },
+      { new: true }
+    );
+    if (clinicUser) {
+      console.log(`Saved Facebook user access token for clinic: ${clinicUser.name}`);
     }
 
     // Get list of pages

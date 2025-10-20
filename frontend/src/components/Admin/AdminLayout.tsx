@@ -11,6 +11,8 @@ import AdminNotificationPage from './AdminNotificationPage';
 import AdminGalleryPage from './AdminGalleryPage';
 import AdminInvoicePage from './AdminInvoicePage';
 import FacebookManagementPage from './FacebookManagement/FacebookManagementPage';
+import GoogleAdsManagementPage from './GoogleAdsManagement/GoogleAdsManagementPage';
+import GoogleAdsDebugPage from './GoogleAdsDebugPage';
 import AdminInstagramInsightsPage from './AdminInstagramInsightsPage';
 
 const AdminLayout = () => {
@@ -45,6 +47,8 @@ const AdminLayout = () => {
           <Route path="/notifications" element={<AdminNotificationPage />} />
           <Route path="/invoices" element={<AdminInvoicePage />} />
           <Route path="/facebook" element={<FacebookManagementPage />} />
+          <Route path="/google-ads" element={<GoogleAdsManagementPage />} />
+          <Route path="/google-ads-debug" element={<GoogleAdsDebugPage />} />
           <Route path="/instagram-insights" element={<AdminInstagramInsightsPage />} />
         </Routes>
       </div>

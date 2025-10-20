@@ -59,6 +59,8 @@ const SidebarMenu = () => {
     { label: "Manage Gallery Edits", path: "/admin/gallery" },
     { label: "Manage Customer Invoices", path: "/admin/invoices" },
     { label: "Manage Facebook", path: "/admin/facebook" },
+    { label: "Manage Google Ads", path: "/admin/google-ads" },
+    { label: "Google Ads Debug", path: "/admin/google-ads-debug" },
     { label: "Manage Instagram Insights", path: "/admin/instagram-insights" },
   ];
 

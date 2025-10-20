@@ -7,9 +7,11 @@ import CustomerMediaDayBookingPage from './CustomerMediaDayBooking/CustomerMedia
 import CustomerOnboardingTasks from './CustomerOnboardingTasks';
 import FacebookIntegrationPage from './FacebookIntegrationPage';
 import FacebookInsightsPage from './FacebookInsightsPage';
+import FacebookAdsPage from './FacebookAdsIntegration/FacebookAdsPage';
 import CustomerGalleryPage from './CustomerGalleryPage';
 import CustomerInvoicePage from './CustomerInvoicePage';
 import NotificationPage from './NotificationPage';
+import GoogleAdsPage from './GoogleAdsPage';
 
 const CustomerPortalLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -85,12 +87,13 @@ const CustomerPortalLayout: React.FC = () => {
             <Route path="dashboard" element={<CustomerDashboard />} />
             <Route path="media-day-booking" element={<CustomerMediaDayBookingPage />} />
             <Route path="onboarding-tasks" element={<CustomerOnboardingTasks />} />
-            <Route path="google-integration" element={<CustomerDashboard />} />
+            <Route path="facebook-ads" element={<FacebookAdsPage />} />
             <Route path="facebook-integration" element={<FacebookIntegrationPage />} />
             <Route path="facebook-insights" element={<FacebookInsightsPage />} />
             <Route path="gallery" element={<CustomerGalleryPage />} />
             <Route path="invoices" element={<CustomerInvoicePage />} />
             <Route path="notifications" element={<NotificationPage />} />
+            <Route path="google-ads" element={<GoogleAdsPage />} />
             <Route path="" element={<CustomerDashboard />} />
           </Routes>
         </main>

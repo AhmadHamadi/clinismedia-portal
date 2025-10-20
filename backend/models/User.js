@@ -71,6 +71,22 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  googleAdsAccessToken: {
+    type: String,
+    default: null,
+  },
+  googleAdsRefreshToken: {
+    type: String,
+    default: null,
+  },
+  googleAdsTokenExpiry: {
+    type: Date,
+    default: null,
+  },
+  googleAdsCustomerId: {
+    type: String,
+    default: null,
+  },
   bookingIntervalMonths: {
     type: Number, // 1 for monthly, 3 for quarterly
     enum: [1, 3],
