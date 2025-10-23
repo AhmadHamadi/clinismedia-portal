@@ -16,13 +16,13 @@ const GoogleAdsDebugPage: React.FC = () => {
       console.log('🔍 Already loading, skipping...');
       return;
     }
-    
+
     try {
       console.log('🔍 testStep3 function started');
       setIsLoading(true);
       setStep3Status('Testing account data extraction...');
       const token = localStorage.getItem('adminToken');
-      
+
       if (!token) {
         console.log('❌ No admin token found');
         setStep3Status('❌ No admin token found');
@@ -33,7 +33,7 @@ const GoogleAdsDebugPage: React.FC = () => {
       console.log('🔍 Step 3: Testing account data extraction...');
       console.log('🔍 Admin token present:', !!token);
       console.log('🔍 Token length:', token ? token.length : 0);
-      
+
       // Test comprehensive data extraction for ALL managed accounts
       console.log('🔍 Calling /debug/hierarchy endpoint...');
       const hierarchyResponse = await fetch('http://localhost:5000/api/google-ads/debug/hierarchy', {
@@ -42,38 +42,38 @@ const GoogleAdsDebugPage: React.FC = () => {
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (!hierarchyResponse.ok) {
         const errorText = await hierarchyResponse.text();
         console.error('🔍 Hierarchy response error:', hierarchyResponse.status, errorText);
         throw new Error(`Hierarchy debug failed: ${hierarchyResponse.status} - ${errorText}`);
       }
-      
+
       const hierarchyData = await hierarchyResponse.json();
       console.log('🔍 Hierarchy data:', hierarchyData);
       console.log('🔍 Hierarchy items count:', hierarchyData.items?.length || 0);
-      
+
       // Extract data for ALL accounts (including manager for debugging)
       const clientAccounts = hierarchyData.items.filter(item => 
         item.level <= 1 // Include both manager (level 0) and clients (level 1)
       );
-      
+
       if (clientAccounts.length === 0) {
         throw new Error('No client accounts found in hierarchy');
       }
-      
+
       console.log(`🔍 Found ${clientAccounts.length} client accounts to test`);
       console.log('🔍 All accounts in hierarchy:', hierarchyData.items);
       console.log('🔍 Client accounts filtered:', clientAccounts);
-      
+
       const allAccountData = [];
-      
+
       // Test each client account
       console.log(`🔍 Starting to test ${clientAccounts.length} accounts...`);
       for (const clientAccount of clientAccounts) {
         console.log(`🔍 Testing account: ${clientAccount.name} (${clientAccount.id})`);
         console.log(`🔍 Account details:`, clientAccount);
-        
+
         try {
           // Test account name endpoint
           const nameResponse = await fetch(`http://localhost:5000/api/google-ads/account/name?customerId=${clientAccount.id}`, {
@@ -82,9 +82,9 @@ const GoogleAdsDebugPage: React.FC = () => {
               'Content-Type': 'application/json'
             }
           });
-          
+
           const accountNameData = nameResponse.ok ? await nameResponse.json() : { error: `Failed: ${nameResponse.status}` };
-          
+
           // Test daily metrics endpoint
           const metricsResponse = await fetch(`http://localhost:5000/api/google-ads/metrics/daily?customerId=${clientAccount.id}`, {
             headers: { 
@@ -92,18 +92,18 @@ const GoogleAdsDebugPage: React.FC = () => {
               'Content-Type': 'application/json'
             }
           });
-          
+
           const metricsData = metricsResponse.ok ? await metricsResponse.json() : { error: `Failed: ${metricsResponse.status}` };
-          
+
           allAccountData.push({
             account: clientAccount,
             accountName: accountNameData,
             metrics: metricsData,
             success: nameResponse.ok && metricsResponse.ok
           });
-          
+
           console.log(`✅ ${clientAccount.name}: Account name ${nameResponse.ok ? 'OK' : 'FAILED'}, Metrics ${metricsResponse.ok ? 'OK' : 'FAILED'}`);
-          
+
         } catch (error) {
           console.error(`❌ Error testing ${clientAccount.name}:`, error);
           allAccountData.push({
@@ -113,7 +113,7 @@ const GoogleAdsDebugPage: React.FC = () => {
           });
         }
       }
-      
+
       // All tests completed!
       console.log('🔍 All tests completed successfully');
       console.log('🔍 Account data:', allAccountData);
@@ -144,7 +144,7 @@ const GoogleAdsDebugPage: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Google Ads Debug - Step 3</h1>
           <p className="text-gray-600">Testing account data extraction and insights</p>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Step 1: Simple API Test</h2>
           <div className="space-y-4">
@@ -207,7 +207,7 @@ const GoogleAdsDebugPage: React.FC = () => {
                             {accountData.success ? '✅ SUCCESS' : '❌ FAILED'}
                           </span>
                         </div>
-                        
+
                         <div className="text-sm text-gray-600 mb-3">
                           ID: {accountData.account.id} | Level: {accountData.account.level} | Currency: {accountData.account.currency}
                           {accountData.account.level === 0 && <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">MANAGER</span>}

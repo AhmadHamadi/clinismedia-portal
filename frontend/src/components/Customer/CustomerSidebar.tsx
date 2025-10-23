@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaHome, FaCalendarAlt, FaTasks, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt, FaGoogle } from 'react-icons/fa';
+import { FaHome, FaCalendarAlt, FaTasks, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt, FaGoogle, FaShare, FaInstagram } from 'react-icons/fa';
 import axios from 'axios';
 import logo1 from '../../assets/CliniMedia_Logo1.png';
 import { logout } from '../../utils/auth';
@@ -29,9 +29,10 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
     { label: "Dashboard", path: "/customer/dashboard", icon: <FaHome /> },
     { label: "Media Day Calendar", path: "/customer/media-day-booking", icon: <FaCalendarAlt /> },
     { label: "Onboarding Tasks", path: "/customer/onboarding-tasks", icon: <FaTasks />, section: "onboarding" },
-    { label: "Facebook Ads", path: "/customer/facebook-ads", icon: <FaFacebook /> },
     { label: "Meta Insights", path: "/customer/facebook-insights", icon: <FaFacebook />, section: "metaInsights" },
+    { label: "Instagram Insights", path: "/customer/instagram-insights", icon: <FaInstagram />, section: "metaInsights" },
     { label: "Google Ads", path: "/customer/google-ads", icon: <FaGoogle /> },
+    { label: "Share Your Media", path: "/customer/shared-media", icon: <FaShare /> },
     { label: "View Your Invoice", path: "/customer/invoices", icon: <FaFileInvoice />, section: "invoices" },
     { label: "View Media", path: "/customer/gallery", icon: <FaImages />, section: "gallery" },
   ];

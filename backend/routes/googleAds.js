@@ -15,9 +15,9 @@ const { asMccCustomer, asClientCustomer, dumpAdsError, serializeError } = requir
 router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), (req, res) => {
   const clinicId = req.params.clinicId;
   const redirectUri = process.env.GOOGLE_ADS_REDIRECT_URI;
-  
+
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.GOOGLE_ADS_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/adwords&response_type=code&state=${clinicId}`;
-  
+
   res.json({ authUrl });
 });
 
@@ -56,7 +56,7 @@ router.get('/accounts', authenticateToken, authorizeRole(['admin']), async (req,
         descriptiveName: 'Toronto Health Clinic'
       }
     ];
-    
+
     res.json(mockAccounts);
   } catch (error) {
     console.error('Error fetching Google Ads accounts:', error);
@@ -67,7 +67,7 @@ router.get('/accounts', authenticateToken, authorizeRole(['admin']), async (req,
 router.get('/callback', async (req, res) => {
   const { code, state: clinicId } = req.query;
   const redirectUri = process.env.GOOGLE_ADS_REDIRECT_URI;
-  
+
   console.log(`Google Ads OAuth callback received for clinic: ${clinicId}`);
 
   try {
@@ -79,16 +79,16 @@ router.get('/callback', async (req, res) => {
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
     });
-    
+
     const tokenData = tokenResponse.data;
-    
+
     // Save tokens to user
     await User.findByIdAndUpdate(clinicId, {
       googleAdsAccessToken: tokenData.access_token,
       googleAdsRefreshToken: tokenData.refresh_token,
       googleAdsTokenExpiry: new Date(Date.now() + tokenData.expires_in * 1000),
     });
-    
+
     console.log(`Google Ads tokens saved for clinic: ${clinicId}`);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     res.redirect(`${frontendUrl}/admin/google-ads?success=true&clinicId=${clinicId}`);
@@ -104,21 +104,21 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
   try {
     const { customerId } = req.params;
     const { startDate, endDate } = req.query;
-    
+
     // Verify the user is requesting their own data or is an admin
     if (req.user.role !== 'admin' && req.user.id !== customerId) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    
+
     const user = await User.findById(customerId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     if (!user.googleAdsAccessToken) {
       return res.status(404).json({ error: 'Google Ads not connected' });
     }
-    
+
     // TODO: Implement actual Google Ads API calls here
     // For now, return comprehensive mock data
     const mockData = {
@@ -145,7 +145,7 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
       videoQuartile100Rate: Math.random() * 5 + 15,
       lastUpdated: new Date().toISOString()
     };
-    
+
     res.json(mockData);
   } catch (error) {
     console.error('Google Ads insights error:', error);
@@ -158,21 +158,21 @@ router.get('/campaigns/:customerId', authenticateToken, async (req, res) => {
   try {
     const { customerId } = req.params;
     const { startDate, endDate } = req.query;
-    
+
     // Verify the user is requesting their own data or is an admin
     if (req.user.role !== 'admin' && req.user.id !== customerId) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    
+
     const user = await User.findById(customerId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     if (!user.googleAdsAccessToken) {
       return res.status(404).json({ error: 'Google Ads not connected' });
     }
-    
+
     // TODO: Implement Google Ads API calls here
     // For now, return mock campaign data
     const mockCampaigns = [
@@ -225,7 +225,7 @@ router.get('/campaigns/:customerId', authenticateToken, async (req, res) => {
         averageCpc: Math.random() * 2.5 + 0.8
       }
     ];
-    
+
     res.json(mockCampaigns);
   } catch (error) {
     console.error('Google Ads campaigns error:', error);
@@ -237,15 +237,15 @@ router.get('/campaigns/:customerId', authenticateToken, async (req, res) => {
 router.post('/save-account', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
     const { clinicId, accountId, accountName, currency, timeZone } = req.body;
-    
+
     const user = await User.findByIdAndUpdate(clinicId, {
       googleAdsCustomerId: accountId,
     }, { new: true });
-    
+
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     res.json({ 
       success: true, 
       message: 'Google Ads account connected successfully',
@@ -261,7 +261,7 @@ router.post('/save-account', authenticateToken, authorizeRole(['admin']), async 
 // Disconnect Google Ads for a clinic (Admin only)
 router.patch('/disconnect/:clinicId', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   const { clinicId } = req.params;
-  
+
   try {
     const user = await User.findByIdAndUpdate(
       clinicId,
@@ -273,7 +273,7 @@ router.patch('/disconnect/:clinicId', authenticateToken, authorizeRole(['admin']
       },
       { new: true }
     );
-    
+
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ message: 'Google Ads disconnected successfully!', user });
   } catch (error) {
@@ -288,16 +288,16 @@ router.get('/insights/me', authenticateToken, async (req, res) => {
   try {
     const customerId = req.user.id;
     const { startDate, endDate, forceRefresh } = req.query;
-    
+
     const user = await User.findById(customerId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     if (!user.googleAdsAccessToken) {
       return res.status(404).json({ error: 'Google Ads not connected' });
     }
-    
+
     // TODO: Replace with real Google Ads API calls when Basic Access is approved
     // For now, return comprehensive mock data
     const mockData = {
@@ -324,7 +324,7 @@ router.get('/insights/me', authenticateToken, async (req, res) => {
       videoQuartile100Rate: Math.random() * 5 + 15,
       lastUpdated: new Date().toISOString()
     };
-    
+
     res.json(mockData);
   } catch (error) {
     console.error('Customer Google Ads insights error:', error);
@@ -337,16 +337,16 @@ router.get('/campaigns/me', authenticateToken, async (req, res) => {
   try {
     const customerId = req.user.id;
     const { startDate, endDate } = req.query;
-    
+
     const user = await User.findById(customerId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     if (!user.googleAdsAccessToken) {
       return res.status(404).json({ error: 'Google Ads not connected' });
     }
-    
+
     // TODO: Replace with real Google Ads API calls when Basic Access is approved
     // For now, return mock campaign data
     const mockCampaigns = [
@@ -387,7 +387,7 @@ router.get('/campaigns/me', authenticateToken, async (req, res) => {
         averageCpc: Math.random() * 1.5 + 0.4
       }
     ];
-    
+
     res.json(mockCampaigns);
   } catch (error) {
     console.error('Customer Google Ads campaigns error:', error);
@@ -399,16 +399,16 @@ router.get('/campaigns/me', authenticateToken, async (req, res) => {
 router.get('/account/me', authenticateToken, async (req, res) => {
   try {
     const customerId = req.user.id;
-    
+
     const user = await User.findById(customerId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     if (!user.googleAdsAccessToken) {
       return res.status(404).json({ error: 'Google Ads not connected' });
     }
-    
+
     // TODO: Replace with real Google Ads API calls when Basic Access is approved
     // For now, return mock account data
     const mockAccount = {
@@ -418,7 +418,7 @@ router.get('/account/me', authenticateToken, async (req, res) => {
       timeZone: 'America/Toronto',
       descriptiveName: 'CliniMedia Main Google Ads Account'
     };
-    
+
     res.json(mockAccount);
   } catch (error) {
     console.error('Customer Google Ads account error:', error);
@@ -431,7 +431,7 @@ router.get('/account/name', authenticateToken, async (req, res) => {
   try {
     const { customerId } = req.query;
     console.log(`[ACCOUNT/NAME] Request for customer: ${customerId}`);
-    
+
     if (!customerId) {
       return res.status(400).json({ error: 'customerId required' });
     }
@@ -487,7 +487,7 @@ router.get('/debug/hierarchy', authenticateToken, authorizeRole(['admin']), asyn
     // return res.json({ ok: true, count: 1, items: [{ id:"1234567890", name:"Test", level:1, currency:"CAD", status:"ENABLED" }] });
 
     const managerCustomerId = '4037087680';
-    
+
     // Get access token
     const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
       client_id: process.env.GOOGLE_ADS_CLIENT_ID,
@@ -495,9 +495,9 @@ router.get('/debug/hierarchy', authenticateToken, authorizeRole(['admin']), asyn
       refresh_token: adminUser.googleAdsRefreshToken,
       grant_type: 'refresh_token',
     });
-    
+
     const accessToken = tokenResponse.data.access_token;
-    
+
     // Test hierarchy query using ChatGPT's exact GAQL
     const gaqlQuery = `
       SELECT
@@ -510,7 +510,7 @@ router.get('/debug/hierarchy', authenticateToken, authorizeRole(['admin']), asyn
       WHERE customer_client.level <= 1
       ORDER BY customer_client.descriptive_name
     `;
-    
+
     const searchUrl = `https://googleads.googleapis.com/v22/customers/${managerCustomerId}/googleAds:search`;
     const searchResponse = await axios.post(searchUrl, {
       query: gaqlQuery
@@ -523,7 +523,7 @@ router.get('/debug/hierarchy', authenticateToken, authorizeRole(['admin']), asyn
       },
       validateStatus: () => true // Don't throw on non-2xx status codes
     });
-    
+
     // Check if the response was successful
     if (searchResponse.status < 200 || searchResponse.status >= 300) {
       console.error('🚨 Google Ads API Error:', searchResponse.status, searchResponse.data);
@@ -532,11 +532,11 @@ router.get('/debug/hierarchy', authenticateToken, authorizeRole(['admin']), asyn
         details: `Status ${searchResponse.status}: ${JSON.stringify(searchResponse.data)}`
       });
     }
-    
+
     console.log('🔍 API Response Status:', searchResponse.status);
     console.log('🔍 API Response Data Type:', typeof searchResponse.data);
     console.log('🔍 API Response Data Keys:', Object.keys(searchResponse.data || {}));
-    
+
     console.time("[HIER] map+filter");
     const arr = Array.isArray(searchResponse?.data?.results)
       ? searchResponse.data.results
@@ -549,9 +549,9 @@ router.get('/debug/hierarchy', authenticateToken, authorizeRole(['admin']), asyn
 
     const filtered = mapped.filter(Boolean);
     console.timeEnd("[HIER] map+filter");
-    
+
     console.log("[HIER] filtered type=", Object.prototype.toString.call(filtered), "len=", filtered?.length);
-    
+
     const items = filtered.map(client => ({
       id: String(client.clientCustomer || "").replace("customers/", ""),
       name: client.descriptiveName ?? null,
@@ -559,9 +559,9 @@ router.get('/debug/hierarchy', authenticateToken, authorizeRole(['admin']), asyn
       currency: client.currencyCode ?? null,
       status: client.status ?? null,
     }));
-    
+
     console.log("[HIER] final items count:", items.length);
-    
+
     return res.json({ 
       ok: true, 
       count: items.length, 
@@ -582,11 +582,24 @@ router.get('/debug/hierarchy', authenticateToken, authorizeRole(['admin']), asyn
 // Get daily metrics for a specific client - WORKING VERSION using ChatGPT's patterns
 router.get('/metrics/daily', authenticateToken, async (req, res) => {
   try {
-    const { customerId } = req.query;
-    console.log(`[METRICS/DAILY] Request for customer: ${customerId}`);
-    
+    const { customerId, days, startDate, endDate } = req.query;
+    console.log(`[METRICS/DAILY] Request for customer: ${customerId}, days: ${days}, startDate: ${startDate}, endDate: ${endDate}`);
+
     if (!customerId) {
       return res.status(400).json({ error: 'customerId required' });
+    }
+
+    // Determine date range for GAQL query
+    let dateRangeClause;
+    if (startDate && endDate) {
+      // Custom date range
+      dateRangeClause = `segments.date BETWEEN '${startDate}' AND '${endDate}'`;
+    } else if (days) {
+      // Days parameter (7, 30)
+      dateRangeClause = `segments.date DURING LAST_${days}_DAYS`;
+    } else {
+      // Default to 30 days
+      dateRangeClause = `segments.date DURING LAST_30_DAYS`;
     }
 
     const adminUser = await User.findOne({ role: 'admin' });
@@ -618,7 +631,7 @@ router.get('/metrics/daily', authenticateToken, async (req, res) => {
         metrics.conversions, 
         metrics.conversions_value
       FROM customer
-      WHERE segments.date DURING LAST_30_DAYS
+      WHERE ${dateRangeClause}
       ORDER BY segments.date
     `);
 
@@ -636,7 +649,7 @@ router.get('/metrics/daily', authenticateToken, async (req, res) => {
         metrics.cost_micros
       FROM campaign
       WHERE campaign.status IN ('ENABLED', 'PAUSED')
-        AND segments.date DURING LAST_30_DAYS
+        AND ${dateRangeClause}
       ORDER BY metrics.cost_micros DESC
       LIMIT 10
     `);
@@ -669,13 +682,19 @@ router.get('/metrics/daily', authenticateToken, async (req, res) => {
 
     console.log(`[METRICS/DAILY] Daily performance keys:`, Object.keys(dailyPerformance));
 
+    // Calculate additional metrics
+    const avgCtr = totals.impressions > 0 ? (totals.clicks / totals.impressions) : 0;
+    const avgCpa = totals.conversions > 0 ? (totals.cost / totals.conversions) : 0;
+
     res.json({
       summary: {
         totalCost: totals.cost,
         totalClicks: totals.clicks,
         totalImpressions: totals.impressions,
         totalConversions: totals.conversions,
-        totalConversionsValue: totals.conversionsValue
+        totalConversionsValue: totals.conversionsValue,
+        avgCtr: avgCtr,
+        avgCpa: avgCpa
       },
       campaigns: topCampaigns.map(campaign => ({
         campaignId: campaign.campaign?.id?.toString(),
@@ -725,7 +744,7 @@ router.get('/debug/all-accounts', authenticateToken, async (req, res) => {
     console.log('🔍 Starting comprehensive account data extraction...');
 
     const managerCustomerId = '4037087680';
-    
+
     // Get access token
     const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
       client_id: process.env.GOOGLE_ADS_CLIENT_ID,
@@ -733,9 +752,9 @@ router.get('/debug/all-accounts', authenticateToken, async (req, res) => {
       refresh_token: adminUser.googleAdsRefreshToken,
       grant_type: 'refresh_token',
     });
-    
+
     const accessToken = tokenResponse.data.access_token;
-    
+
     // Get customer hierarchy using ChatGPT's exact GAQL
     const gaqlQuery = `
       SELECT
@@ -748,7 +767,7 @@ router.get('/debug/all-accounts', authenticateToken, async (req, res) => {
       WHERE customer_client.level <= 1
       ORDER BY customer_client.descriptive_name
     `;
-    
+
     const searchUrl = `https://googleads.googleapis.com/v22/customers/${managerCustomerId}/googleAds:search`;
     const searchResponse = await axios.post(searchUrl, {
       query: gaqlQuery
@@ -760,10 +779,10 @@ router.get('/debug/all-accounts', authenticateToken, async (req, res) => {
         'Content-Type': 'application/json'
       }
     });
-    
+
     const customerClients = searchResponse.data.results || [];
     console.log(`🔍 Found ${customerClients.length} customer clients`);
-    
+
     const accessibleCustomers = customerClients.map(client => `customers/${client.customer_client.client_customer}`);
     const accountDetails = [];
 

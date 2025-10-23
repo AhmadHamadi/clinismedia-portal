@@ -11,9 +11,10 @@ import AdminNotificationPage from './AdminNotificationPage';
 import AdminGalleryPage from './AdminGalleryPage';
 import AdminInvoicePage from './AdminInvoicePage';
 import FacebookManagementPage from './FacebookManagement/FacebookManagementPage';
+import SharedFolderManagementPage from './SharedFolderManagement/SharedFolderManagementPage';
 import GoogleAdsManagementPage from './GoogleAdsManagement/GoogleAdsManagementPage';
 import GoogleAdsDebugPage from './GoogleAdsDebugPage';
-import AdminInstagramInsightsPage from './AdminInstagramInsightsPage';
+import InstagramInsightsManagementPage from './InstagramInsightsManagement/InstagramInsightsManagementPage';
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -46,10 +47,11 @@ const AdminLayout = () => {
           <Route path="/settings" element={<Settings />} />
           <Route path="/notifications" element={<AdminNotificationPage />} />
           <Route path="/invoices" element={<AdminInvoicePage />} />
-          <Route path="/facebook" element={<FacebookManagementPage />} />
+        <Route path="/facebook" element={<FacebookManagementPage />} />
+        <Route path="/shared-folders" element={<SharedFolderManagementPage />} />
           <Route path="/google-ads" element={<GoogleAdsManagementPage />} />
           <Route path="/google-ads-debug" element={<GoogleAdsDebugPage />} />
-          <Route path="/instagram-insights" element={<AdminInstagramInsightsPage />} />
+          <Route path="/instagram-insights" element={<InstagramInsightsManagementPage />} />
         </Routes>
       </div>
     </div>

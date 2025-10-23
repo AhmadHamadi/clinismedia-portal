@@ -20,6 +20,13 @@ const GoogleAdsPage: React.FC = () => {
     }
   }, [dateRange]);
 
+  // Also fetch data when custom date range is applied
+  useEffect(() => {
+    if (dateRange === 'custom' && customStartDate && customEndDate) {
+      fetchGoogleAdsData();
+    }
+  }, [customStartDate, customEndDate]);
+
   const fetchGoogleAdsData = async () => {
     try {
       setStatus('loading');
@@ -55,8 +62,15 @@ const GoogleAdsPage: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Get metrics using the same method as debug with date range
-      const metricsUrl = `${import.meta.env.VITE_API_BASE_URL}/google-ads/metrics/daily?customerId=${customer.googleAdsCustomerId}&days=${dateRange}`;
+      // Determine date range parameters
+      let metricsUrl;
+      if (dateRange === 'custom' && customStartDate && customEndDate) {
+        metricsUrl = `${import.meta.env.VITE_API_BASE_URL}/google-ads/metrics/daily?customerId=${customer.googleAdsCustomerId}&startDate=${customStartDate}&endDate=${customEndDate}`;
+      } else {
+        metricsUrl = `${import.meta.env.VITE_API_BASE_URL}/google-ads/metrics/daily?customerId=${customer.googleAdsCustomerId}&days=${dateRange}`;
+      }
+      
+      
       const metricsResponse = await axios.get(metricsUrl, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -168,7 +182,7 @@ const GoogleAdsPage: React.FC = () => {
             <div className="flex flex-wrap items-center gap-4">
               {/* Quick date buttons */}
               <div className="flex gap-3">
-                {['7', '30', '90'].map((days) => (
+                {['7', '30'].map((days) => (
                   <button
                     key={days}
                     onClick={() => setDateRange(days)}
@@ -314,8 +328,8 @@ const GoogleAdsPage: React.FC = () => {
                 <h4 className="text-lg font-semibold text-gray-900 mb-3">📊 Performance Overview</h4>
                 <p className="text-gray-700 leading-relaxed">
                   {googleAdsData?.summary?.totalClicks > 0 
-                    ? `Your campaigns generated ${googleAdsData.summary.totalClicks.toLocaleString()} clicks with ${googleAdsData.summary.totalImpressions.toLocaleString()} impressions, spending $${googleAdsData.summary.totalCost?.toFixed(2)}.`
-                    : 'No clicks recorded in the selected period. Consider reviewing your targeting and ad copy.'
+                    ? `Your campaigns generated ${googleAdsData.summary.totalClicks.toLocaleString()} clicks with ${googleAdsData.summary.totalImpressions.toLocaleString()} impressions, spending $${googleAdsData.summary.totalCost?.toFixed(2)} over the ${dateRange === 'custom' ? 'selected period' : `last ${dateRange} days`}.`
+                    : `No clicks recorded in the ${dateRange === 'custom' ? 'selected period' : `last ${dateRange} days`}. Consider reviewing your targeting and ad copy.`
                   }
                 </p>
               </div>
@@ -329,8 +343,8 @@ const GoogleAdsPage: React.FC = () => {
                 <h4 className="text-lg font-semibold text-gray-900 mb-3">🎯 Your Conversion Performance</h4>
                 <p className="text-gray-700 leading-relaxed">
                   {googleAdsData?.summary?.totalConversions > 0 
-                    ? `🎉 Great news! Your campaigns generated ${googleAdsData.summary.totalConversions} conversions with a cost-per-acquisition of $${googleAdsData.summary.avgCpa?.toFixed(2)}. Your conversion rate is ${((googleAdsData.summary.totalConversions / googleAdsData.summary.totalClicks) * 100).toFixed(2)}%, which is ${((googleAdsData.summary.totalConversions / googleAdsData.summary.totalClicks) * 100) > 2 ? 'excellent' : 'good'} performance.`
-                    : `📈 No conversions yet, but your campaigns are generating ${googleAdsData?.summary?.totalClicks || 0} clicks. We're optimizing your landing pages and ad targeting to improve conversion rates. Expected improvement: 2-3 weeks.`
+                    ? `🎉 Great news! Your campaigns generated ${googleAdsData.summary.totalConversions} conversions with a cost-per-acquisition of $${googleAdsData.summary.avgCpa?.toFixed(2)} over the ${dateRange === 'custom' ? 'selected period' : `last ${dateRange} days`}. Your conversion rate is ${((googleAdsData.summary.totalConversions / googleAdsData.summary.totalClicks) * 100).toFixed(2)}%, which is ${((googleAdsData.summary.totalConversions / googleAdsData.summary.totalClicks) * 100) > 2 ? 'excellent' : 'good'} performance.`
+                    : `📈 No conversions yet, but your campaigns are generating ${googleAdsData?.summary?.totalClicks || 0} clicks over the ${dateRange === 'custom' ? 'selected period' : `last ${dateRange} days`}. We're optimizing your landing pages and ad targeting to improve conversion rates. Expected improvement: 2-3 weeks.`
                   }
                 </p>
               </div>
@@ -344,7 +358,7 @@ const GoogleAdsPage: React.FC = () => {
                 <h4 className="text-lg font-semibold text-gray-900 mb-3">🚀 Campaign Management Update</h4>
                 <p className="text-gray-700 leading-relaxed">
                   {googleAdsData?.campaigns && googleAdsData.campaigns.length > 0
-                    ? `📊 We're actively managing ${googleAdsData.campaigns.length} campaigns for you. ${googleAdsData.campaigns.filter(c => c.cost > 0).length > 0 ? `Your top campaign is spending $${Math.max(...googleAdsData.campaigns.map(c => c.cost)).toFixed(2)} daily. ` : ''}Next optimization: ${new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - we'll adjust bids and keywords based on performance.`
+                    ? `📊 We're actively managing ${googleAdsData.campaigns.length} campaigns for you over the ${dateRange === 'custom' ? 'selected period' : `last ${dateRange} days`}. ${googleAdsData.campaigns.filter((c: any) => c.cost > 0).length > 0 ? `Your top campaign spent $${Math.max(...googleAdsData.campaigns.map((c: any) => c.cost)).toFixed(2)}. ` : ''}Next optimization: ${new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - we'll adjust bids and keywords based on performance.`
                     : '🔧 Setting up your campaigns. Full optimization will begin once campaigns are live and collecting data.'
                   }
                 </p>
@@ -355,7 +369,9 @@ const GoogleAdsPage: React.FC = () => {
 
         {/* Performance Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-100">
-          <h3 className="text-2xl font-bold text-gray-900 mb-6">📈 Performance Trends - Last 30 Days</h3>
+          <h3 className="text-2xl font-bold text-gray-900 mb-6">
+            📈 Performance Trends - {dateRange === 'custom' ? 'Selected Period' : `Last ${dateRange} Days`}
+          </h3>
           
           {/* Debug info */}
           <div className="mb-4 p-3 bg-gray-100 rounded-lg text-sm">
@@ -363,8 +379,8 @@ const GoogleAdsPage: React.FC = () => {
             {googleAdsData?.insights?.dailyPerformance && Object.keys(googleAdsData.insights.dailyPerformance).length > 0 && (
               <span className="ml-4">
                 Sample: {Object.entries(googleAdsData.insights.dailyPerformance)[0][0]} - 
-                Spend: ${Object.entries(googleAdsData.insights.dailyPerformance)[0][1].cost.toFixed(2)}, 
-                Clicks: {Object.entries(googleAdsData.insights.dailyPerformance)[0][1].clicks}
+                Spend: ${(Object.entries(googleAdsData.insights.dailyPerformance)[0][1] as any).cost.toFixed(2)}, 
+                Clicks: {(Object.entries(googleAdsData.insights.dailyPerformance)[0][1] as any).clicks}
               </span>
             )}
           </div>
@@ -405,7 +421,7 @@ const GoogleAdsPage: React.FC = () => {
                   <div className="flex-1">
                     <div className="flex items-end justify-start h-64 overflow-x-auto gap-1 pb-8">
                       {Object.entries(googleAdsData.insights.dailyPerformance)
-                        .slice(-30) // Show last 30 days
+                        .slice(-(dateRange === 'custom' ? Object.keys(googleAdsData.insights.dailyPerformance).length : parseInt(dateRange))) // Show data based on selected range
                         .map(([date, data]: [string, any], index: number) => {
                           const maxSpend = Math.max(...Object.values(googleAdsData.insights.dailyPerformance).map((d: any) => d.cost));
                           const maxClicks = Math.max(...Object.values(googleAdsData.insights.dailyPerformance).map((d: any) => d.clicks));

@@ -198,7 +198,7 @@ const GoogleAdsManagementPage: React.FC = () => {
               <select
                 value={dateRange}
                 onChange={(e) => {
-                  const value = e.target.value as '7d' | '30d' | '90d' | 'custom';
+                  const value = e.target.value as '7d' | '30d' | 'custom';
                   setDateRange(value);
                   setShowCustomDateRange(value === 'custom');
                 }}
@@ -206,7 +206,6 @@ const GoogleAdsManagementPage: React.FC = () => {
               >
                 <option value="7d">Last 7 days</option>
                 <option value="30d">Last 30 days</option>
-                <option value="90d">Last 90 days</option>
                 <option value="custom">Custom range</option>
               </select>
               {showCustomDateRange && (
@@ -378,7 +377,7 @@ const GoogleAdsManagementPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
-                Google Ads Insights - {selectedCustomerForInsights.name}
+                Google Ads Insights - {selectedCustomerForInsights.name} ({dateRange === 'custom' ? 'Selected Period' : `Last ${dateRange} Days`})
               </h2>
               <div className="flex items-center gap-2">
                 <button
@@ -517,7 +516,9 @@ const GoogleAdsManagementPage: React.FC = () => {
         {selectedCustomerForInsights && campaigns.length > 0 && (
           <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Campaign Performance</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Campaign Performance - {dateRange === 'custom' ? 'Selected Period' : `Last ${dateRange} Days`}
+              </h2>
               <p className="text-sm text-gray-600 mt-1">
                 {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''} found
               </p>

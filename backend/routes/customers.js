@@ -43,7 +43,15 @@ router.get("/profile", authenticateToken, async (req, res) => {
 // GET all customers (admin only)
 router.get("/", authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-      const customers = await User.find({ role: "customer" }).select("name username email location address _id facebookPageId facebookPageName facebookAccessToken facebookTokenExpiry facebookUserAccessToken facebookUserTokenExpiry bookingIntervalMonths googleAdsAccessToken googleAdsRefreshToken googleAdsTokenExpiry googleAdsCustomerId");
+    // Check if we should include admins (for Google Business Profile management)
+    const includeAdmins = req.query.includeAdmins === 'true';
+    
+    let query = { role: "customer" };
+    if (includeAdmins) {
+      query = { role: { $in: ["customer", "admin"] } };
+    }
+    
+    const customers = await User.find(query).select("name username email location address _id role facebookPageId facebookPageName facebookAccessToken facebookTokenExpiry facebookUserAccessToken facebookUserTokenExpiry bookingIntervalMonths googleAdsAccessToken googleAdsRefreshToken googleAdsTokenExpiry googleAdsCustomerId");
     res.status(200).json(customers);
   } catch (err) {
     console.error("❌ Failed to fetch customers:", err.message);

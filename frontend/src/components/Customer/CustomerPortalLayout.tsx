@@ -7,7 +7,8 @@ import CustomerMediaDayBookingPage from './CustomerMediaDayBooking/CustomerMedia
 import CustomerOnboardingTasks from './CustomerOnboardingTasks';
 import FacebookIntegrationPage from './FacebookIntegrationPage';
 import FacebookInsightsPage from './FacebookInsightsPage';
-import FacebookAdsPage from './FacebookAdsIntegration/FacebookAdsPage';
+import InstagramInsightsPage from './InstagramInsightsPage';
+import SharedMediaPage from './SharedMediaPage';
 import CustomerGalleryPage from './CustomerGalleryPage';
 import CustomerInvoicePage from './CustomerInvoicePage';
 import NotificationPage from './NotificationPage';
@@ -87,9 +88,10 @@ const CustomerPortalLayout: React.FC = () => {
             <Route path="dashboard" element={<CustomerDashboard />} />
             <Route path="media-day-booking" element={<CustomerMediaDayBookingPage />} />
             <Route path="onboarding-tasks" element={<CustomerOnboardingTasks />} />
-            <Route path="facebook-ads" element={<FacebookAdsPage />} />
             <Route path="facebook-integration" element={<FacebookIntegrationPage />} />
             <Route path="facebook-insights" element={<FacebookInsightsPage />} />
+            <Route path="instagram-insights" element={<InstagramInsightsPage />} />
+            <Route path="shared-media" element={<SharedMediaPage />} />
             <Route path="gallery" element={<CustomerGalleryPage />} />
             <Route path="invoices" element={<CustomerInvoicePage />} />
             <Route path="notifications" element={<NotificationPage />} />

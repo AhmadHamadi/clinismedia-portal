@@ -136,7 +136,7 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
 
     // Enforce booking interval with start-of-period logic
     const customer = await User.findById(req.user._id);
-    const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 3 for quarterly
+    const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 2 for bi-monthly, 3 for quarterly, 4 for 4x/year, 6 for 6x/year
     const lastBooking = await Booking.findOne({
       customer: req.user._id,
       status: 'accepted'
@@ -146,7 +146,14 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
       const nextAllowedDate = getNextEligibleMonth(lastBooking.date, interval);
       
       if (new Date(date) < nextAllowedDate) {
-        const intervalText = interval === 1 ? 'month' : interval === 3 ? 'quarter' : `${interval} months`;
+        let intervalText;
+        if (interval === 1) intervalText = 'month';
+        else if (interval === 2) intervalText = '2 months (bi-monthly)';
+        else if (interval === 3) intervalText = 'quarter';
+        else if (interval === 4) intervalText = '3 months (4 times/year)';
+        else if (interval === 6) intervalText = '2 months (6 times/year)';
+        else intervalText = `${interval} months`;
+        
         return res.status(400).json({
           message: `You can only book once every ${intervalText}. Next available booking: ${nextAllowedDate.toLocaleDateString()}`
         });
@@ -193,7 +200,7 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
     
     // Enforce booking interval with start-of-period logic (same as customer booking)
     const customer = await User.findById(customerId);
-    const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 3 for quarterly
+    const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 2 for bi-monthly, 3 for quarterly, 4 for 4x/year, 6 for 6x/year
     const lastBooking = await Booking.findOne({
       customer: customerId,
       status: 'accepted'
@@ -203,7 +210,14 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
       const nextAllowedDate = getNextEligibleMonth(lastBooking.date, interval);
       
       if (new Date(date) < nextAllowedDate) {
-        const intervalText = interval === 1 ? 'month' : interval === 3 ? 'quarter' : `${interval} months`;
+        let intervalText;
+        if (interval === 1) intervalText = 'month';
+        else if (interval === 2) intervalText = '2 months (bi-monthly)';
+        else if (interval === 3) intervalText = 'quarter';
+        else if (interval === 4) intervalText = '3 months (4 times/year)';
+        else if (interval === 6) intervalText = '2 months (6 times/year)';
+        else intervalText = `${interval} months`;
+        
         return res.status(400).json({
           message: `Customer can only book once every ${intervalText}. Next available booking: ${nextAllowedDate.toLocaleDateString()}`
         });
@@ -224,7 +238,7 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
     // Create blocked dates for the next few months since this is an accepted booking
     try {
       const customer = await User.findById(customerId);
-      const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 3 for quarterly
+      const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 2 for bi-monthly, 3 for quarterly, 4 for 4x/year, 6 for 6x/year
       
       console.log(`📅 Processing admin-created booking for customer ${customer.name} with interval: ${interval} months`);
       
@@ -311,7 +325,7 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
     if (false) { // Disabled automatic blocking
       try {
         const customer = await User.findById(booking.customer);
-        const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 3 for quarterly
+        const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 2 for bi-monthly, 3 for quarterly, 4 for 4x/year, 6 for 6x/year
         
         console.log(`📅 Processing booking for customer ${customer.name} with interval: ${interval} months`);
         

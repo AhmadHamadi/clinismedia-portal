@@ -19,12 +19,32 @@ interface FacebookInsights {
     reach: Array<{ value: number; end_time: string }>;
     engagements: Array<{ value: number; end_time: string }>;
     followers: Array<{ value: number; end_time: string }>;
+    pageViews: Array<{ value: number; end_time: string }>;
+    videoViews: Array<{ value: number; end_time: string }>;
   };
   summary: {
     totalImpressions: number;
     totalReach: number;
     totalEngagements: number;
     currentFollowers: number;
+    totalPageViews: number;
+    totalVideoViews: number;
+  };
+  previousSummary: {
+    totalImpressions: number;
+    totalReach: number;
+    totalEngagements: number;
+    currentFollowers: number;
+    totalPageViews: number;
+    totalVideoViews: number;
+  };
+  comparisons: {
+    impressionsChange: number;
+    reachChange: number;
+    engagementsChange: number;
+    followersChange: number;
+    pageViewsChange: number;
+    videoViewsChange: number;
   };
 }
 
@@ -62,7 +82,9 @@ const FacebookInsightsPage: React.FC = () => {
     insights.summary.totalImpressions === 0 &&
     insights.summary.totalReach === 0 &&
     insights.summary.totalEngagements === 0 &&
-    insights.summary.currentFollowers === 0;
+    insights.summary.currentFollowers === 0 &&
+    insights.summary.totalPageViews === 0 &&
+    insights.summary.totalVideoViews === 0;
 
   const fetchInsights = async (range?: { start: Date; end: Date }) => {
     try {
@@ -117,6 +139,24 @@ const FacebookInsightsPage: React.FC = () => {
     return num.toString();
   };
 
+  // Helper function to format comparison data
+  const formatComparison = (change: number) => {
+    const isPositive = change > 0;
+    const isNegative = change < 0;
+    const isNeutral = change === 0;
+    
+    return {
+      value: Math.abs(change),
+      isPositive,
+      isNegative,
+      isNeutral,
+      color: isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-gray-600',
+      bgColor: isPositive ? 'bg-green-100' : isNegative ? 'bg-red-100' : 'bg-gray-100',
+      icon: isPositive ? '↗' : isNegative ? '↘' : '→',
+      text: isPositive ? 'up' : isNegative ? 'down' : 'same'
+    };
+  };
+
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -138,6 +178,14 @@ const FacebookInsightsPage: React.FC = () => {
     value: item.value,
   })) || [];
   const followersData = insights?.metrics.followers.map(item => ({
+    date: formatDate(item.end_time),
+    value: item.value,
+  })) || [];
+  const pageViewsData = insights?.metrics.pageViews.map(item => ({
+    date: formatDate(item.end_time),
+    value: item.value,
+  })) || [];
+  const videoViewsData = insights?.metrics.videoViews.map(item => ({
     date: formatDate(item.end_time),
     value: item.value,
   })) || [];
@@ -269,9 +317,15 @@ const FacebookInsightsPage: React.FC = () => {
                   <div className="p-2 bg-blue-100 rounded-lg">
                     <FaEye className="text-xl text-blue-600" />
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-3 flex-1">
                     <p className="text-xs font-medium text-gray-600">Total Impressions</p>
                     <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalImpressions)}</p>
+                    {insights.comparisons && (
+                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.impressionsChange).bgColor} ${formatComparison(insights.comparisons.impressionsChange).color}`}>
+                        <span className="mr-1">{formatComparison(insights.comparisons.impressionsChange).icon}</span>
+                        {formatComparison(insights.comparisons.impressionsChange).value}% vs last month
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -281,9 +335,15 @@ const FacebookInsightsPage: React.FC = () => {
                   <div className="p-2 bg-green-100 rounded-lg">
                     <FaUsers className="text-xl text-green-600" />
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-3 flex-1">
                     <p className="text-xs font-medium text-gray-600">Total Reach</p>
                     <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalReach)}</p>
+                    {insights.comparisons && (
+                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.reachChange).bgColor} ${formatComparison(insights.comparisons.reachChange).color}`}>
+                        <span className="mr-1">{formatComparison(insights.comparisons.reachChange).icon}</span>
+                        {formatComparison(insights.comparisons.reachChange).value}% vs last month
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -293,9 +353,15 @@ const FacebookInsightsPage: React.FC = () => {
                   <div className="p-2 bg-red-100 rounded-lg">
                     <FaHeart className="text-xl text-red-600" />
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-3 flex-1">
                     <p className="text-xs font-medium text-gray-600">Total Engagements</p>
                     <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalEngagements)}</p>
+                    {insights.comparisons && (
+                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.engagementsChange).bgColor} ${formatComparison(insights.comparisons.engagementsChange).color}`}>
+                        <span className="mr-1">{formatComparison(insights.comparisons.engagementsChange).icon}</span>
+                        {formatComparison(insights.comparisons.engagementsChange).value}% vs last month
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -305,9 +371,54 @@ const FacebookInsightsPage: React.FC = () => {
                   <div className="p-2 bg-purple-100 rounded-lg">
                     <FaChartLine className="text-xl text-purple-600" />
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-3 flex-1">
                     <p className="text-xs font-medium text-gray-600">Current Followers</p>
                     <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.currentFollowers)}</p>
+                    {insights.comparisons && (
+                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.followersChange).bgColor} ${formatComparison(insights.comparisons.followersChange).color}`}>
+                        <span className="mr-1">{formatComparison(insights.comparisons.followersChange).icon}</span>
+                        {formatComparison(insights.comparisons.followersChange).value}% vs last month
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Metrics Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 mb-6">
+              <div className="bg-white rounded-lg shadow-md p-4">
+                <div className="flex items-center">
+                  <div className="p-2 bg-indigo-100 rounded-lg">
+                    <FaEye className="text-xl text-indigo-600" />
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-xs font-medium text-gray-600">Page Views</p>
+                    <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalPageViews)}</p>
+                    {insights.comparisons && (
+                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.pageViewsChange).bgColor} ${formatComparison(insights.comparisons.pageViewsChange).color}`}>
+                        <span className="mr-1">{formatComparison(insights.comparisons.pageViewsChange).icon}</span>
+                        {formatComparison(insights.comparisons.pageViewsChange).value}% vs last month
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-md p-4">
+                <div className="flex items-center">
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <FaComment className="text-xl text-orange-600" />
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-xs font-medium text-gray-600">Video Views</p>
+                    <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalVideoViews)}</p>
+                    {insights.comparisons && (
+                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.videoViewsChange).bgColor} ${formatComparison(insights.comparisons.videoViewsChange).color}`}>
+                        <span className="mr-1">{formatComparison(insights.comparisons.videoViewsChange).icon}</span>
+                        {formatComparison(insights.comparisons.videoViewsChange).value}% vs last month
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -371,6 +482,34 @@ const FacebookInsightsPage: React.FC = () => {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+              {/* Page Views Chart */}
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Page Views</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={pageViewsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={2} name="Page Views" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              {/* Video Views Chart */}
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Video Views</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={videoViewsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="value" stroke="#f97316" strokeWidth={2} name="Video Views" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             {/* Info Section */}
@@ -381,6 +520,8 @@ const FacebookInsightsPage: React.FC = () => {
                 <p>• <strong>Reach:</strong> Number of unique people who saw your page</p>
                 <p>• <strong>Engagements:</strong> Total interactions with your page content</p>
                 <p>• <strong>Followers:</strong> Number of people following your page</p>
+                <p>• <strong>Page Views:</strong> Total number of times your page was viewed</p>
+                <p>• <strong>Video Views:</strong> Number of times your videos were viewed</p>
                 <p>• Data is updated daily and shows the last 30 days of activity</p>
               </div>
             </div>

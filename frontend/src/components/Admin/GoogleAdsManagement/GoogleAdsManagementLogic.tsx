@@ -71,7 +71,7 @@ export const useGoogleAdsManagement = () => {
   const [oauthStatus, setOauthStatus] = useState<'idle' | 'loading' | 'accounts' | 'saving' | 'success' | 'error'>('idle');
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'custom'>('30d');
+  const [dateRange, setDateRange] = useState<'7d' | '30d' | 'custom'>('30d');
   const [customDateRange, setCustomDateRange] = useState<{start: string, end: string}>({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
@@ -97,13 +97,13 @@ export const useGoogleAdsManagement = () => {
     setSelectedCustomer(customer);
     setOauthStatus('loading');
     setOauthError(null);
-    
+
     try {
       const token = localStorage.getItem('adminToken');
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/auth/${customer._id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       // Redirect to Google OAuth URL
       window.location.href = response.data.authUrl;
     } catch (err) {
@@ -117,7 +117,7 @@ export const useGoogleAdsManagement = () => {
     try {
       setOauthStatus('loading');
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/callback?code=${code}&state=${state}`);
-      
+
       setAccounts(response.data.accounts || []);
       setOauthStatus('accounts');
     } catch (err) {
@@ -133,9 +133,9 @@ export const useGoogleAdsManagement = () => {
     try {
       setOauthStatus('saving');
       const token = localStorage.getItem('adminToken');
-      
+
       console.log(`Connecting account "${selectedAccount.name}" to clinic "${selectedCustomer.name}"`);
-      
+
       const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/google-ads/save-account`, {
         clinicId: selectedCustomer._id,
         accountId: selectedAccount.id,
@@ -217,7 +217,7 @@ export const useGoogleAdsManagement = () => {
     try {
       setRefreshing(customerId);
       const token = localStorage.getItem('adminToken');
-      
+
       let startDate, endDate;
       if (dateRange === 'custom') {
         startDate = customDateRange.start;
@@ -245,7 +245,7 @@ export const useGoogleAdsManagement = () => {
   const fetchGoogleAdsCampaigns = async (customerId: string) => {
     try {
       const token = localStorage.getItem('adminToken');
-      
+
       let startDate, endDate;
       if (dateRange === 'custom') {
         startDate = customDateRange.start;
@@ -325,7 +325,7 @@ export const useGoogleAdsManagement = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const success = urlParams.get('success');
     const clinicId = urlParams.get('clinicId');
-    
+
     if (success === 'true' && clinicId) {
       setOauthStatus('success');
       // Clean up URL

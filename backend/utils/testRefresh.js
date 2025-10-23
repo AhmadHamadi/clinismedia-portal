@@ -10,7 +10,7 @@ async function exchangeAccessToken(refreshToken) {
   }, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" }
   });
-  
+
   const data = response.data;
   console.log("[ADS TOKEN] access_token_len:", (data.access_token||"").length, "expires_in:", data.expires_in);
   return data.access_token;

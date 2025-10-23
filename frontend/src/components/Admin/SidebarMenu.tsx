@@ -8,6 +8,7 @@ import { logout } from "../../utils/auth";
 const SidebarMenu = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
+  const [unreadNotesCount, setUnreadNotesCount] = useState(0);
   const navigate = useNavigate();
   const currentPath = window.location.pathname;
 
@@ -42,6 +43,29 @@ const SidebarMenu = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch unread notes count
+  useEffect(() => {
+    const fetchUnreadNotesCount = async () => {
+      try {
+        const token = localStorage.getItem('adminToken');
+        if (!token) return;
+
+        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/client-notes/unread-count`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUnreadNotesCount(response.data.count);
+      } catch (error: any) {
+        console.error('Error fetching unread notes count:', error);
+        setUnreadNotesCount(0);
+      }
+    };
+
+    fetchUnreadNotesCount();
+    // Poll every 10 seconds for unread notes updates
+    const interval = setInterval(fetchUnreadNotesCount, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Emit custom event when sidebar state changes
   useEffect(() => {
     const event = new CustomEvent('sidebarToggle', { 
@@ -58,7 +82,8 @@ const SidebarMenu = () => {
     { label: "Manage Employees", path: "/admin/employees" },
     { label: "Manage Gallery Edits", path: "/admin/gallery" },
     { label: "Manage Customer Invoices", path: "/admin/invoices" },
-    { label: "Manage Facebook", path: "/admin/facebook" },
+        { label: "Manage Facebook", path: "/admin/facebook" },
+        { label: "Shared Folder Management", path: "/admin/shared-folders" },
     { label: "Manage Google Ads", path: "/admin/google-ads" },
     { label: "Google Ads Debug", path: "/admin/google-ads-debug" },
     { label: "Manage Instagram Insights", path: "/admin/instagram-insights" },
@@ -109,11 +134,21 @@ const SidebarMenu = () => {
                     {pendingBookingsCount}
                   </span>
                 )}
+                {label === "Shared Folder Management" && unreadNotesCount > 0 && sidebarOpen && (
+                  <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    {unreadNotesCount}
+                  </span>
+                )}
               </div>
             </button>
             {label === "Media Day Calendar" && pendingBookingsCount > 0 && !sidebarOpen && (
               <span className="absolute top-0 right-0 inline-flex items-center justify-center w-4 h-4 text-xs font-bold leading-none text-white bg-red-600 rounded-full transform translate-x-1 -translate-y-1">
                 {pendingBookingsCount > 9 ? '9+' : pendingBookingsCount}
+              </span>
+            )}
+            {label === "Shared Folder Management" && unreadNotesCount > 0 && !sidebarOpen && (
+              <span className="absolute top-0 right-0 inline-flex items-center justify-center w-4 h-4 text-xs font-bold leading-none text-white bg-red-600 rounded-full transform translate-x-1 -translate-y-1">
+                {unreadNotesCount > 9 ? '9+' : unreadNotesCount}
               </span>
             )}
           </div>

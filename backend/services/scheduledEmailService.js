@@ -17,6 +17,13 @@ const getNextEligibleMonth = (lastBookingDate, interval) => {
   if (interval === 1) {
     // Monthly: Next booking must be at start of next month
     return new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1);
+  } else if (interval === 2) {
+    // Bi-monthly: Every 2 months (Jan, Mar, May, Jul, Sep, Nov)
+    const next = new Date(lastDate);
+    next.setMonth(next.getMonth() + 2);
+    next.setDate(1);
+    next.setHours(0, 0, 0, 0);
+    return next;
   } else if (interval === 3) {
     // Quarterly: Next booking must be at start of next quarter
     const currentQuarter = Math.floor(lastDate.getMonth() / 3);
@@ -28,6 +35,20 @@ const getNextEligibleMonth = (lastBookingDate, interval) => {
     } else {
       return new Date(lastDate.getFullYear(), nextQuarterStartMonth, 1);
     }
+  } else if (interval === 4) {
+    // 4 times per year: Every 3 months (Jan, Apr, Jul, Oct)
+    const next = new Date(lastDate);
+    next.setMonth(next.getMonth() + 3);
+    next.setDate(1);
+    next.setHours(0, 0, 0, 0);
+    return next;
+  } else if (interval === 6) {
+    // 6 times per year: Every 2 months (Jan, Mar, May, Jul, Sep, Nov)
+    const next = new Date(lastDate);
+    next.setMonth(next.getMonth() + 2);
+    next.setDate(1);
+    next.setHours(0, 0, 0, 0);
+    return next;
   } else {
     // Fallback to old logic for other intervals
     const next = new Date(lastDate);
@@ -179,10 +200,26 @@ class ScheduledEmailService {
         if (interval === 1) {
           // Monthly: check if they have a booking this month
           alreadyBooked = await hasBookingForMonth(customer._id, nextEligiblePeriod.getFullYear(), nextEligiblePeriod.getMonth());
+        } else if (interval === 2) {
+          // Bi-monthly: check if they have a booking this month or next month
+          alreadyBooked = await hasBookingForMonth(customer._id, nextEligiblePeriod.getFullYear(), nextEligiblePeriod.getMonth());
+          if (!alreadyBooked) {
+            alreadyBooked = await hasBookingForMonth(customer._id, nextEligiblePeriod.getFullYear(), nextEligiblePeriod.getMonth() + 1);
+          }
         } else if (interval === 3) {
           // Quarterly: check if they have a booking this quarter
           const quarterStartMonth = Math.floor(nextEligiblePeriod.getMonth() / 3) * 3;
           alreadyBooked = await hasBookingForQuarter(customer._id, nextEligiblePeriod.getFullYear(), quarterStartMonth);
+        } else if (interval === 4) {
+          // 4 times per year: check if they have a booking in this 3-month period
+          const periodStartMonth = Math.floor(nextEligiblePeriod.getMonth() / 3) * 3;
+          alreadyBooked = await hasBookingForQuarter(customer._id, nextEligiblePeriod.getFullYear(), periodStartMonth);
+        } else if (interval === 6) {
+          // 6 times per year: check if they have a booking this month or next month
+          alreadyBooked = await hasBookingForMonth(customer._id, nextEligiblePeriod.getFullYear(), nextEligiblePeriod.getMonth());
+          if (!alreadyBooked) {
+            alreadyBooked = await hasBookingForMonth(customer._id, nextEligiblePeriod.getFullYear(), nextEligiblePeriod.getMonth() + 1);
+          }
         }
         
         if (alreadyBooked) continue;
@@ -193,6 +230,23 @@ class ScheduledEmailService {
         
         if (interval === 1) {
           // Monthly customers: 2 weeks before, 1st of month, 15th of month
+          const twoWeeksBefore = new Date(nextEligiblePeriod);
+          twoWeeksBefore.setDate(twoWeeksBefore.getDate() - 14);
+          
+          const firstOfMonth = new Date(nextEligiblePeriod);
+          
+          const midMonth = new Date(nextEligiblePeriod);
+          midMonth.setDate(15);
+          
+          periodName = nextEligiblePeriod.toLocaleString('default', { month: 'long', year: 'numeric' });
+          
+          reminderDates = [
+            { date: twoWeeksBefore, type: 'early' },
+            { date: firstOfMonth, type: 'first' },
+            { date: midMonth, type: 'mid' }
+          ];
+        } else if (interval === 2) {
+          // Bi-monthly customers: 2 weeks before, 1st of month, 15th of month
           const twoWeeksBefore = new Date(nextEligiblePeriod);
           twoWeeksBefore.setDate(twoWeeksBefore.getDate() - 14);
           
@@ -229,6 +283,46 @@ class ScheduledEmailService {
             { date: twoWeeksBefore, type: 'early' },
             { date: firstOfQuarter, type: 'first' },
             { date: midQuarter, type: 'mid' }
+          ];
+        } else if (interval === 4) {
+          // 4 times per year customers: 2 weeks before, 1st of period, 15th of period
+          const periodStartMonth = Math.floor(nextEligiblePeriod.getMonth() / 3) * 3;
+          const periodStart = new Date(nextEligiblePeriod.getFullYear(), periodStartMonth, 1);
+          
+          const twoWeeksBefore = new Date(periodStart);
+          twoWeeksBefore.setDate(twoWeeksBefore.getDate() - 14);
+          
+          const firstOfPeriod = new Date(periodStart);
+          
+          const midPeriod = new Date(periodStart);
+          midPeriod.setDate(15);
+          
+          // Get period name (Jan-Apr-Jul-Oct)
+          const periodNames = ['Jan', 'Apr', 'Jul', 'Oct'];
+          const periodIndex = Math.floor(periodStartMonth / 3);
+          periodName = `${periodNames[periodIndex]} ${periodStart.getFullYear()}`;
+          
+          reminderDates = [
+            { date: twoWeeksBefore, type: 'early' },
+            { date: firstOfPeriod, type: 'first' },
+            { date: midPeriod, type: 'mid' }
+          ];
+        } else if (interval === 6) {
+          // 6 times per year customers: 2 weeks before, 1st of month, 15th of month
+          const twoWeeksBefore = new Date(nextEligiblePeriod);
+          twoWeeksBefore.setDate(twoWeeksBefore.getDate() - 14);
+          
+          const firstOfMonth = new Date(nextEligiblePeriod);
+          
+          const midMonth = new Date(nextEligiblePeriod);
+          midMonth.setDate(15);
+          
+          periodName = nextEligiblePeriod.toLocaleString('default', { month: 'long', year: 'numeric' });
+          
+          reminderDates = [
+            { date: twoWeeksBefore, type: 'early' },
+            { date: firstOfMonth, type: 'first' },
+            { date: midMonth, type: 'mid' }
           ];
         }
         
