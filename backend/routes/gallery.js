@@ -104,6 +104,26 @@ router.post('/assign', authenticateToken, authorizeRole(['admin']), async (req, 
       // Don't fail the main operation if notification fails
     }
     
+    // Send email notification to customer about new gallery content
+    try {
+      const customer = await User.findById(clinicId);
+      if (customer && customer.email) {
+        const EmailService = require('../services/emailService');
+        const portalLink = `https://clinimediaportal.ca/customer/gallery`;
+        await EmailService.sendNewContentNotification(
+          customer.name,
+          customer.email,
+          'Gallery',
+          portalLink,
+          'New Gallery Items'
+        );
+        console.log(`✅ Gallery content notification email sent to ${customer.email}`);
+      }
+    } catch (emailError) {
+      console.error('❌ Failed to send gallery content notification email:', emailError);
+      // Don't fail the main operation if email fails
+    }
+    
     res.json({ message: 'Gallery items assigned successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

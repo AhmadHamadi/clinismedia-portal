@@ -59,7 +59,6 @@ You need to complete these steps in Google Cloud Console:
    - Google My Business Account Management API
 
 3. **Create Credentials**
-   - API Key for Google My Business API
    - OAuth 2.0 Client ID for authentication
 
 ### **2. Environment Variables**
@@ -71,7 +70,6 @@ Add these to your `.env` file:
 GOOGLE_BUSINESS_CLIENT_ID=your_oauth_client_id_here
 GOOGLE_BUSINESS_CLIENT_SECRET=your_oauth_client_secret_here
 GOOGLE_BUSINESS_REDIRECT_URI=http://localhost:3000/api/google-business/callback
-GOOGLE_BUSINESS_API_KEY=your_api_key_here
 ```
 
 ### **3. OAuth Scopes**

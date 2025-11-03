@@ -35,6 +35,24 @@ router.post('/assign', authenticateToken, authorizeRole(['admin']), async (req, 
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
+    // Send email notification to customer about new shared folder content
+    try {
+      if (user.email && folderLink) {
+        const EmailService = require('../services/emailService');
+        await EmailService.sendNewContentNotification(
+          user.name,
+          user.email,
+          'Shared Folder',
+          folderLink,
+          folderName || 'Shared Folder'
+        );
+        console.log(`✅ Shared folder notification email sent to ${user.email}`);
+      }
+    } catch (emailError) {
+      console.error('❌ Failed to send shared folder notification email:', emailError);
+      // Don't fail the main operation if email fails
+    }
+    
     console.log(`Successfully assigned shared folder to clinic: ${user.name}`);
     res.json({ message: 'Shared folder assigned successfully!', user });
   } catch (error) {

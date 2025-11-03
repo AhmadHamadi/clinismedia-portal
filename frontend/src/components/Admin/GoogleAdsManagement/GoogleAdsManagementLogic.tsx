@@ -308,6 +308,7 @@ export const useGoogleAdsManagement = () => {
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/accounts`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      // Backend already provides name, descriptiveName, currency - use them!
       setAccounts(response.data || []);
     } catch (err) {
       console.error('Failed to fetch Google Ads accounts:', err);
@@ -366,5 +367,7 @@ export const useGoogleAdsManagement = () => {
     fetchGoogleAdsInsights,
     fetchGoogleAdsCampaigns,
     fetchGoogleAdsAccounts,
+    setOauthStatus,
+    setOauthError,
   };
 };

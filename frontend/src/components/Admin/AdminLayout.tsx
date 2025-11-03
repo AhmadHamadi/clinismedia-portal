@@ -13,7 +13,7 @@ import AdminInvoicePage from './AdminInvoicePage';
 import FacebookManagementPage from './FacebookManagement/FacebookManagementPage';
 import SharedFolderManagementPage from './SharedFolderManagement/SharedFolderManagementPage';
 import GoogleAdsManagementPage from './GoogleAdsManagement/GoogleAdsManagementPage';
-import GoogleAdsDebugPage from './GoogleAdsDebugPage';
+import GoogleBusinessManagementPage from './GoogleBusinessManagement/GoogleBusinessManagementPage';
 import InstagramInsightsManagementPage from './InstagramInsightsManagement/InstagramInsightsManagementPage';
 
 const AdminLayout = () => {
@@ -50,7 +50,7 @@ const AdminLayout = () => {
         <Route path="/facebook" element={<FacebookManagementPage />} />
         <Route path="/shared-folders" element={<SharedFolderManagementPage />} />
           <Route path="/google-ads" element={<GoogleAdsManagementPage />} />
-          <Route path="/google-ads-debug" element={<GoogleAdsDebugPage />} />
+          <Route path="/google-business" element={<GoogleBusinessManagementPage />} />
           <Route path="/instagram-insights" element={<InstagramInsightsManagementPage />} />
         </Routes>
       </div>

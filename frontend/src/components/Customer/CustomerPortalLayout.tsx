@@ -13,6 +13,7 @@ import CustomerGalleryPage from './CustomerGalleryPage';
 import CustomerInvoicePage from './CustomerInvoicePage';
 import NotificationPage from './NotificationPage';
 import GoogleAdsPage from './GoogleAdsPage';
+import GoogleBusinessAnalyticsPage from './GoogleBusinessAnalyticsPage';
 
 const CustomerPortalLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -41,6 +42,8 @@ const CustomerPortalLayout: React.FC = () => {
     // Clear appropriate badge based on current route
     if (location.pathname === '/customer/facebook-insights') {
       clearNotificationBadge('metaInsights');
+    } else if (location.pathname === '/customer/instagram-insights') {
+      clearNotificationBadge('instagramInsights');
     } else if (location.pathname === '/customer/gallery') {
       clearNotificationBadge('gallery');
     } else if (location.pathname === '/customer/invoices') {
@@ -96,6 +99,7 @@ const CustomerPortalLayout: React.FC = () => {
             <Route path="invoices" element={<CustomerInvoicePage />} />
             <Route path="notifications" element={<NotificationPage />} />
             <Route path="google-ads" element={<GoogleAdsPage />} />
+            <Route path="google-business-analytics" element={<GoogleBusinessAnalyticsPage />} />
             <Route path="" element={<CustomerDashboard />} />
           </Routes>
         </main>

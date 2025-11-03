@@ -80,13 +80,13 @@ const SidebarMenu = () => {
     { label: "Onboarding Tasks", path: "/admin/onboarding" },
     { label: "Manage Customers", path: "/admin/customers" },
     { label: "Manage Employees", path: "/admin/employees" },
-    { label: "Manage Gallery Edits", path: "/admin/gallery" },
     { label: "Manage Customer Invoices", path: "/admin/invoices" },
-        { label: "Manage Facebook", path: "/admin/facebook" },
-        { label: "Shared Folder Management", path: "/admin/shared-folders" },
     { label: "Manage Google Ads", path: "/admin/google-ads" },
-    { label: "Google Ads Debug", path: "/admin/google-ads-debug" },
+    { label: "Manage Google Business", path: "/admin/google-business" },
+    { label: "Manage Facebook", path: "/admin/facebook" },
     { label: "Manage Instagram Insights", path: "/admin/instagram-insights" },
+    { label: "Manage Gallery Edits", path: "/admin/gallery" },
+    { label: "Manage Shared Folder", path: "/admin/shared-folders" },
   ];
 
   const getButtonClasses = (path: string) => {
@@ -134,7 +134,7 @@ const SidebarMenu = () => {
                     {pendingBookingsCount}
                   </span>
                 )}
-                {label === "Shared Folder Management" && unreadNotesCount > 0 && sidebarOpen && (
+                {label === "Manage Shared Folder" && unreadNotesCount > 0 && sidebarOpen && (
                   <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
                     {unreadNotesCount}
                   </span>
@@ -146,7 +146,7 @@ const SidebarMenu = () => {
                 {pendingBookingsCount > 9 ? '9+' : pendingBookingsCount}
               </span>
             )}
-            {label === "Shared Folder Management" && unreadNotesCount > 0 && !sidebarOpen && (
+            {label === "Manage Shared Folder" && unreadNotesCount > 0 && !sidebarOpen && (
               <span className="absolute top-0 right-0 inline-flex items-center justify-center w-4 h-4 text-xs font-bold leading-none text-white bg-red-600 rounded-full transform translate-x-1 -translate-y-1">
                 {unreadNotesCount > 9 ? '9+' : unreadNotesCount}
               </span>

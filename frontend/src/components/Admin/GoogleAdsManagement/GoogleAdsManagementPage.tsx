@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { 
   FaGoogle, 
   FaSpinner, 
@@ -48,6 +49,8 @@ const GoogleAdsManagementPage: React.FC = () => {
     fetchGoogleAdsInsights,
     fetchGoogleAdsCampaigns,
     fetchGoogleAdsAccounts,
+    setOauthStatus,
+    setOauthError,
   } = useGoogleAdsManagement();
 
   const [assigning, setAssigning] = useState<string | null>(null);
@@ -68,11 +71,39 @@ const GoogleAdsManagementPage: React.FC = () => {
     setAssigning(null);
   };
 
-  // Top-level Connect Google Ads button
-  const handleTopConnect = () => {
-    const anyCustomer = customers[0];
-    if (anyCustomer) {
-      handleConnectGoogleAds(anyCustomer);
+  // Top-level Connect Google Ads button - Connect as ADMIN
+  const handleTopConnect = async () => {
+    try {
+      setOauthStatus('loading');
+      setOauthError(null);
+      
+      const token = localStorage.getItem('adminToken');
+      console.log('🔍 Attempting to connect Google Ads...');
+      console.log('🔍 Token present:', !!token);
+      console.log('🔍 API URL:', import.meta.env.VITE_API_BASE_URL);
+      
+      if (!token) {
+        setOauthError('No admin token found. Please log in again.');
+        setOauthStatus('error');
+        return;
+      }
+      
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      console.log('🔍 Calling:', `${apiUrl}/google-ads/auth/admin`);
+      
+      const response = await axios.get(`${apiUrl}/google-ads/auth/admin`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      console.log('🔍 Auth URL received:', response.data.authUrl);
+      
+      // Redirect to Google OAuth URL
+      window.location.href = response.data.authUrl;
+    } catch (err: any) {
+      console.error("❌ Failed to get Google Ads auth URL", err);
+      console.error("❌ Error details:", err.response?.data || err.message);
+      setOauthError(`Failed to initiate Google Ads connection: ${err.response?.data?.error || err.message}`);
+      setOauthStatus('error');
     }
   };
 

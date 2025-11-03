@@ -127,6 +127,27 @@ router.post('/assign', authenticateToken, authorizeRole(['admin']), async (req, 
       // Don't fail the main operation if notification fails
     }
     
+    // Send email notification to customer about new invoice content
+    try {
+      const User = require('../models/User');
+      const customer = await User.findById(clinicId);
+      if (customer && customer.email) {
+        const EmailService = require('../services/emailService');
+        const portalLink = `https://clinimediaportal.ca/customer/invoices`;
+        await EmailService.sendNewContentNotification(
+          customer.name,
+          customer.email,
+          'Invoice',
+          portalLink,
+          'New Invoice Available'
+        );
+        console.log(`✅ Invoice content notification email sent to ${customer.email}`);
+      }
+    } catch (emailError) {
+      console.error('❌ Failed to send invoice content notification email:', emailError);
+      // Don't fail the main operation if email fails
+    }
+    
     res.json({ message: 'Invoices assigned successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -1,342 +1,475 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaInstagram, FaSpinner, FaSyncAlt, FaChartLine, FaUsers, FaHeart, FaComment, FaEye, FaSave } from 'react-icons/fa';
+import { FaInstagram, FaEnvelope, FaTrash } from 'react-icons/fa';
 
-interface Customer {
+interface Clinic {
   _id: string;
   name: string;
   email: string;
-  instagramAccountId?: string;
-  instagramUsername?: string;
 }
 
-interface InstagramInsights {
-  totalReach: number;
-  totalImpressions: number;
-  totalProfileViews: number;
-  totalWebsiteClicks: number;
-  followerCount: number;
-  avgEngagement: number;
-  topPosts: Array<{
-    media_id: string;
-    caption: string;
-    permalink: string;
-    posted_at: string;
-    metrics: {
-      reach: number;
-      impressions: number;
-      likes: number;
-      comments: number;
-      saves: number;
-      engagement: number;
-    };
-  }>;
+interface InstagramInsightImage {
+  _id: string;
+  clinicId: Clinic | string;
+  month: string;
+  imageUrl: string;
+  uploadedAt: string;
 }
 
 const InstagramInsightsManagementPage: React.FC = () => {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<string>('');
-  const [insights, setInsights] = useState<InstagramInsights | null>(null);
+  const [clinics, setClinics] = useState<Clinic[]>([]);
+  const [selectedClinicId, setSelectedClinicId] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState({
-    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    to: new Date().toISOString().split('T')[0]
-  });
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
+  // Filter states
+  const [filterClinicId, setFilterClinicId] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
+  const [images, setImages] = useState<InstagramInsightImage[]>([]);
+  const [filteredImages, setFilteredImages] = useState<InstagramInsightImage[]>([]);
 
-  const fetchCustomers = async () => {
+  // Email notification state
+  const [emailClinics, setEmailClinics] = useState<any[]>([]);
+  const [selectedEmailClinic, setSelectedEmailClinic] = useState<string>('');
+  const [emailSubject, setEmailSubject] = useState('Instagram Insights Update');
+  const [emailBody, setEmailBody] = useState('Hi {clinicName},\n\nWe have uploaded your latest Instagram insights report.\n\nBest regards,\nCliniMedia Team');
+  const [showEmailModal, setShowEmailModal] = useState(false);
+
+  // Fetch clinics
+  const fetchClinics = async () => {
+    const token = localStorage.getItem('adminToken');
     try {
-      const token = localStorage.getItem('adminToken');
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      setCustomers(response.data);
+      setClinics(res.data);
+      setEmailClinics(res.data);
     } catch (err) {
-      console.error('Error fetching customers:', err);
+      setClinics([]);
+      setEmailClinics([]);
     }
   };
 
-  const fetchInstagramInsights = async (customerId: string) => {
-    if (!customerId) return;
+  // Fetch images
+  const fetchImages = async () => {
+    const token = localStorage.getItem('adminToken');
+    try {
+      let url = `${import.meta.env.VITE_API_BASE_URL}/instagram-insights/list`;
+      const params: any = {};
+      if (filterClinicId) params.clinicId = filterClinicId;
+      if (filterMonth) params.month = filterMonth;
+      const query = new URLSearchParams(params).toString();
+      if (query) url += `?${query}`;
+      
+      const res = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setImages(res.data);
+      setFilteredImages(res.data);
+    } catch (err) {
+      setImages([]);
+      setFilteredImages([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchClinics();
+    fetchImages();
+  }, []);
+
+  useEffect(() => {
+    fetchImages();
+  }, [filterClinicId, filterMonth]);
+
+  // Helper: get month label
+  const getMonthLabel = (month: string) => {
+    const [year, m] = month.split('-');
+    const date = new Date(Number(year), Number(m) - 1);
+    return date.toLocaleString('default', { month: 'long', year: 'numeric' });
+  };
+
+  // Get clinic name
+  const getClinicName = (clinicId: Clinic | string) => {
+    if (typeof clinicId === 'string') {
+      const clinic = clinics.find(c => c._id === clinicId);
+      return clinic ? clinic.name : 'Unknown Clinic';
+    }
+    return clinicId.name;
+  };
+
+  // Upload image
+  const handleUpload = async () => {
+    if (!selectedClinicId || !selectedMonth || !imageFile) {
+      alert('Please select a customer, month, and image file');
+      return;
+    }
     
     setLoading(true);
-    setError(null);
+    setUploadSuccess(false);
+    
+    const token = localStorage.getItem('adminToken');
+    const formData = new FormData();
+    formData.append('clinicId', selectedClinicId);
+    formData.append('month', selectedMonth);
+    formData.append('image', imageFile);
     
     try {
-      const token = localStorage.getItem('adminToken');
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/instagram-insights/customer/${customerId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          params: {
-            from: dateRange.from,
-            to: dateRange.to
-          }
-        }
-      );
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/instagram-insights/upload`, formData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       
-      setInsights(response.data);
+      // Reset form
+      setSelectedClinicId('');
+      setSelectedMonth('');
+      setImageFile(null);
+      setUploadSuccess(true);
+      
+      // Refresh images list
+      fetchImages();
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setUploadSuccess(false), 3000);
     } catch (err: any) {
-      console.error('Error fetching Instagram insights:', err);
-      setError(err.response?.data?.error || 'Failed to fetch Instagram insights');
+      alert(`Upload failed: ${err.response?.data?.error || err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCustomerChange = (customerId: string) => {
-    setSelectedCustomer(customerId);
-    if (customerId) {
-      fetchInstagramInsights(customerId);
-    } else {
-      setInsights(null);
+  // Delete image
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this Instagram insight image?')) return;
+    
+    const token = localStorage.getItem('adminToken');
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/instagram-insights/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      // Refresh images list
+      fetchImages();
+    } catch (err: any) {
+      alert(`Delete failed: ${err.response?.data?.error || err.message || 'Unknown error'}`);
     }
   };
 
-  const refreshInsights = () => {
-    if (selectedCustomer) {
-      fetchInstagramInsights(selectedCustomer);
-    }
+  // Replace image (upload new one for same clinic/month)
+  const handleReplace = (image: InstagramInsightImage) => {
+    const clinicId = typeof image.clinicId === 'string' ? image.clinicId : image.clinicId._id;
+    setSelectedClinicId(clinicId);
+    setSelectedMonth(image.month);
+    // Scroll to upload form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + 'M';
-    } else if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'K';
+  // Send email notification
+  const handleSendEmail = async () => {
+    if (!selectedEmailClinic) {
+      alert('Please select a clinic first');
+      return;
     }
-    return num.toString();
-  };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    const selectedClinicData = emailClinics.find(c => c._id === selectedEmailClinic);
+    if (!selectedClinicData) {
+      alert('Selected clinic not found');
+      return;
+    }
+
+    // Replace clinic name in email body
+    const emailBodyWithClinic = emailBody.replace('{clinicName}', selectedClinicData.name);
+
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/email-notification-settings/send-custom`, {
+        clinicId: selectedEmailClinic,
+        subject: emailSubject,
+        body: emailBodyWithClinic,
+        clinicEmail: selectedClinicData.email
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      alert(`✅ Email sent successfully to ${selectedClinicData.name}`);
+      setShowEmailModal(false);
+    } catch (error: any) {
+      alert(`❌ Failed to send email: ${error.response?.data?.message || 'Unknown error'}`);
+    }
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <FaInstagram className="text-pink-600 text-3xl mr-3" />
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Instagram Insights Management</h1>
-                <p className="text-gray-600 mt-1">Monitor Instagram performance and engagement metrics</p>
+    <div className="min-h-screen bg-gray-100 font-sans p-6">
+      <div className="max-w-6xl mx-auto">
+        {/* Email Notification Section - At Top */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-[#303b45]">Email Notifications</h2>
+            <button
+              onClick={() => setShowEmailModal(true)}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center gap-2"
+            >
+              <FaEnvelope /> Send Email
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <h3 className="font-semibold text-black mb-2">Instagram Insights</h3>
+              <p className="text-sm text-gray-700 mb-2">Send custom emails to clinics</p>
+              <div className="text-xs text-gray-600">
+                <div>Subject: {emailSubject}</div>
+                <div>Template: Custom</div>
               </div>
             </div>
-            <button
-              onClick={refreshInsights}
-              disabled={loading || !selectedCustomer}
-              className="flex items-center px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <FaSyncAlt className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <FaInstagram className="text-3xl text-pink-600" />
+            <h1 className="text-3xl font-bold text-[#303b45]">Instagram Insights Management</h1>
+          </div>
+        </div>
+
+        {/* Upload Form */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-semibold text-[#303b45] mb-6">Upload Instagram Insights</h2>
+          
+          {uploadSuccess && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-800 font-semibold">✅ Image uploaded successfully!</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Select Customer */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Select Customer
               </label>
               <select
-                value={selectedCustomer}
-                onChange={(e) => handleCustomerChange(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                value={selectedClinicId}
+                onChange={e => setSelectedClinicId(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
               >
                 <option value="">Choose a customer...</option>
-                {customers.map((customer) => (
-                  <option key={customer._id} value={customer._id}>
-                    {customer.name} {customer.instagramUsername && `(@${customer.instagramUsername})`}
+                {clinics.map(clinic => (
+                  <option key={clinic._id} value={clinic._id}>
+                    {clinic.name} ({clinic.email})
                   </option>
                 ))}
               </select>
             </div>
-            
+
+            {/* Select Month */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                From Date
+                Select Month
               </label>
               <input
-                type="date"
-                value={dateRange.from}
-                onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                type="month"
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
               />
             </div>
-            
+
+            {/* Upload Image */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                To Date
+                Upload Image
               </label>
               <input
-                type="date"
-                value={dateRange.to}
-                onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                type="file"
+                accept="image/*"
+                onChange={e => setImageFile(e.target.files?.[0] || null)}
+                className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+              />
+            </div>
+          </div>
+
+          {imageFile && (
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">
+                Selected: <span className="font-semibold">{imageFile.name}</span> ({(imageFile.size / 1024 / 1024).toFixed(2)} MB)
+              </p>
+            </div>
+          )}
+
+          {/* Upload Button */}
+          <button
+            onClick={handleUpload}
+            disabled={!selectedClinicId || !selectedMonth || !imageFile || loading}
+            className="px-4 py-2 bg-[#98c6d5] text-white rounded hover:bg-[#7bb3c7] disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+          >
+            {loading ? 'Uploading...' : 'Upload Image'}
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-semibold text-[#303b45] mb-4">Filters</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Clinic</label>
+              <select
+                value={filterClinicId}
+                onChange={(e) => setFilterClinicId(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+              >
+                <option value="">All Clinics</option>
+                {clinics.map(clinic => (
+                  <option key={clinic._id} value={clinic._id}>
+                    {clinic.name} ({clinic.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Month</label>
+              <input
+                type="month"
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
               />
             </div>
           </div>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex">
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">Error</h3>
-                <div className="mt-2 text-sm text-red-700">{error}</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-            <FaSpinner className="animate-spin text-pink-600 text-4xl mx-auto mb-4" />
-            <p className="text-gray-600">Loading Instagram insights...</p>
-          </div>
-        )}
-
-        {/* Insights Display */}
-        {insights && !loading && (
-          <div className="space-y-6">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <div className="flex items-center">
-                  <FaEye className="text-blue-600 text-2xl mr-3" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Reach</p>
-                    <p className="text-2xl font-bold text-gray-900">{formatNumber(insights.totalReach)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <div className="flex items-center">
-                  <FaChartLine className="text-green-600 text-2xl mr-3" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Impressions</p>
-                    <p className="text-2xl font-bold text-gray-900">{formatNumber(insights.totalImpressions)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <div className="flex items-center">
-                  <FaUsers className="text-purple-600 text-2xl mr-3" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Profile Views</p>
-                    <p className="text-2xl font-bold text-gray-900">{formatNumber(insights.totalProfileViews)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <div className="flex items-center">
-                  <FaHeart className="text-red-600 text-2xl mr-3" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Followers</p>
-                    <p className="text-2xl font-bold text-gray-900">{formatNumber(insights.followerCount)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <div className="flex items-center">
-                  <FaComment className="text-orange-600 text-2xl mr-3" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Avg Engagement</p>
-                    <p className="text-2xl font-bold text-gray-900">{insights.avgEngagement.toFixed(1)}%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Top Posts */}
-            {insights.topPosts.length > 0 && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-6">Top Performing Posts</h3>
-                <div className="space-y-4">
-                  {insights.topPosts.map((post, index) => (
-                    <div key={post.media_id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center mb-2">
-                            <span className="bg-pink-100 text-pink-800 text-xs font-medium px-2 py-1 rounded-full mr-3">
-                              #{index + 1}
-                            </span>
-                            <span className="text-sm text-gray-500">{formatDate(post.posted_at)}</span>
-                          </div>
-                          <p className="text-gray-900 mb-3 line-clamp-2">{post.caption}</p>
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                            <div className="flex items-center">
-                              <FaEye className="text-blue-500 mr-1" />
-                              <span className="text-gray-600">Reach: {formatNumber(post.metrics.reach)}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <FaChartLine className="text-green-500 mr-1" />
-                              <span className="text-gray-600">Impressions: {formatNumber(post.metrics.impressions)}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <FaHeart className="text-red-500 mr-1" />
-                              <span className="text-gray-600">Likes: {formatNumber(post.metrics.likes)}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <FaComment className="text-orange-500 mr-1" />
-                              <span className="text-gray-600">Comments: {formatNumber(post.metrics.comments)}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <FaSave className="text-purple-500 mr-1" />
-                              <span className="text-gray-600">Saves: {formatNumber(post.metrics.saves)}</span>
-                            </div>
-                          </div>
-                        </div>
-                        {post.permalink && (
-                          <a
-                            href={post.permalink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-4 px-3 py-1 bg-pink-600 text-white text-sm rounded-lg hover:bg-pink-700"
-                          >
-                            View Post
-                          </a>
-                        )}
-                      </div>
+        {/* Images List */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold text-[#303b45] mb-4">Instagram Insights Images</h2>
+          
+          {filteredImages.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No Instagram insight images found.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {filteredImages.map((image) => (
+                <div key={image._id} className="border rounded-lg p-4 bg-gray-50">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-1">
+                        {getClinicName(image.clinicId)}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {getMonthLabel(image.month)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Uploaded: {new Date(image.uploadedAt).toLocaleDateString()}
+                      </p>
                     </div>
-                  ))}
+                  </div>
+                  
+                  <div className="mb-3">
+                    <img
+                      src={`${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${image.imageUrl}`}
+                      alt={`Instagram Insights - ${getMonthLabel(image.month)}`}
+                      className="w-full h-48 object-contain rounded-lg border border-gray-200 bg-white"
+                      onError={(e) => {
+                        console.error('Admin thumbnail failed to load:', image.imageUrl);
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleReplace(image)}
+                      className="flex-1 px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm font-medium"
+                    >
+                      Replace
+                    </button>
+                    <button
+                      onClick={() => handleDelete(image._id)}
+                      className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 flex items-center gap-2 text-sm font-medium"
+                    >
+                      <FaTrash /> Delete
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* No Data State */}
-        {!insights && !loading && selectedCustomer && (
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-            <FaInstagram className="text-pink-600 text-6xl mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Instagram Insights Found</h3>
-            <p className="text-gray-600">
-              No Instagram insights data found for the selected customer and date range.
-              Make sure the Instagram account is connected and data is being synced via Make.com.
-            </p>
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Email Notification Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-black">Send Email Notification</h2>
+              <button
+                onClick={() => setShowEmailModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-black">Select Clinic:</label>
+                <select
+                  value={selectedEmailClinic}
+                  onChange={(e) => setSelectedEmailClinic(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+                >
+                  <option value="">Choose a clinic...</option>
+                  {emailClinics.map(clinic => (
+                    <option key={clinic._id} value={clinic._id}>
+                      {clinic.name} ({clinic.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1 text-black">Email Subject:</label>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+                  placeholder="Enter email subject..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1 text-black">Email Body:</label>
+                <textarea
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  rows={8}
+                  className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#98c6d5]"
+                  placeholder="Enter email body... Use {clinicName} to insert clinic name"
+                />
+                <p className="text-xs text-gray-600 mt-1">
+                  Available variables: {'{clinicName}'} (will be replaced with selected clinic name)
+                </p>
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowEmailModal(false)}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendEmail}
+                  disabled={!selectedEmailClinic}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Send Email
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

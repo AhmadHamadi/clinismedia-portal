@@ -9,6 +9,7 @@ const GoogleAdsPage: React.FC = () => {
   const [dateRange, setDateRange] = useState('30'); // Default to 30 days for better chart display
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [accountName, setAccountName] = useState<string>('');
 
   useEffect(() => {
     fetchGoogleAdsData();
@@ -57,35 +58,67 @@ const GoogleAdsPage: React.FC = () => {
 
       console.log('🔍 Customer has Google Ads ID:', customer.googleAdsCustomerId);
 
-      // Get account info using the same method as debug
-      const accountResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/account/name?customerId=${customer.googleAdsCustomerId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
       // Determine date range parameters
-      let metricsUrl;
+      const params: any = { accountId: customer.googleAdsCustomerId };
       if (dateRange === 'custom' && customStartDate && customEndDate) {
-        metricsUrl = `${import.meta.env.VITE_API_BASE_URL}/google-ads/metrics/daily?customerId=${customer.googleAdsCustomerId}&startDate=${customStartDate}&endDate=${customEndDate}`;
-      } else {
-        metricsUrl = `${import.meta.env.VITE_API_BASE_URL}/google-ads/metrics/daily?customerId=${customer.googleAdsCustomerId}&days=${dateRange}`;
+        // Custom date range
+        params.from = customStartDate;
+        params.to = customEndDate;
+      } else if (dateRange === '7') {
+        // Last 7 days
+        params.from = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        params.to = new Date().toISOString().split('T')[0];
+      } else if (dateRange === '30') {
+        // Last 30 days (default)
+        params.from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        params.to = new Date().toISOString().split('T')[0];
+      } else if (dateRange === '90') {
+        // Last 90 days
+        params.from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        params.to = new Date().toISOString().split('T')[0];
       }
-      
-      
-      const metricsResponse = await axios.get(metricsUrl, {
+
+      console.log('🔍 Fetching Google Ads data with params:', params);
+
+      // Fetch KPIs
+      const kpisResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/kpis`, {
+        params,
         headers: { Authorization: `Bearer ${token}` }
       });
+      console.log('✅ KPIs fetched:', kpisResponse.data);
 
-      console.log('🔍 Account data:', accountResponse.data);
-      console.log('🔍 Metrics data:', metricsResponse.data);
+      // Fetch daily metrics
+      const dailyResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/daily`, {
+        params,
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log('✅ Daily metrics fetched:', dailyResponse.data);
+
+      // Fetch campaigns
+      const campaignsResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/campaigns`, {
+        params,
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log('✅ Campaigns fetched:', campaignsResponse.data);
+
+      // Get account name from customer profile (already fetched)
+      const accountDescriptiveName = customer.googleAdsAccountName || 'Google Ads Account';
+      
+      setAccountName(accountDescriptiveName);
 
       const combinedData = {
-        accountInfo: accountResponse.data.accountInfo,
-        summary: metricsResponse.data.summary,
-        campaigns: metricsResponse.data.campaigns,
-        insights: metricsResponse.data.insights,
+        accountInfo: { 
+          id: customer.googleAdsCustomerId,
+          descriptiveName: accountDescriptiveName,
+          name: accountDescriptiveName
+        },
+        summary: kpisResponse.data,
+        campaigns: campaignsResponse.data.campaigns || [],
+        insights: { dailyPerformance: dailyResponse.data.daily || {} },
         lastUpdated: new Date().toISOString()
       };
 
+      console.log('✅ Combined data:', combinedData);
       setGoogleAdsData(combinedData);
       setStatus('loaded');
       
@@ -156,9 +189,10 @@ const GoogleAdsPage: React.FC = () => {
                 </svg>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Google Ads Dashboard</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                  {accountName || googleAdsData?.accountInfo?.descriptiveName || googleAdsData?.accountInfo?.descriptive_name || googleAdsData?.accountInfo?.name || 'Google Ads Dashboard'}
+                </h1>
                 <p className="text-gray-600 text-lg">
-                  {googleAdsData?.accountInfo?.descriptive_name || 'Account'} • 
                   Last updated: {new Date(googleAdsData?.lastUpdated).toLocaleString()}
                 </p>
               </div>
@@ -182,7 +216,7 @@ const GoogleAdsPage: React.FC = () => {
             <div className="flex flex-wrap items-center gap-4">
               {/* Quick date buttons */}
               <div className="flex gap-3">
-                {['7', '30'].map((days) => (
+                {['7', '30', '90'].map((days) => (
                   <button
                     key={days}
                     onClick={() => setDateRange(days)}
@@ -221,7 +255,7 @@ const GoogleAdsPage: React.FC = () => {
                     }
                   }}
                   disabled={!customStartDate || !customEndDate}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg text-sm font-semibold hover:from-blue-700 hover:to-blue-800 disabled:bg-gray-400 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200 shadow-md"
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg text-sm font-semibold hover:from-blue-700 hover:to-blue-800 disabled:bg-gray-400 disabled:text-white disabled:cursor-not-allowed transition-all duration-200 shadow-md"
                 >
                   Apply
                 </button>
@@ -373,21 +407,211 @@ const GoogleAdsPage: React.FC = () => {
             📈 Performance Trends - {dateRange === 'custom' ? 'Selected Period' : `Last ${dateRange} Days`}
           </h3>
           
-          {/* Debug info */}
-          <div className="mb-4 p-3 bg-gray-100 rounded-lg text-sm">
-            <strong>Debug:</strong> Data points: {googleAdsData?.insights?.dailyPerformance ? Object.keys(googleAdsData.insights.dailyPerformance).length : 0} days
-            {googleAdsData?.insights?.dailyPerformance && Object.keys(googleAdsData.insights.dailyPerformance).length > 0 && (
-              <span className="ml-4">
-                Sample: {Object.entries(googleAdsData.insights.dailyPerformance)[0][0]} - 
-                Spend: ${(Object.entries(googleAdsData.insights.dailyPerformance)[0][1] as any).cost.toFixed(2)}, 
-                Clicks: {(Object.entries(googleAdsData.insights.dailyPerformance)[0][1] as any).clicks}
-              </span>
-            )}
-          </div>
-          
           {googleAdsData?.insights?.dailyPerformance && Object.keys(googleAdsData.insights.dailyPerformance).length > 0 ? (
             <div className="space-y-6">
-              {/* Combined Chart - Side by Side Bars */}
+              {/* Check if we should use line chart (90 days or custom > 60 days) */}
+              {(() => {
+                const useLineChart = dateRange === '90' || 
+                  (dateRange === 'custom' && customStartDate && customEndDate && 
+                   Math.ceil((new Date(customEndDate).getTime() - new Date(customStartDate).getTime()) / (1000 * 60 * 60 * 24)) > 60);
+                
+                if (useLineChart) {
+                  // Line Chart for longer ranges
+                  const today = new Date();
+                  const allEntries = Object.entries(googleAdsData.insights.dailyPerformance);
+                  
+                  let filteredEntries = allEntries;
+                  if (dateRange === 'custom' && customStartDate && customEndDate) {
+                    filteredEntries = allEntries.filter(([date]) => {
+                      const dateObj = new Date(date);
+                      const start = new Date(customStartDate);
+                      const end = new Date(customEndDate);
+                      return dateObj >= start && dateObj <= end;
+                    });
+                  } else if (dateRange === '90') {
+                    const cutoffDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
+                    filteredEntries = allEntries.filter(([date]) => {
+                      const dateObj = new Date(date);
+                      return dateObj >= cutoffDate;
+                    });
+                  }
+                  
+                  filteredEntries.sort(([dateA], [dateB]) => 
+                    new Date(dateA).getTime() - new Date(dateB).getTime()
+                  );
+                  
+                  const maxSpend = filteredEntries.length > 0 
+                    ? Math.max(...filteredEntries.map(([, d]: [string, any]) => d.cost || 0))
+                    : 0;
+                  const maxClicks = filteredEntries.length > 0
+                    ? Math.max(...filteredEntries.map(([, d]: [string, any]) => d.clicks || 0))
+                    : 0;
+                  const maxValue = Math.max(maxSpend, maxClicks);
+                  
+                  const chartHeight = 300;
+                  const chartWidth = 900; // Fixed width to fit in container
+                  const padding = { top: 20, right: 20, bottom: 50, left: 60 };
+                  const plotWidth = chartWidth - padding.left - padding.right;
+                  const plotHeight = chartHeight - padding.top - padding.bottom;
+                  
+                  // Generate points for spend line (blue)
+                  const spendPoints = filteredEntries.map(([date, data]: [string, any], index: number) => {
+                    const x = padding.left + (index / (filteredEntries.length - 1 || 1)) * plotWidth;
+                    const y = padding.top + plotHeight - ((data.cost || 0) / (maxValue || 1)) * plotHeight;
+                    return `${x},${y}`;
+                  }).join(' ');
+                  
+                  // Generate points for clicks line (green)
+                  const clicksPoints = filteredEntries.map(([date, data]: [string, any], index: number) => {
+                    const x = padding.left + (index / (filteredEntries.length - 1 || 1)) * plotWidth;
+                    const y = padding.top + plotHeight - ((data.clicks || 0) / (maxValue || 1)) * plotHeight;
+                    return `${x},${y}`;
+                  }).join(' ');
+                  
+                  // Generate date labels (show ~12 labels)
+                  const labelInterval = Math.max(1, Math.floor(filteredEntries.length / 12));
+                  
+                  return (
+                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6">
+                      <div className="flex items-center justify-center">
+                        <svg width={chartWidth} height={chartHeight} className="overflow-visible" viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
+                          {/* Y-axis grid lines */}
+                          {[0, 1, 2, 3, 4, 5].map(i => {
+                            const y = padding.top + (i / 5) * plotHeight;
+                            const value = maxValue * (1 - i / 5);
+                            return (
+                              <g key={i}>
+                                <line
+                                  x1={padding.left}
+                                  y1={y}
+                                  x2={padding.left + plotWidth}
+                                  y2={y}
+                                  stroke="#e5e7eb"
+                                  strokeWidth="1"
+                                  strokeDasharray="2,2"
+                                />
+                                <text
+                                  x={padding.left - 10}
+                                  y={y + 4}
+                                  textAnchor="end"
+                                  fontSize="12"
+                                  fill="#6b7280"
+                                >
+                                  {value > 1000 ? `$${(value/1000).toFixed(1)}k` : `$${value.toFixed(0)}`}
+                                </text>
+                              </g>
+                            );
+                          })}
+                          
+                          {/* Spend line (blue) */}
+                          <polyline
+                            points={spendPoints}
+                            fill="none"
+                            stroke="#2563eb"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          
+                          {/* Clicks line (green) */}
+                          <polyline
+                            points={clicksPoints}
+                            fill="none"
+                            stroke="#16a34a"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          
+                          {/* Data points for spend */}
+                          {filteredEntries.map(([date, data]: [string, any], index: number) => {
+                            const x = padding.left + (index / (filteredEntries.length - 1 || 1)) * plotWidth;
+                            const y = padding.top + plotHeight - ((data.cost || 0) / (maxValue || 1)) * plotHeight;
+                            return (
+                              <circle
+                                key={`spend-${index}`}
+                                cx={x}
+                                cy={y}
+                                r="4"
+                                fill="#2563eb"
+                                stroke="white"
+                                strokeWidth="2"
+                                className="hover:r-6 transition-all cursor-pointer"
+                              >
+                                <title>{`${date}: $${data.cost.toFixed(2)}`}</title>
+                              </circle>
+                            );
+                          })}
+                          
+                          {/* Data points for clicks */}
+                          {filteredEntries.map(([date, data]: [string, any], index: number) => {
+                            const x = padding.left + (index / (filteredEntries.length - 1 || 1)) * plotWidth;
+                            const y = padding.top + plotHeight - ((data.clicks || 0) / (maxValue || 1)) * plotHeight;
+                            return (
+                              <circle
+                                key={`clicks-${index}`}
+                                cx={x}
+                                cy={y}
+                                r="4"
+                                fill="#16a34a"
+                                stroke="white"
+                                strokeWidth="2"
+                                className="hover:r-6 transition-all cursor-pointer"
+                              >
+                                <title>{`${date}: ${data.clicks} clicks`}</title>
+                              </circle>
+                            );
+                          })}
+                          
+                          {/* X-axis labels */}
+                          {filteredEntries.map(([date, data]: [string, any], index: number) => {
+                            if (index % labelInterval !== 0 && index !== filteredEntries.length - 1) return null;
+                            const x = padding.left + (index / (filteredEntries.length - 1 || 1)) * plotWidth;
+                            return (
+                              <g key={`label-${index}`}>
+                                <text
+                                  x={x}
+                                  y={chartHeight - padding.bottom + 20}
+                                  textAnchor="middle"
+                                  fontSize="11"
+                                  fill="#6b7280"
+                                  transform={`rotate(-45 ${x} ${chartHeight - padding.bottom + 20})`}
+                                >
+                                  {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </text>
+                              </g>
+                            );
+                          })}
+                          
+                          {/* Y-axis label */}
+                          <text
+                            x={-chartHeight / 2}
+                            y={15}
+                            textAnchor="middle"
+                            fontSize="12"
+                            fill="#6b7280"
+                            transform={`rotate(-90 0 ${chartHeight / 2})`}
+                          >
+                            Amount ($)
+                          </text>
+                          
+                          {/* X-axis label */}
+                          <text
+                            x={chartWidth / 2}
+                            y={chartHeight - 5}
+                            textAnchor="middle"
+                            fontSize="12"
+                            fill="#6b7280"
+                          >
+                            Date
+                          </text>
+                        </svg>
+                      </div>
+                    </div>
+                  );
+                } else {
+                  // Bar Chart for shorter ranges (existing code)
+                  return (
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6">
                 <div className="flex">
                   {/* Y-Axis Labels */}
@@ -420,12 +644,69 @@ const GoogleAdsPage: React.FC = () => {
                   {/* Chart Area */}
                   <div className="flex-1">
                     <div className="flex items-end justify-start h-64 overflow-x-auto gap-1 pb-8">
-                      {Object.entries(googleAdsData.insights.dailyPerformance)
-                        .slice(-(dateRange === 'custom' ? Object.keys(googleAdsData.insights.dailyPerformance).length : parseInt(dateRange))) // Show data based on selected range
-                        .map(([date, data]: [string, any], index: number) => {
-                          const maxSpend = Math.max(...Object.values(googleAdsData.insights.dailyPerformance).map((d: any) => d.cost));
-                          const maxClicks = Math.max(...Object.values(googleAdsData.insights.dailyPerformance).map((d: any) => d.clicks));
+                      {(() => {
+                        // Filter data by date range instead of slicing by count
+                        const today = new Date();
+                        const allEntries = Object.entries(googleAdsData.insights.dailyPerformance);
+                        
+                        let filteredEntries = allEntries;
+                        if (dateRange === 'custom' && customStartDate && customEndDate) {
+                          // Custom range: filter by actual dates
+                          filteredEntries = allEntries.filter(([date]) => {
+                            const dateObj = new Date(date);
+                            const start = new Date(customStartDate);
+                            const end = new Date(customEndDate);
+                            return dateObj >= start && dateObj <= end;
+                          });
+                        } else if (dateRange === '7' || dateRange === '30' || dateRange === '90') {
+                          // Standard ranges: filter by date (last N days)
+                          const days = parseInt(dateRange);
+                          const cutoffDate = new Date(today.getTime() - days * 24 * 60 * 60 * 1000);
+                          filteredEntries = allEntries.filter(([date]) => {
+                            const dateObj = new Date(date);
+                            return dateObj >= cutoffDate;
+                          });
+                        }
+                        
+                        // Sort by date to ensure chronological order
+                        filteredEntries.sort(([dateA], [dateB]) => 
+                          new Date(dateA).getTime() - new Date(dateB).getTime()
+                        );
+                        
+                        // Calculate max values from filtered data only
+                        const maxSpend = filteredEntries.length > 0 
+                          ? Math.max(...filteredEntries.map(([, d]: [string, any]) => d.cost || 0))
+                          : 0;
+                        const maxClicks = filteredEntries.length > 0
+                          ? Math.max(...filteredEntries.map(([, d]: [string, any]) => d.clicks || 0))
+                          : 0;
                           const maxValue = Math.max(maxSpend, maxClicks);
+                        
+                        // Determine label interval based on date range to prevent overflow
+                        let labelInterval = 1; // Show every date by default
+                        if (dateRange === '90') {
+                          labelInterval = Math.max(1, Math.floor(filteredEntries.length / 15)); // Show ~15 labels for 90 days
+                        } else if (dateRange === '30') {
+                          labelInterval = Math.max(1, Math.floor(filteredEntries.length / 10)); // Show ~10 labels for 30 days
+                        } else if (dateRange === '7') {
+                          labelInterval = 1; // Show all dates for 7 days
+                        } else if (dateRange === 'custom' && customStartDate && customEndDate) {
+                          // For custom ranges, calculate based on number of days
+                          const start = new Date(customStartDate);
+                          const end = new Date(customEndDate);
+                          const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                          if (daysDiff > 60) {
+                            labelInterval = Math.max(1, Math.floor(filteredEntries.length / 15)); // ~15 labels for long ranges
+                          } else if (daysDiff > 30) {
+                            labelInterval = Math.max(1, Math.floor(filteredEntries.length / 10)); // ~10 labels for medium ranges
+                          } else {
+                            labelInterval = 1; // Show all dates for short ranges
+                          }
+                        }
+                        
+                        return filteredEntries.map(([date, data]: [string, any], index: number) => {
+                          // Only show date label for every Nth entry based on labelInterval
+                          const shouldShowLabel = index % labelInterval === 0 || index === filteredEntries.length - 1;
                           
                           const spendHeight = maxValue > 0 ? Math.max(8, (data.cost / maxValue) * 200) : 8;
                           const clicksHeight = maxValue > 0 ? Math.max(8, (data.clicks / maxValue) * 200) : 8;
@@ -455,15 +736,18 @@ const GoogleAdsPage: React.FC = () => {
                                   title={`${date}: ${data.clicks} clicks`}
                                 ></div>
                               </div>
-                              {/* Date label - positioned below bars with proper spacing */}
+                              {/* Date label - only show for every Nth entry to prevent overflow */}
+                              {shouldShowLabel && (
                               <div className="mt-2 h-8 flex items-end">
                                 <span className="text-xs text-gray-600 font-medium transform -rotate-45 origin-left whitespace-nowrap">
                                   {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                 </span>
                               </div>
+                              )}
                             </div>
                           );
-                        })}
+                        });
+                      })()}
                     </div>
                     
                     {/* X-Axis Label */}
@@ -473,6 +757,9 @@ const GoogleAdsPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+                    );
+                  }
+                })()}
               
               {/* Chart legend */}
               <div className="flex justify-center space-x-8 text-sm">

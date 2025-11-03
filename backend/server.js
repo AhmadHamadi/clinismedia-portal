@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");           // Add CORS
 const connectDB = require("./config/db");
 const ScheduledEmailService = require("./services/scheduledEmailService");
+const GoogleBusinessDataRefreshService = require("./services/googleBusinessDataRefreshService");
 const { sessionManager } = require("./middleware/sessionManager");
 require("dotenv").config();
 
@@ -33,8 +34,10 @@ const galleryRoutes = require('./routes/gallery');
 const invoicesRoutes = require('./routes/invoices');
 const instagramInsightsRoutes = require('./routes/instagramInsights');
 const instagramInsightsApiRoutes = require('./routes/instagramInsightsApi');
+const instagramInsightsImagesRoutes = require('./routes/instagramInsightsImages');
 const emailNotificationSettingsRoutes = require('./routes/emailNotificationSettings');
 const customerNotificationsRoutes = require('./routes/customerNotifications');
+const googleBusinessRoutes = require('./routes/googleBusiness');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
@@ -50,8 +53,10 @@ app.use('/api/gallery', galleryRoutes);
 app.use('/api/invoices', invoicesRoutes);
 app.use('/api/instagram-insights', instagramInsightsRoutes);
 app.use('/api/instagram-insights', instagramInsightsApiRoutes);
+app.use('/api/instagram-insights', instagramInsightsImagesRoutes);
 app.use('/api/email-notification-settings', emailNotificationSettingsRoutes);
 app.use('/api/customer-notifications', customerNotificationsRoutes);
+app.use('/api/google-business', googleBusinessRoutes);
 app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
 app.use('/uploads/invoices', express.static(__dirname + '/uploads/invoices'));
 app.use('/uploads/customer-logos', express.static(__dirname + '/uploads/customer-logos'));
@@ -65,6 +70,18 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
   console.log(`🌐 Public URL: ${process.env.RAILWAY_PUBLIC_DOMAIN || 'Not set'}`);
+  
+  // Set up daily Google Business Profile data refresh (runs every day at 8 AM)
+  setInterval(async () => {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    
+    // Run at 8:00 AM daily
+    if (hours === 8 && minutes === 0) {
+      await GoogleBusinessDataRefreshService.refreshAllBusinessProfiles();
+    }
+  }, 60000); // Check every minute
   
   // Set up daily reminder emails (runs every day at 9 AM)
   setInterval(async () => {
@@ -87,6 +104,7 @@ app.listen(PORT, () => {
   }, 60 * 60 * 1000); // Every hour
   
   // Also run once on server start for testing
+  GoogleBusinessDataRefreshService.refreshAllBusinessProfiles();
   ScheduledEmailService.sendDailyReminders();
   ScheduledEmailService.sendProactiveBookingReminders();
 });

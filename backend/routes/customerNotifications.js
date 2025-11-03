@@ -19,7 +19,8 @@ router.get('/unread-counts', authenticateToken, authorizeRole('customer'), async
       metaInsights: notification.metaInsights.unreadCount,
       gallery: notification.gallery.unreadCount,
       invoices: notification.invoices.unreadCount,
-      onboarding: notification.onboarding.unreadCount
+      onboarding: notification.onboarding.unreadCount,
+      instagramInsights: notification.instagramInsights?.unreadCount || 0
     });
   } catch (error) {
     console.error('Error fetching unread counts:', error);
@@ -31,7 +32,7 @@ router.get('/unread-counts', authenticateToken, authorizeRole('customer'), async
 router.post('/mark-read/:section', authenticateToken, authorizeRole('customer'), async (req, res) => {
   try {
     const { section } = req.params;
-    const validSections = ['metaInsights', 'gallery', 'invoices', 'onboarding'];
+    const validSections = ['metaInsights', 'gallery', 'invoices', 'onboarding', 'instagramInsights'];
     
     if (!validSections.includes(section)) {
       return res.status(400).json({ message: 'Invalid section' });
@@ -44,8 +45,17 @@ router.post('/mark-read/:section', authenticateToken, authorizeRole('customer'),
     }
     
     // Clear the unread count for the specified section
-    notification[section].unreadCount = 0;
-    notification[section].lastUpdated = new Date();
+    // Handle instagramInsights section (may not exist on old records)
+    if (section === 'instagramInsights') {
+      if (!notification.instagramInsights) {
+        notification.instagramInsights = { unreadCount: 0, lastUpdated: new Date() };
+      }
+      notification.instagramInsights.unreadCount = 0;
+      notification.instagramInsights.lastUpdated = new Date();
+    } else {
+      notification[section].unreadCount = 0;
+      notification[section].lastUpdated = new Date();
+    }
     
     await notification.save();
     
@@ -70,6 +80,9 @@ router.post('/mark-all-read', authenticateToken, authorizeRole('customer'), asyn
     notification.gallery.unreadCount = 0;
     notification.invoices.unreadCount = 0;
     notification.onboarding.unreadCount = 0;
+    if (notification.instagramInsights) {
+      notification.instagramInsights.unreadCount = 0;
+    }
     
     // Update timestamps
     const now = new Date();
@@ -77,6 +90,9 @@ router.post('/mark-all-read', authenticateToken, authorizeRole('customer'), asyn
     notification.gallery.lastUpdated = now;
     notification.invoices.lastUpdated = now;
     notification.onboarding.lastUpdated = now;
+    if (notification.instagramInsights) {
+      notification.instagramInsights.lastUpdated = now;
+    }
     
     await notification.save();
     
@@ -91,7 +107,7 @@ router.post('/mark-all-read', authenticateToken, authorizeRole('customer'), asyn
 router.post('/increment/:customerId/:section', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const { customerId, section } = req.params;
-    const validSections = ['metaInsights', 'gallery', 'invoices', 'onboarding'];
+    const validSections = ['metaInsights', 'gallery', 'invoices', 'onboarding', 'instagramInsights'];
     
     if (!validSections.includes(section)) {
       return res.status(400).json({ message: 'Invalid section' });
@@ -104,14 +120,27 @@ router.post('/increment/:customerId/:section', authenticateToken, authorizeRole(
     }
     
     // Increment the unread count for the specified section
-    notification[section].unreadCount += 1;
-    notification[section].lastUpdated = new Date();
+    // Handle instagramInsights section (may not exist on old records)
+    if (section === 'instagramInsights') {
+      if (!notification.instagramInsights) {
+        notification.instagramInsights = { unreadCount: 0, lastUpdated: new Date() };
+      }
+      notification.instagramInsights.unreadCount += 1;
+      notification.instagramInsights.lastUpdated = new Date();
+    } else {
+      notification[section].unreadCount += 1;
+      notification[section].lastUpdated = new Date();
+    }
     
     await notification.save();
     
+    const unreadCount = section === 'instagramInsights' 
+      ? notification.instagramInsights.unreadCount 
+      : notification[section].unreadCount;
+    
     res.json({ 
       message: `${section} unread count incremented for customer`,
-      unreadCount: notification[section].unreadCount
+      unreadCount: unreadCount
     });
   } catch (error) {
     console.error('Error incrementing unread count:', error);

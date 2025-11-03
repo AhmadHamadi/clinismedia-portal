@@ -87,6 +87,34 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  googleAdsAccountName: {
+    type: String,
+    default: null,
+  },
+  googleBusinessProfileId: {
+    type: String,
+    default: null,
+  },
+  googleBusinessProfileName: {
+    type: String,
+    default: null,
+  },
+  googleBusinessAccessToken: {
+    type: String,
+    default: null,
+  },
+  googleBusinessRefreshToken: {
+    type: String,
+    default: null,
+  },
+  googleBusinessTokenExpiry: {
+    type: Date,
+    default: null,
+  },
+  googleBusinessNeedsReauth: {
+    type: Boolean,
+    default: false,
+  },
   sharedFolderLink: {
     type: String,
     default: null,

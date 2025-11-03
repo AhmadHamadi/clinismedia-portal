@@ -34,31 +34,20 @@ Navigate to **APIs & Services > Library** and enable:
    - Search for "Google My Business Account Management API"
    - Click "Enable"
 
-### 1.3 Create API Credentials
+### 1.3 Create OAuth 2.0 Credentials
 
 1. Go to **APIs & Services > Credentials**
-2. Click **"+ CREATE CREDENTIALS"**
-3. Select **"API Key"**
-4. Copy the API key (you'll need this for `GOOGLE_BUSINESS_API_KEY`)
-
-## Step 2: OAuth 2.0 Setup
-
-### 2.1 Create OAuth 2.0 Client
-
-1. In **APIs & Services > Credentials**
 2. Click **"+ CREATE CREDENTIALS"**
 3. Select **"OAuth client ID"**
 4. Choose **"Web application"**
 5. Add your redirect URIs:
-   - `http://localhost:3000/api/google-business/callback` (development)
+   - `http://localhost:5000/api/google-business/callback` (development)
    - `https://yourdomain.com/api/google-business/callback` (production)
-
-### 2.2 Download Credentials
 
 1. Download the JSON credentials file
 2. Note the **Client ID** and **Client Secret**
 
-## Step 3: Environment Variables
+## Step 2: Environment Variables
 
 Add these to your `.env` file:
 
@@ -66,11 +55,10 @@ Add these to your `.env` file:
 # Google Business Profile API
 GOOGLE_BUSINESS_CLIENT_ID=your_oauth_client_id_here
 GOOGLE_BUSINESS_CLIENT_SECRET=your_oauth_client_secret_here
-GOOGLE_BUSINESS_REDIRECT_URI=http://localhost:3000/api/google-business/callback
-GOOGLE_BUSINESS_API_KEY=your_api_key_here
+GOOGLE_BUSINESS_REDIRECT_URI=http://localhost:5000/api/google-business/callback
 ```
 
-## Step 4: Update OAuth Scopes
+## Step 3: Update OAuth Scopes
 
 The Google Business Profile API requires additional OAuth scopes. Update your Google Ads OAuth flow to include:
 
@@ -82,23 +70,23 @@ const scopes = [
 ];
 ```
 
-## Step 5: Testing the Integration
+## Step 4: Testing the Integration
 
-### 5.1 Test Business Profiles Endpoint
+### 4.1 Test Business Profiles Endpoint
 
 ```bash
 curl -X GET "http://localhost:3000/api/google-business/business-profiles/CUSTOMER_ID" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-### 5.2 Test Insights Endpoint
+### 4.2 Test Insights Endpoint
 
 ```bash
 curl -X GET "http://localhost:3000/api/google-business/business-insights/CUSTOMER_ID" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-## Step 6: Common Issues and Solutions
+## Step 5: Common Issues and Solutions
 
 ### Issue 1: "API not enabled" error
 **Solution**: Make sure all required APIs are enabled in Google Cloud Console
@@ -121,30 +109,38 @@ curl -X GET "http://localhost:3000/api/google-business/business-insights/CUSTOME
 - Re-authenticate users to get new permissions
 - Verify API key has access to Google My Business APIs
 
-## Step 7: Production Considerations
+## Step 6: Production Considerations
 
-### 7.1 API Quotas
+### 6.1 API Quotas
 - Google My Business API has rate limits
 - Monitor usage in Google Cloud Console
 - Implement proper error handling and retry logic
 
-### 7.2 Data Caching
+### 6.2 Data Caching
 - Consider caching insights data to reduce API calls
 - Implement appropriate cache expiration times
 - Handle data freshness requirements
 
-### 7.3 Error Handling
+### 6.3 Error Handling
 - Implement comprehensive error handling
 - Provide user-friendly error messages
 - Log API errors for debugging
 
-## Step 8: Verification
+## Step 7: Verification
 
 1. **Admin Interface**: Go to `/admin/google-business`
-2. **Select Customer**: Choose a customer with Google My Business profiles
-3. **Connect Profile**: Select and connect a business profile
+2. **Connect Admin Account**: Click "Connect Admin Account (info@clinimedia.ca)" to authorize the main account
+3. **Select Business Profiles**: Use the dropdown to assign business profiles to customers
 4. **View Analytics**: Go to `/customer/google-business-analytics`
 5. **Verify Data**: Confirm real data is being displayed
+
+## How It Works
+
+1. **Admin connects info@clinimedia.ca**: Admin clicks "Connect Admin Account" to authorize the main account
+2. **OAuth flow**: Admin is redirected to Google to authorize access for info@clinimedia.ca
+3. **Business profile fetching**: System fetches all business profiles managed by info@clinimedia.ca
+4. **Profile assignment**: Admin assigns specific business profiles to individual customers via dropdown
+5. **Analytics access**: Customers can now view their assigned Google Business Profile insights
 
 ## API Endpoints Reference
 

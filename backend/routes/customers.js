@@ -51,7 +51,7 @@ router.get("/", authenticateToken, authorizeRole(['admin']), async (req, res) =>
       query = { role: { $in: ["customer", "admin"] } };
     }
     
-    const customers = await User.find(query).select("name username email location address _id role facebookPageId facebookPageName facebookAccessToken facebookTokenExpiry facebookUserAccessToken facebookUserTokenExpiry bookingIntervalMonths googleAdsAccessToken googleAdsRefreshToken googleAdsTokenExpiry googleAdsCustomerId");
+    const customers = await User.find(query).select("name username email location address _id role facebookPageId facebookPageName facebookAccessToken facebookTokenExpiry facebookUserAccessToken facebookUserTokenExpiry bookingIntervalMonths googleAdsAccessToken googleAdsRefreshToken googleAdsTokenExpiry googleAdsCustomerId googleBusinessProfileId googleBusinessProfileName googleBusinessAccessToken googleBusinessRefreshToken googleBusinessTokenExpiry");
     res.status(200).json(customers);
   } catch (err) {
     console.error("❌ Failed to fetch customers:", err.message);
