@@ -384,8 +384,12 @@ const GoogleBusinessManagementPage: React.FC = () => {
             </div>
             <div className="mt-4 flex gap-4">
               <button
-                onClick={handleSaveBusinessProfile}
-                disabled={!selectedProfile}
+                onClick={() => {
+                  if (selectedCustomer && selectedProfile) {
+                    handleSaveBusinessProfile(selectedCustomer, selectedProfile);
+                  }
+                }}
+                disabled={!selectedProfile || !selectedCustomer}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Connect Selected Profile
