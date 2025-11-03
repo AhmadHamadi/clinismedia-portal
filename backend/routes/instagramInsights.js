@@ -1,106 +1,163 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const InstagramInsightImage = require('../models/InstagramInsightImage');
-const authenticateToken = require('../middleware/authenticateToken');
-const authorizeRole = require('../middleware/authorizeRole');
-const User = require('../models/User');
+const InstaUserInsight = require('../models/InstaUserInsight');
+const InstaMediaInsight = require('../models/InstaMediaInsight');
+const crypto = require('crypto');
 
 const router = express.Router();
 
-// Set up multer storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../uploads/instagram-insights/'));
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    cb(null, uniqueName);
-  },
-});
-const upload = multer({ storage });
+// Authentication middleware for Make.com API calls
+const auth = (req, res, next) => {
+  const key = req.headers.authorization?.replace('Bearer ', '').trim();
+  if (!key || key !== process.env.INGEST_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
 
-// Admin: Upload Instagram insight image
-router.post('/upload', authenticateToken, authorizeRole(['admin']), upload.single('image'), async (req, res) => {
+// Helper to create idempotency key from payload essentials
+const createIdemKey = (str) => crypto.createHash('sha256').update(str).digest('hex');
+
+/**
+ * Instagram User Insights endpoint
+ * Receives daily Instagram account metrics from Make.com
+ */
+router.post('/instagram/insights', auth, async (req, res) => {
   try {
-    const { clinicId, month } = req.body;
-    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
-    if (!clinicId || !month) return res.status(400).json({ error: 'Missing clinicId or month' });
+    const { account_id, period, metrics, time_window, customer_id } = req.body;
 
-    // Save to DB
-    const imageUrl = `/uploads/instagram-insights/${req.file.filename}`;
-    const image = new InstagramInsightImage({
-      clinicId,
-      month,
-      imageUrl,
-    });
-    await image.save();
-    
-    // Automatically increment customer notification count for meta insights
-    try {
-      const CustomerNotification = require('../models/CustomerNotification');
-      let notification = await CustomerNotification.findOne({ customerId: clinicId });
-      
-      if (!notification) {
-        notification = new CustomerNotification({ customerId: clinicId });
-      }
-      
-      notification.metaInsights.unreadCount += 1;
-      notification.metaInsights.lastUpdated = new Date();
-      await notification.save();
-      
-      console.log(`✅ Meta Insights notification incremented for customer ${clinicId}`);
-    } catch (notificationError) {
-      console.error('❌ Failed to increment meta insights notification:', notificationError);
-      // Don't fail the main operation if notification fails
+    // Simple validation
+    if (!account_id || !Array.isArray(metrics) || !customer_id || !period || !time_window) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: account_id, metrics, customer_id, period, time_window' 
+      });
     }
+
+    // Process each metric
+    const docs = metrics.map((metric) => ({
+      account_id,
+      period,
+      metric: metric.name,
+      value: Number(metric.value ?? 0),
+      end_time: new Date(metric.end_time),
+      customer_id,
+      source: 'instagram_user',
+      idem: createIdemKey(`${account_id}:${metric.name}:${metric.end_time}:${period}`)
+    }));
+
+    // Bulk upsert by unique idempotency key
+    const bulkOps = docs.map((doc) => ({
+      updateOne: {
+        filter: { idem: doc.idem },
+        update: { $set: doc },
+        upsert: true
+      }
+    }));
+
+    const result = await InstaUserInsight.bulkWrite(bulkOps);
+
+    console.log(`Instagram user insights processed: ${docs.length} metrics for account ${account_id}`);
     
-    res.status(201).json({ message: 'Instagram insight image uploaded', image });
-  } catch (err) {
-    console.error('Upload error:', err);
-    res.status(500).json({ error: 'Failed to upload image' });
+    res.json({ 
+      success: true,
+      upserted: docs.length,
+      modified: result.modifiedCount,
+      upsertedCount: result.upsertedCount
+    });
+
+  } catch (error) {
+    console.error('Error processing Instagram user insights:', error);
+    res.status(500).json({ error: 'Failed to process Instagram insights' });
   }
 });
 
-// Admin: List all images (optionally filter by clinic/month)
-router.get('/list', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+/**
+ * Instagram Media Insights endpoint
+ * Receives individual post metrics from Make.com
+ */
+router.post('/instagram/media-insights', auth, async (req, res) => {
   try {
-    const { clinicId, month } = req.query;
-    const filter = {};
-    if (clinicId) filter.clinicId = clinicId;
-    if (month) filter.month = month;
-    const images = await InstagramInsightImage.find(filter).populate('clinicId', 'name email');
-    res.json(images);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch images' });
+    const { 
+      account_id, 
+      media_id, 
+      media_type,
+      caption,
+      permalink,
+      metrics, 
+      posted_at, 
+      customer_id 
+    } = req.body;
+
+    // Simple validation
+    if (!account_id || !media_id || !metrics || !customer_id || !posted_at) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: account_id, media_id, metrics, customer_id, posted_at' 
+      });
+    }
+
+    const doc = {
+      account_id,
+      media_id,
+      media_type: media_type || 'unknown',
+      caption: caption || '',
+      permalink: permalink || '',
+      posted_at: new Date(posted_at),
+      metrics: {
+        reach: Number(metrics.reach ?? 0),
+        impressions: Number(metrics.impressions ?? 0),
+        likes: Number(metrics.likes ?? 0),
+        comments: Number(metrics.comments ?? 0),
+        saves: Number(metrics.saves ?? 0),
+        engagement: Number(metrics.engagement ?? 0),
+        plays: Number(metrics.plays ?? 0)
+      },
+      customer_id,
+      source: 'instagram_media',
+      idem: createIdemKey(`${account_id}:${media_id}`)
+    };
+
+    const result = await InstaMediaInsight.updateOne(
+      { idem: doc.idem }, 
+      { $set: doc }, 
+      { upsert: true }
+    );
+
+    console.log(`Instagram media insights processed: ${media_id} for account ${account_id}`);
+    
+    res.json({ 
+      success: true,
+      upserted: result.upsertedCount > 0,
+      modified: result.modifiedCount > 0
+    });
+
+  } catch (error) {
+    console.error('Error processing Instagram media insights:', error);
+    res.status(500).json({ error: 'Failed to process Instagram media insights' });
   }
 });
 
-// Admin: Delete an image
-router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+/**
+ * Health check endpoint for Make.com monitoring
+ */
+router.get('/instagram/health', auth, async (req, res) => {
   try {
-    const { id } = req.params;
-    const image = await InstagramInsightImage.findByIdAndDelete(id);
-    if (!image) return res.status(404).json({ error: 'Image not found' });
-    res.json({ message: 'Image deleted', image });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete image' });
+    const latestUserInsight = await InstaUserInsight.findOne()
+      .sort({ end_time: -1 })
+      .select('end_time account_id');
+    
+    const latestMediaInsight = await InstaMediaInsight.findOne()
+      .sort({ posted_at: -1 })
+      .select('posted_at account_id');
+
+    res.json({
+      status: 'healthy',
+      latest_user_insight: latestUserInsight,
+      latest_media_insight: latestMediaInsight,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({ error: 'Health check failed' });
   }
 });
 
-// Customer: List images for their own clinic
-router.get('/my', authenticateToken, authorizeRole(['customer']), async (req, res) => {
-  try {
-    const clinicId = req.user.id;
-    const { month } = req.query;
-    const filter = { clinicId };
-    if (month) filter.month = month;
-    const images = await InstagramInsightImage.find(filter);
-    res.json(images);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch images' });
-  }
-});
-
-module.exports = router; 
+module.exports = router;

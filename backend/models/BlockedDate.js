@@ -4,8 +4,7 @@ const blockedDateSchema = new mongoose.Schema({
   date: {
     type: Date,
     required: true,
-    unique: true,
-    index: true // Add index for better query performance
+    unique: true
   },
   bookingId: {
     type: mongoose.Schema.Types.ObjectId,

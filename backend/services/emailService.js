@@ -11,17 +11,17 @@ class EmailService {
         CliniMedia</p>
         <img src="cid:clinimedia-logo" alt="Clinimedia Logo" style="display: block; margin: 24px 0; width: 180px;"/>
         <p style="margin: 0; font-size: 14px; color: #222;">
-          289-946-6865 | info@clinimedia.ca
+          289-946-6865 | notifications@clinimedia.ca
         </p>
       </div>
     `;
   }
 
-  // Common email sending function
-  static async sendEmail(subject, content, toEmail, errorMessage) {
+  // Common email sending function - all emails sent FROM notifications@clinimedia.ca
+  static async sendEmail(subject, content, toEmail, errorMessage, fromEmail = 'notifications@clinimedia.ca') {
     try {
       await transporter.sendMail({
-        from: 'info@clinimedia.ca',
+        from: fromEmail,
         to: toEmail, // Send to specific customer email
         subject,
         html: EmailService.createEmailTemplate(content),
@@ -42,9 +42,8 @@ class EmailService {
   static async sendBookingConfirmation(customerName, requestedDate, customerEmail) {
     const content = `
       <p>Hi ${customerName},</p>
-      <p>We've received your Media Day request for <strong>${requestedDate}</strong>.</p>
-      <p>It is currently pending approval. Our team is reviewing the details and will follow up soon with a confirmation.</p>
-      <p>You can check the status of your booking by visiting <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a> or <a href="https://clinimedia.ca" style="color: #98c6d5; text-decoration: none;">clinimedia.ca</a>.</p>
+      <p>We've received your Media Day request for <strong>${requestedDate}</strong>. It's pending approval.</p>
+      <p>Check status at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
     `;
     
     await EmailService.sendEmail(
@@ -57,11 +56,9 @@ class EmailService {
 
   static async sendBookingAccepted(customerName, bookingDate, customerEmail) {
     const content = `
-      <p>Hello ${customerName},</p>
-      <p>Your Media Day on ${bookingDate} is confirmed.</p>
-      <p>We're looking forward to working with you and capturing what makes your clinic special!</p>
-      <p>You can view all your booking details and manage your account by visiting <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a> or <a href="https://clinimedia.ca" style="color: #98c6d5; text-decoration: none;">clinimedia.ca</a>.</p>
-      <p>Please reach out if you have any questions.</p>
+      <p>Hi ${customerName},</p>
+      <p>Your Media Day on <strong>${bookingDate}</strong> is confirmed.</p>
+      <p>View details at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
     `;
     
     await EmailService.sendEmail(
@@ -74,10 +71,9 @@ class EmailService {
 
   static async sendBookingDeclined(customerName, requestedDate, customerEmail) {
     const content = `
-      <p>Hello ${customerName},</p>
-      <p>Your Media Day booking request for <strong>${requestedDate}</strong> was unfortunately declined.</p>
-      <p>You can view the reason and book a new date by visiting <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a> or <a href="https://clinimedia.ca" style="color: #98c6d5; text-decoration: none;">clinimedia.ca</a>.</p>
-      <p>If you have any questions or need assistance, please don't hesitate to reach out.</p>
+      <p>Hi ${customerName},</p>
+      <p>Your Media Day request for <strong>${requestedDate}</strong> was declined.</p>
+      <p>Book a new date at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
     `;
     
     await EmailService.sendEmail(
@@ -91,30 +87,29 @@ class EmailService {
   static async sendPhotographerNotification(clinicName, bookingDate) {
     const content = `
       <p>Hi photographer,</p>
-      <p>We have a new Media Day session available and is now ready to be accepted!</p>
+      <p>New Media Day session available!</p>
       <p><strong>Clinic:</strong> ${clinicName}<br/>
       <strong>Date:</strong> ${bookingDate}</p>
-      <p>If you're available and interested, please log in to your dashboard to view the details and accept the session.</p>
-      <p>Feel free to reach out if you have any questions.</p>
+      <p>Accept at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
     `;
     
-    // Send to all photographers (first come, first served)
+    // Send to notifications email for admin visibility
     await EmailService.sendEmail(
       `New Media Day Session Available – ${bookingDate}`,
       content,
-      'info@clinimedia.ca', // Updated to send to admin email
+      'notifications@clinimedia.ca', // Send to notifications email
       'Failed to send photographer notification email:'
+      // FROM defaults to notifications@clinimedia.ca
     );
   }
 
   static async sendPhotographerNotificationToAll(clinicName, bookingDate) {
     const content = `
       <p>Hi photographer,</p>
-      <p>We have a new Media Day session available and is now ready to be accepted!</p>
+      <p>New Media Day session available!</p>
       <p><strong>Clinic:</strong> ${clinicName}<br/>
       <strong>Date:</strong> ${bookingDate}</p>
-      <p>If you're available and interested, please log in to your dashboard at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a> to view the details and accept the session.</p>
-      <p>Feel free to reach out if you have any questions.</p>
+      <p>Accept at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
     `;
     
     try {
@@ -139,9 +134,8 @@ class EmailService {
   static async sendPhotographerBookingSecured(photographerName, clinicName, bookingDate, photographerEmail) {
     const content = `
       <p>Hi ${photographerName},</p>
-      <p>Congratulations! You have successfully secured the Media Day session for <strong>${clinicName}</strong> on <strong>${bookingDate}</strong>.</p>
-      <p>Please log in to your dashboard at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a> to view the full details and prepare for the session.</p>
-      <p>If you have any questions or need to make changes, please reach out to us.</p>
+      <p>You've secured the Media Day session for <strong>${clinicName}</strong> on <strong>${bookingDate}</strong>.</p>
+      <p>View details at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
     `;
     
     await EmailService.sendEmail(
@@ -155,8 +149,8 @@ class EmailService {
   static async sendBookingReminder(customerName, bookingDate, customerEmail) {
     const content = `
       <p>Hi ${customerName},</p>
-      <p>Just a quick reminder that your Media Day is scheduled for tomorrow, ${bookingDate}.</p>
-      <p>Please have your team and space ready so we can make the most of the session. We're looking forward to a great shoot.</p>
+      <p>Reminder: Your Media Day is tomorrow, <strong>${bookingDate}</strong>.</p>
+      <p>View details at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
     `;
     
     await EmailService.sendEmail(
@@ -170,12 +164,11 @@ class EmailService {
   static async sendPhotographerReminder(photographerName, clinicName, bookingDate, photographerEmail, location = 'TBD', time = 'TBD') {
     const content = `
       <p>Hi ${photographerName},</p>
-      <p>Just a reminder that you're scheduled for a Media Day session tomorrow, ${bookingDate}.</p>
+      <p>Reminder: Media Day session tomorrow, <strong>${bookingDate}</strong>.</p>
       <p><strong>Clinic:</strong> ${clinicName}<br/>
       <strong>Location:</strong> ${location}<br/>
       <strong>Time:</strong> ${time}</p>
-      <p>Please be sure to arrive prepared and on time. If anything comes up or you need support, don't hesitate to reach out.</p>
-      <p>Thanks again for being part of the team.</p>
+      <p>View details at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
     `;
     
     await EmailService.sendEmail(
@@ -190,32 +183,32 @@ class EmailService {
     let subject = '';
     let content = '';
     if (timing === 'early') {
-      subject = `You are now eligible to book your Media Day for ${monthName}`;
+      subject = `Book your Media Day for ${monthName}`;
       content = `
         <p>Hi ${customerName},</p>
-        <p>You are now eligible to book your Media Day for <strong>${monthName}</strong>.</p>
-        <p>Book now to secure your preferred date! Visit <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a> or <a href="https://clinimedia.ca" style="color: #98c6d5; text-decoration: none;">clinimedia.ca</a> to get started.</p>
+        <p>You're eligible to book your Media Day for <strong>${monthName}</strong>.</p>
+        <p>Book at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
       `;
     } else if (timing === 'first') {
       subject = `Reminder: Book your Media Day for ${monthName}`;
       content = `
         <p>Hi ${customerName},</p>
-        <p>This is a reminder to book your Media Day for <strong>${monthName}</strong>.</p>
-        <p>Don't miss out—book your session today! Visit <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a> or <a href="https://clinimedia.ca" style="color: #98c6d5; text-decoration: none;">clinimedia.ca</a> to book now.</p>
+        <p>Reminder to book your Media Day for <strong>${monthName}</strong>.</p>
+        <p>Book at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
       `;
     } else if (timing === 'mid') {
       subject = `Don't forget: Book your Media Day for ${monthName}`;
       content = `
         <p>Hi ${customerName},</p>
-        <p>We're halfway through <strong>${monthName}</strong> and you haven't booked your Media Day yet.</p>
-        <p>Don't miss out—book your session today to ensure availability! Visit <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a> or <a href="https://clinimedia.ca" style="color: #98c6d5; text-decoration: none;">clinimedia.ca</a> to book now.</p>
+        <p>We're halfway through <strong>${monthName}</strong>—book your Media Day soon!</p>
+        <p>Book at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
       `;
     } else if (timing === 'late') {
       subject = `Final reminder: Book your Media Day for ${monthName}`;
       content = `
         <p>Hi ${customerName},</p>
-        <p>This is your final reminder to book your Media Day for <strong>${monthName}</strong>.</p>
-        <p>Please book as soon as possible to ensure availability! Visit <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a> or <a href="https://clinimedia.ca" style="color: #98c6d5; text-decoration: none;">clinimedia.ca</a> to book now.</p>
+        <p>Final reminder to book your Media Day for <strong>${monthName}</strong>.</p>
+        <p>Book at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
       `;
     }
     await EmailService.sendEmail(
@@ -241,8 +234,25 @@ class EmailService {
     await EmailService.sendEmail(
       `New Media Day Booking Request - ${customerName} - ${bookingDate}`,
       content,
-      'info@clinimedia.ca', // Admin notifications go to admin email
+      'notifications@clinimedia.ca', // Admin notifications go to notifications email
       'Failed to send admin booking notification:'
+      // FROM defaults to notifications@clinimedia.ca
+    );
+  }
+
+  static async sendNewContentNotification(customerName, customerEmail, contentType, contentLink, contentName = '') {
+    const content = `
+      <p>Hi ${customerName},</p>
+      <p>New ${contentType} content available!</p>
+      ${contentName ? `<p><strong>${contentName}</strong></p>` : ''}
+      <p>View at <a href="${contentLink}" style="color: #98c6d5; text-decoration: none;">${contentLink}</a> or <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
+    `;
+    
+    await EmailService.sendEmail(
+      `New ${contentType} Content Available - ${contentName || 'Portal'}`,
+      content,
+      customerEmail,
+      'Failed to send new content notification:'
     );
   }
 }

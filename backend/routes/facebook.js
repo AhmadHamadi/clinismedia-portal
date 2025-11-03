@@ -10,7 +10,7 @@ router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), (req,
   const clinicId = req.params.clinicId;
   const redirectUri = process.env.FB_REDIRECT_URI;
   
-  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=4066501436955681&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=pages_show_list,pages_read_engagement,pages_manage_metadata,pages_read_user_content,pages_manage_posts,pages_manage_engagement`;
+      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=4066501436955681&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=pages_show_list,pages_read_engagement,pages_manage_metadata,pages_read_user_content,pages_manage_posts,pages_manage_engagement`;
   
   res.json({ authUrl });
 });
@@ -45,6 +45,20 @@ router.get('/callback', async (req, res) => {
     );
     if (!adminUser) {
       console.warn('No admin user found to save Facebook user access token.');
+    }
+
+    // Also save the user access token to the specific clinic/customer
+    // This allows them to access their own ad accounts
+    const clinicUser = await User.findByIdAndUpdate(
+      clinicId,
+      {
+        facebookUserAccessToken: userAccessToken,
+        facebookUserTokenExpiry: tokenExpiry,
+      },
+      { new: true }
+    );
+    if (clinicUser) {
+      console.log(`Saved Facebook user access token for clinic: ${clinicUser.name}`);
     }
 
     // Get list of pages
@@ -196,27 +210,57 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
     let startDate = start ? new Date(start) : new Date(endDate);
     if (!start) startDate.setDate(endDate.getDate() - 30);
     
+    // Calculate previous month date range for comparison
+    const prevEndDate = new Date(startDate);
+    prevEndDate.setDate(prevEndDate.getDate() - 1);
+    const prevStartDate = new Date(prevEndDate);
+    prevStartDate.setDate(prevStartDate.getDate() - (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    
     const formatDate = (date) => {
       return date.toISOString().split('T')[0];
     };
     
-    // Fetch Facebook insights
+    // Fetch Facebook insights for current period
     const metrics = [
       { key: 'impressions', metric: 'page_impressions' },
       { key: 'reach', metric: 'page_impressions_unique' },
       { key: 'engagements', metric: 'page_post_engagements' },
       { key: 'followers', metric: 'page_fans' },
+      { key: 'pageViews', metric: 'page_views_total' },
+      { key: 'videoViews', metric: 'page_video_views' },
     ];
-    const results = await Promise.all(metrics.map(async ({ key, metric }) => {
-      try {
-        const res = await axios.get(`https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=${metric}&period=day&since=${formatDate(startDate)}&until=${formatDate(endDate)}&access_token=${user.facebookAccessToken}`);
-        return { key, values: res.data.data[0]?.values || [] };
-      } catch (err) {
-        console.error(`Failed to fetch metric ${metric}:`, err.response?.data || err.message);
-        return { key, values: [] };
-      }
-    }));
-    const metricsObj = Object.fromEntries(results.map(r => [r.key, r.values]));
+    
+    const [currentResults, previousResults] = await Promise.all([
+      // Current period
+      Promise.all(metrics.map(async ({ key, metric }) => {
+        try {
+          const res = await axios.get(`https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=${metric}&period=day&since=${formatDate(startDate)}&until=${formatDate(endDate)}&access_token=${user.facebookAccessToken}`);
+          return { key, values: res.data.data[0]?.values || [] };
+        } catch (err) {
+          console.error(`Failed to fetch metric ${metric}:`, err.response?.data || err.message);
+          return { key, values: [] };
+        }
+      })),
+      // Previous period
+      Promise.all(metrics.map(async ({ key, metric }) => {
+        try {
+          const res = await axios.get(`https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=${metric}&period=day&since=${formatDate(prevStartDate)}&until=${formatDate(prevEndDate)}&access_token=${user.facebookAccessToken}`);
+          return { key, values: res.data.data[0]?.values || [] };
+        } catch (err) {
+          console.error(`Failed to fetch previous period metric ${metric}:`, err.response?.data || err.message);
+          return { key, values: [] };
+        }
+      }))
+    ]);
+    
+    const currentMetricsObj = Object.fromEntries(currentResults.map(r => [r.key, r.values]));
+    const previousMetricsObj = Object.fromEntries(previousResults.map(r => [r.key, r.values]));
+    
+    // Helper function to calculate percentage change
+    const calculatePercentageChange = (previous, current) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - previous) / previous) * 100);
+    };
     
     const insights = {
       pageInfo: {
@@ -227,12 +271,48 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
         start: formatDate(startDate),
         end: formatDate(endDate),
       },
-      metrics: metricsObj,
+      metrics: currentMetricsObj,
       summary: {
-        totalImpressions: metricsObj.impressions.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        totalReach: metricsObj.reach.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        totalEngagements: metricsObj.engagements.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        currentFollowers: metricsObj.followers[metricsObj.followers.length - 1]?.value || 0,
+        totalImpressions: currentMetricsObj.impressions.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+        totalReach: currentMetricsObj.reach.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+        totalEngagements: currentMetricsObj.engagements.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+        currentFollowers: currentMetricsObj.followers[currentMetricsObj.followers.length - 1]?.value || 0,
+        totalPageViews: currentMetricsObj.pageViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+        totalVideoViews: currentMetricsObj.videoViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+      },
+      previousSummary: {
+        totalImpressions: previousMetricsObj.impressions.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+        totalReach: previousMetricsObj.reach.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+        totalEngagements: previousMetricsObj.engagements.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+        currentFollowers: previousMetricsObj.followers[previousMetricsObj.followers.length - 1]?.value || 0,
+        totalPageViews: previousMetricsObj.pageViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+        totalVideoViews: previousMetricsObj.videoViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+      },
+      comparisons: {
+        impressionsChange: calculatePercentageChange(
+          previousMetricsObj.impressions.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+          currentMetricsObj.impressions.reduce((sum, val) => sum + (val.value || 0), 0) || 0
+        ),
+        reachChange: calculatePercentageChange(
+          previousMetricsObj.reach.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+          currentMetricsObj.reach.reduce((sum, val) => sum + (val.value || 0), 0) || 0
+        ),
+        engagementsChange: calculatePercentageChange(
+          previousMetricsObj.engagements.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+          currentMetricsObj.engagements.reduce((sum, val) => sum + (val.value || 0), 0) || 0
+        ),
+        followersChange: calculatePercentageChange(
+          previousMetricsObj.followers[previousMetricsObj.followers.length - 1]?.value || 0,
+          currentMetricsObj.followers[currentMetricsObj.followers.length - 1]?.value || 0
+        ),
+        pageViewsChange: calculatePercentageChange(
+          previousMetricsObj.pageViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+          currentMetricsObj.pageViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0
+        ),
+        videoViewsChange: calculatePercentageChange(
+          previousMetricsObj.videoViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+          currentMetricsObj.videoViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0
+        ),
       }
     };
     

@@ -144,6 +144,11 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     if (interval === 1) {
       // Monthly: Next booking must be at start of next month
       nextDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1);
+    } else if (interval === 2) {
+      // Bi-monthly: Every 2 months (Jan, Mar, May, Jul, Sep, Nov)
+      nextDate = new Date(lastDate);
+      nextDate.setMonth(nextDate.getMonth() + 2);
+      nextDate.setDate(1);
     } else if (interval === 3) {
       // Quarterly: Next booking must be at start of next quarter
       const currentQuarter = Math.floor(lastDate.getMonth() / 3);
@@ -155,6 +160,16 @@ const CustomerMediaDayBookingPage: React.FC = () => {
       } else {
         nextDate = new Date(lastDate.getFullYear(), nextQuarterStartMonth, 1);
       }
+    } else if (interval === 4) {
+      // 4 times per year: Every 3 months (Jan, Apr, Jul, Oct)
+      nextDate = new Date(lastDate);
+      nextDate.setMonth(nextDate.getMonth() + 3);
+      nextDate.setDate(1);
+    } else if (interval === 6) {
+      // 6 times per year: Every 2 months (Jan, Mar, May, Jul, Sep, Nov)
+      nextDate = new Date(lastDate);
+      nextDate.setMonth(nextDate.getMonth() + 2);
+      nextDate.setDate(1);
     } else {
       // Fallback to old logic for other intervals
       nextDate = new Date(lastDate);

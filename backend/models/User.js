@@ -71,9 +71,61 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  googleAdsAccessToken: {
+    type: String,
+    default: null,
+  },
+  googleAdsRefreshToken: {
+    type: String,
+    default: null,
+  },
+  googleAdsTokenExpiry: {
+    type: Date,
+    default: null,
+  },
+  googleAdsCustomerId: {
+    type: String,
+    default: null,
+  },
+  googleAdsAccountName: {
+    type: String,
+    default: null,
+  },
+  googleBusinessProfileId: {
+    type: String,
+    default: null,
+  },
+  googleBusinessProfileName: {
+    type: String,
+    default: null,
+  },
+  googleBusinessAccessToken: {
+    type: String,
+    default: null,
+  },
+  googleBusinessRefreshToken: {
+    type: String,
+    default: null,
+  },
+  googleBusinessTokenExpiry: {
+    type: Date,
+    default: null,
+  },
+  googleBusinessNeedsReauth: {
+    type: Boolean,
+    default: false,
+  },
+  sharedFolderLink: {
+    type: String,
+    default: null,
+  },
+  sharedFolderName: {
+    type: String,
+    default: null,
+  },
   bookingIntervalMonths: {
-    type: Number, // 1 for monthly, 3 for quarterly
-    enum: [1, 3],
+    type: Number, // 1 for monthly, 2 for bi-monthly, 3 for quarterly, 4 for 4x/year, 6 for 6x/year
+    enum: [1, 2, 3, 4, 6],
     default: 1
   },
   gallery: [

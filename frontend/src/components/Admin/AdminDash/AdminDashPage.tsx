@@ -7,6 +7,7 @@ import { DashboardBox } from "./AdminDashLogic";
 
 const AdminDash = () => {
   const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
+  const [unreadNotesCount, setUnreadNotesCount] = useState(0);
   const navigate = useNavigate();
 
   // Fetch pending bookings count
@@ -31,6 +32,30 @@ const AdminDash = () => {
     fetchPendingCount();
     // Poll every 5 seconds for real-time updates
     const interval = setInterval(fetchPendingCount, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch unread notes count for Shared Folder
+  useEffect(() => {
+    const fetchUnreadNotesCount = async () => {
+      try {
+        const token = localStorage.getItem('adminToken');
+        if (!token) return;
+
+        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/client-notes/unread-count`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setUnreadNotesCount(response.data.count || 0);
+      } catch (error: any) {
+        console.error('Failed to fetch unread notes count:', error);
+      }
+    };
+
+    fetchUnreadNotesCount();
+    // Poll every 5 seconds for real-time updates
+    const interval = setInterval(fetchUnreadNotesCount, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -82,14 +107,19 @@ const AdminDash = () => {
           onClick={() => navigate("/admin/employees")}
         />
         <DashboardBox
-          title="Manage Gallery Edits"
-          description="Review and edit gallery items"
-          onClick={() => navigate("/admin/gallery")}
-        />
-        <DashboardBox
           title="Manage Customer Invoices"
           description="View and manage customer invoices"
           onClick={() => navigate("/admin/invoices")}
+        />
+        <DashboardBox
+          title="Manage Google Ads"
+          description="Assign and manage Google Ads accounts"
+          onClick={() => navigate("/admin/google-ads")}
+        />
+        <DashboardBox
+          title="Manage Google Business"
+          description="Assign and manage Google Business Profiles"
+          onClick={() => navigate("/admin/google-business")}
         />
         <DashboardBox
           title="Manage Facebook"
@@ -100,6 +130,17 @@ const AdminDash = () => {
           title="Manage Instagram Insights"
           description="Upload and manage Instagram insight images"
           onClick={() => navigate("/admin/instagram-insights")}
+        />
+        <DashboardBox
+          title="Manage Gallery Edits"
+          description="Review and edit gallery items"
+          onClick={() => navigate("/admin/gallery")}
+        />
+        <DashboardBox
+          title="Manage Shared Folder"
+          description="Manage shared folder access and permissions"
+          onClick={() => navigate("/admin/shared-folders")}
+          notificationCount={unreadNotesCount}
         />
       </div>
     </div>

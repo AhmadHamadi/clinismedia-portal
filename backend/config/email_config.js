@@ -5,7 +5,7 @@ const transporter = nodemailer.createTransport({
   port: 465, // Use 465 for SSL, or 587 for TLS
   secure: true, // true for 465 (SSL), false for 587 (TLS)
   auth: {
-    user: 'info@clinimedia.ca',
+    user: 'notifications@clinimedia.ca',
     pass: 'Clini$Media@2025',
   },
 });

@@ -7,9 +7,13 @@ import CustomerMediaDayBookingPage from './CustomerMediaDayBooking/CustomerMedia
 import CustomerOnboardingTasks from './CustomerOnboardingTasks';
 import FacebookIntegrationPage from './FacebookIntegrationPage';
 import FacebookInsightsPage from './FacebookInsightsPage';
+import InstagramInsightsPage from './InstagramInsightsPage';
+import SharedMediaPage from './SharedMediaPage';
 import CustomerGalleryPage from './CustomerGalleryPage';
 import CustomerInvoicePage from './CustomerInvoicePage';
 import NotificationPage from './NotificationPage';
+import GoogleAdsPage from './GoogleAdsPage';
+import GoogleBusinessAnalyticsPage from './GoogleBusinessAnalyticsPage';
 
 const CustomerPortalLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -38,6 +42,8 @@ const CustomerPortalLayout: React.FC = () => {
     // Clear appropriate badge based on current route
     if (location.pathname === '/customer/facebook-insights') {
       clearNotificationBadge('metaInsights');
+    } else if (location.pathname === '/customer/instagram-insights') {
+      clearNotificationBadge('instagramInsights');
     } else if (location.pathname === '/customer/gallery') {
       clearNotificationBadge('gallery');
     } else if (location.pathname === '/customer/invoices') {
@@ -85,12 +91,15 @@ const CustomerPortalLayout: React.FC = () => {
             <Route path="dashboard" element={<CustomerDashboard />} />
             <Route path="media-day-booking" element={<CustomerMediaDayBookingPage />} />
             <Route path="onboarding-tasks" element={<CustomerOnboardingTasks />} />
-            <Route path="google-integration" element={<CustomerDashboard />} />
             <Route path="facebook-integration" element={<FacebookIntegrationPage />} />
             <Route path="facebook-insights" element={<FacebookInsightsPage />} />
+            <Route path="instagram-insights" element={<InstagramInsightsPage />} />
+            <Route path="shared-media" element={<SharedMediaPage />} />
             <Route path="gallery" element={<CustomerGalleryPage />} />
             <Route path="invoices" element={<CustomerInvoicePage />} />
             <Route path="notifications" element={<NotificationPage />} />
+            <Route path="google-ads" element={<GoogleAdsPage />} />
+            <Route path="google-business-analytics" element={<GoogleBusinessAnalyticsPage />} />
             <Route path="" element={<CustomerDashboard />} />
           </Routes>
         </main>

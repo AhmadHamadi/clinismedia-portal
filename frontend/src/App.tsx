@@ -15,6 +15,8 @@ import FacebookIntegrationPage from "./components/Customer/FacebookIntegrationPa
 import FacebookInsightsPage from "./components/Customer/FacebookInsightsPage";
 import CustomerGalleryPage from "./components/Customer/CustomerGalleryPage";
 import CustomerInvoicePage from "./components/Customer/CustomerInvoicePage";
+import GoogleBusinessAnalyticsPage from "./components/Customer/GoogleBusinessAnalyticsPage";
+import GoogleBusinessManagementPage from "./components/Admin/GoogleBusinessManagement/GoogleBusinessManagementPage";
 import PageTitle from "./components/PageTitle";
 
 function App() {
