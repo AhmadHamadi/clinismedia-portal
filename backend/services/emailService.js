@@ -33,6 +33,8 @@ class EmailService {
           }
         ]
       });
+
+      console.log(`📧 Email sent (${subject}) -> ${toEmail}`);
     } catch (error) {
       console.error(errorMessage, error);
       throw error;
@@ -179,38 +181,48 @@ class EmailService {
     );
   }
 
-  static async sendProactiveBookingReminder(customerName, customerEmail, monthName, timing) {
+  static async sendProactiveBookingReminder(customerName, customerEmail, periodName, timing) {
     let subject = '';
     let content = '';
-    if (timing === 'early') {
-      subject = `Book your Media Day for ${monthName}`;
+
+    if (timing === 'two-weeks-before') {
+      subject = `Your Media Day window opens soon – ${periodName}`;
       content = `
         <p>Hi ${customerName},</p>
-        <p>You're eligible to book your Media Day for <strong>${monthName}</strong>.</p>
-        <p>Book at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
+        <p>Your next Media Day window opens in two weeks on <strong>${periodName}</strong>.</p>
+        <p>Start thinking about the best date and get ready to book at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a>.</p>
       `;
-    } else if (timing === 'first') {
-      subject = `Reminder: Book your Media Day for ${monthName}`;
+    } else if (timing === 'period-start') {
+      subject = `Reminder: Media Day window opens today – ${periodName}`;
       content = `
         <p>Hi ${customerName},</p>
-        <p>Reminder to book your Media Day for <strong>${monthName}</strong>.</p>
-        <p>Book at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
+        <p>Your Media Day window opens today for <strong>${periodName}</strong>.</p>
+        <p>Lock in your preferred date at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a>.</p>
       `;
-    } else if (timing === 'mid') {
-      subject = `Don't forget: Book your Media Day for ${monthName}`;
+    } else if (timing === 'day-10') {
+      subject = `Reminder: Media Day window is open – ${periodName}`;
       content = `
         <p>Hi ${customerName},</p>
-        <p>We're halfway through <strong>${monthName}</strong>—book your Media Day soon!</p>
-        <p>Book at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
+        <p>Your Media Day window opened earlier this month (${periodName}) and spots can fill up quickly.</p>
+        <p>Book now at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a>.</p>
       `;
-    } else if (timing === 'late') {
-      subject = `Final reminder: Book your Media Day for ${monthName}`;
+    } else if (timing === 'day-15') {
+      subject = `Final reminder: Book your Media Day – ${periodName}`;
       content = `
         <p>Hi ${customerName},</p>
-        <p>Final reminder to book your Media Day for <strong>${monthName}</strong>.</p>
+        <p>We're halfway through <strong>${periodName}</strong>. If you haven't booked your Media Day yet, please do so asap.</p>
+        <p>Reserve your spot at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a>.</p>
+      `;
+    } else {
+      // Fallback for any legacy timing types
+      subject = `Reminder: Book your Media Day for ${periodName}`;
+      content = `
+        <p>Hi ${customerName},</p>
+        <p>Reminder to book your Media Day for <strong>${periodName}</strong>.</p>
         <p>Book at <a href="https://clinimediaportal.ca" style="color: #98c6d5; text-decoration: none;">clinimediaportal.ca</a></p>
       `;
     }
+
     await EmailService.sendEmail(
       subject,
       content,

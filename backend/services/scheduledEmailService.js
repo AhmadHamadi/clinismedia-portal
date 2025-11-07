@@ -172,165 +172,156 @@ class ScheduledEmailService {
     }
   }
 
+  // Get the period name for display in emails based on the eligible start date
+  static getPeriodNameFromStart(periodStart, interval) {
+    if (interval === 3) {
+      const quarterNumber = Math.floor(periodStart.getMonth() / 3) + 1;
+      return `Q${quarterNumber} ${periodStart.getFullYear()}`;
+    }
+
+    if (interval === 4) {
+      return periodStart.toLocaleString('default', { month: 'long', year: 'numeric' });
+    }
+
+    // Default to standard month name (covers monthly, bi-monthly, 6x per year, etc.)
+    return periodStart.toLocaleString('default', { month: 'long', year: 'numeric' });
+  }
+
   static async sendProactiveBookingReminders() {
     try {
       const customers = await User.find({ role: 'customer' });
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       for (const customer of customers) {
-        const interval = customer.bookingIntervalMonths || 1;
-        
-        // Find last accepted booking
-        const lastBooking = await Booking.findOne({
-          customer: customer._id,
-          status: 'accepted'
-        }).sort({ date: -1 });
-        
-        let nextEligiblePeriod;
-        if (lastBooking) {
-          nextEligiblePeriod = getNextEligibleMonth(lastBooking.date, interval);
-        } else {
-          // If no bookings, allow booking this month
-          nextEligiblePeriod = new Date(today.getFullYear(), today.getMonth(), 1);
-        }
-        
-        // Check if customer has already booked for this period
-        let alreadyBooked = false;
-        if (interval === 1) {
-          // Monthly: check if they have a booking this month
-          alreadyBooked = await hasBookingForMonth(customer._id, nextEligiblePeriod.getFullYear(), nextEligiblePeriod.getMonth());
-        } else if (interval === 2) {
-          // Bi-monthly: check if they have a booking this month or next month
-          alreadyBooked = await hasBookingForMonth(customer._id, nextEligiblePeriod.getFullYear(), nextEligiblePeriod.getMonth());
-          if (!alreadyBooked) {
-            alreadyBooked = await hasBookingForMonth(customer._id, nextEligiblePeriod.getFullYear(), nextEligiblePeriod.getMonth() + 1);
+        try {
+          const interval = customer.bookingIntervalMonths || 1;
+
+          // Only send reminders to clinics that have previously submitted at least one booking request
+          const hasSubmittedBooking = await Booking.exists({ customer: customer._id });
+          if (!hasSubmittedBooking) {
+            continue;
           }
-        } else if (interval === 3) {
-          // Quarterly: check if they have a booking this quarter
-          const quarterStartMonth = Math.floor(nextEligiblePeriod.getMonth() / 3) * 3;
-          alreadyBooked = await hasBookingForQuarter(customer._id, nextEligiblePeriod.getFullYear(), quarterStartMonth);
-        } else if (interval === 4) {
-          // 4 times per year: check if they have a booking in this 3-month period
-          const periodStartMonth = Math.floor(nextEligiblePeriod.getMonth() / 3) * 3;
-          alreadyBooked = await hasBookingForQuarter(customer._id, nextEligiblePeriod.getFullYear(), periodStartMonth);
-        } else if (interval === 6) {
-          // 6 times per year: check if they have a booking this month or next month
-          alreadyBooked = await hasBookingForMonth(customer._id, nextEligiblePeriod.getFullYear(), nextEligiblePeriod.getMonth());
-          if (!alreadyBooked) {
-            alreadyBooked = await hasBookingForMonth(customer._id, nextEligiblePeriod.getFullYear(), nextEligiblePeriod.getMonth() + 1);
+
+          // Find last accepted booking
+          const lastBooking = await Booking.findOne({
+            customer: customer._id,
+            status: 'accepted'
+          }).sort({ date: -1 });
+
+          let periodStart;
+
+          if (lastBooking) {
+            periodStart = getNextEligibleMonth(lastBooking.date, interval);
+
+            // Ensure we always look at a future (or current upcoming) period start
+            let safetyCounter = 0;
+            while (periodStart.getTime() < today.getTime() && safetyCounter < 24) {
+              const nextStart = getNextEligibleMonth(periodStart, interval);
+              if (nextStart.getTime() === periodStart.getTime()) {
+                break;
+              }
+
+              periodStart = nextStart;
+              safetyCounter += 1;
+            }
+          } else {
+            // If no booking yet, start reminders for the upcoming month
+            periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            periodStart.setHours(0, 0, 0, 0);
+
+            if (periodStart.getTime() < today.getTime()) {
+              periodStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+            }
           }
-        }
-        
-        if (alreadyBooked) continue;
-        
-        // Calculate reminder dates based on booking interval
-        let reminderDates = [];
-        let periodName = '';
-        
-        if (interval === 1) {
-          // Monthly customers: 2 weeks before, 1st of month, 15th of month
-          const twoWeeksBefore = new Date(nextEligiblePeriod);
-          twoWeeksBefore.setDate(twoWeeksBefore.getDate() - 14);
-          
-          const firstOfMonth = new Date(nextEligiblePeriod);
-          
-          const midMonth = new Date(nextEligiblePeriod);
-          midMonth.setDate(15);
-          
-          periodName = nextEligiblePeriod.toLocaleString('default', { month: 'long', year: 'numeric' });
-          
-          reminderDates = [
-            { date: twoWeeksBefore, type: 'early' },
-            { date: firstOfMonth, type: 'first' },
-            { date: midMonth, type: 'mid' }
-          ];
-        } else if (interval === 2) {
-          // Bi-monthly customers: 2 weeks before, 1st of month, 15th of month
-          const twoWeeksBefore = new Date(nextEligiblePeriod);
-          twoWeeksBefore.setDate(twoWeeksBefore.getDate() - 14);
-          
-          const firstOfMonth = new Date(nextEligiblePeriod);
-          
-          const midMonth = new Date(nextEligiblePeriod);
-          midMonth.setDate(15);
-          
-          periodName = nextEligiblePeriod.toLocaleString('default', { month: 'long', year: 'numeric' });
-          
-          reminderDates = [
-            { date: twoWeeksBefore, type: 'early' },
-            { date: firstOfMonth, type: 'first' },
-            { date: midMonth, type: 'mid' }
-          ];
-        } else if (interval === 3) {
-          // Quarterly customers: 2 weeks before quarter start, 1st of quarter, 15th of quarter
-          const quarterStartMonth = Math.floor(nextEligiblePeriod.getMonth() / 3) * 3;
-          const quarterStart = new Date(nextEligiblePeriod.getFullYear(), quarterStartMonth, 1);
-          
-          const twoWeeksBefore = new Date(quarterStart);
-          twoWeeksBefore.setDate(twoWeeksBefore.getDate() - 14);
-          
-          const firstOfQuarter = new Date(quarterStart);
-          
-          const midQuarter = new Date(quarterStart);
-          midQuarter.setDate(15);
-          
-          // Get quarter name (Q1, Q2, Q3, Q4)
-          const quarterNumber = Math.floor(quarterStartMonth / 3) + 1;
-          periodName = `Q${quarterNumber} ${quarterStart.getFullYear()}`;
-          
-          reminderDates = [
-            { date: twoWeeksBefore, type: 'early' },
-            { date: firstOfQuarter, type: 'first' },
-            { date: midQuarter, type: 'mid' }
-          ];
-        } else if (interval === 4) {
-          // 4 times per year customers: 2 weeks before, 1st of period, 15th of period
-          const periodStartMonth = Math.floor(nextEligiblePeriod.getMonth() / 3) * 3;
-          const periodStart = new Date(nextEligiblePeriod.getFullYear(), periodStartMonth, 1);
-          
+
+          periodStart.setHours(0, 0, 0, 0);
+
           const twoWeeksBefore = new Date(periodStart);
           twoWeeksBefore.setDate(twoWeeksBefore.getDate() - 14);
-          
+          twoWeeksBefore.setHours(0, 0, 0, 0);
+
           const firstOfPeriod = new Date(periodStart);
-          
-          const midPeriod = new Date(periodStart);
-          midPeriod.setDate(15);
-          
-          // Get period name (Jan-Apr-Jul-Oct)
-          const periodNames = ['Jan', 'Apr', 'Jul', 'Oct'];
-          const periodIndex = Math.floor(periodStartMonth / 3);
-          periodName = `${periodNames[periodIndex]} ${periodStart.getFullYear()}`;
-          
-          reminderDates = [
-            { date: twoWeeksBefore, type: 'early' },
-            { date: firstOfPeriod, type: 'first' },
-            { date: midPeriod, type: 'mid' }
-          ];
-        } else if (interval === 6) {
-          // 6 times per year customers: 2 weeks before, 1st of month, 15th of month
-          const twoWeeksBefore = new Date(nextEligiblePeriod);
-          twoWeeksBefore.setDate(twoWeeksBefore.getDate() - 14);
-          
-          const firstOfMonth = new Date(nextEligiblePeriod);
-          
-          const midMonth = new Date(nextEligiblePeriod);
-          midMonth.setDate(15);
-          
-          periodName = nextEligiblePeriod.toLocaleString('default', { month: 'long', year: 'numeric' });
-          
-          reminderDates = [
-            { date: twoWeeksBefore, type: 'early' },
-            { date: firstOfMonth, type: 'first' },
-            { date: midMonth, type: 'mid' }
-          ];
-        }
-        
-        // Send emails at the right times
-        for (const reminder of reminderDates) {
-          if (today.getTime() === reminder.date.getTime()) {
-            await EmailService.sendProactiveBookingReminder(customer.name, customer.email, periodName, reminder.type);
+          const tenthOfPeriod = new Date(periodStart);
+          tenthOfPeriod.setDate(10);
+          tenthOfPeriod.setHours(0, 0, 0, 0);
+
+          const fifteenthOfPeriod = new Date(periodStart);
+          fifteenthOfPeriod.setDate(15);
+          fifteenthOfPeriod.setHours(0, 0, 0, 0);
+
+          // Determine if the customer already has an accepted booking for this period
+          let alreadyBooked = false;
+          const periodYear = periodStart.getFullYear();
+          const periodMonth = periodStart.getMonth();
+
+          const hasBookingForPeriod = async () => {
+            if (interval === 1) {
+              return await hasBookingForMonth(customer._id, periodYear, periodMonth);
+            } else if (interval === 2 || interval === 6) {
+              let booked = await hasBookingForMonth(customer._id, periodYear, periodMonth);
+
+              if (!booked) {
+                const secondMonth = new Date(periodYear, periodMonth + 1, 1);
+                booked = await hasBookingForMonth(customer._id, secondMonth.getFullYear(), secondMonth.getMonth());
+              }
+
+              return booked;
+            } else if (interval === 3 || interval === 4) {
+              const quarterStartMonth = Math.floor(periodMonth / 3) * 3;
+              return await hasBookingForQuarter(customer._id, periodYear, quarterStartMonth);
+            }
+
+            return await hasBookingForMonth(customer._id, periodYear, periodMonth);
+          };
+
+          if (await hasBookingForPeriod()) {
+            continue;
           }
+
+          const periodName = this.getPeriodNameFromStart(periodStart, interval);
+
+          if (today.getTime() === twoWeeksBefore.getTime()) {
+            await EmailService.sendProactiveBookingReminder(
+              customer.name,
+              customer.email,
+              periodName,
+              'two-weeks-before'
+            );
+            console.log(`✅ Sent two-weeks reminder to ${customer.name} for ${periodName}`);
+          }
+
+          if (today.getTime() === firstOfPeriod.getTime() && !(await hasBookingForPeriod())) {
+            await EmailService.sendProactiveBookingReminder(
+              customer.name,
+              customer.email,
+              periodName,
+              'period-start'
+            );
+            console.log(`✅ Sent period-start reminder to ${customer.name} for ${periodName}`);
+          }
+
+          if (today.getTime() === tenthOfPeriod.getTime() && !(await hasBookingForPeriod())) {
+            await EmailService.sendProactiveBookingReminder(
+              customer.name,
+              customer.email,
+              periodName,
+              'day-10'
+            );
+            console.log(`✅ Sent day-10 reminder to ${customer.name} for ${periodName}`);
+          }
+
+          if (today.getTime() === fifteenthOfPeriod.getTime() && !(await hasBookingForPeriod())) {
+            await EmailService.sendProactiveBookingReminder(
+              customer.name,
+              customer.email,
+              periodName,
+              'day-15'
+            );
+            console.log(`✅ Sent day-15 reminder to ${customer.name} for ${periodName}`);
+          }
+        } catch (error) {
+          console.error(`Failed to send proactive reminder to ${customer.name}:`, error);
         }
       }
     } catch (error) {

@@ -409,8 +409,40 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
     
     res.json(populatedBooking);
 
-    // Send email notification based on status
+    // Automatically block the booked date so it cannot be double-booked
     if (status === 'accepted') {
+      try {
+        const bookingDay = new Date(booking.date);
+        const dayStart = new Date(bookingDay);
+        dayStart.setHours(0, 0, 0, 0);
+
+        const dayEnd = new Date(dayStart);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const existingBlock = await BlockedDate.findOne({
+          date: { $gte: dayStart, $lte: dayEnd },
+        });
+
+        if (!existingBlock) {
+          const automaticBlock = new BlockedDate({
+            date: dayStart,
+            bookingId: booking._id,
+            isManualBlock: false,
+          });
+
+          await automaticBlock.save();
+          console.log(`🔒 Automatically blocked ${dayStart.toISOString().split('T')[0]} for booking ${booking._id}`);
+        } else if (!existingBlock.bookingId) {
+          existingBlock.bookingId = booking._id;
+          existingBlock.isManualBlock = false;
+          await existingBlock.save();
+          console.log(`🔒 Updated existing block for ${existingBlock.date.toISOString().split('T')[0]} with booking ${booking._id}`);
+        }
+      } catch (blockError) {
+        console.error('❌ Error creating automatic blocked date:', blockError);
+      }
+
+      // Send email notification based on status
       // Send booking accepted email asynchronously
       (async () => {
         const customer = await User.findById(booking.customer);
