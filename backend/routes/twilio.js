@@ -49,10 +49,10 @@ const getTwilioCredentials = () => {
   throw new Error('Twilio credentials not configured. Please set either TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET (recommended) or TWILIO_AUTH_TOKEN in environment variables.');
 };
 
-// Create CI transcript from recording
+// Create CI transcript from recording (with Auth Token fallback)
 const createTranscriptFromRecording = async (recordingSid) => {
   try {
-    const { username, password } = getTwilioCredentials();
+    let credentials = getTwilioCredentials();
     const viServiceSid = process.env.TWILIO_VI_SERVICE_SID;
     
     if (!viServiceSid) {
@@ -71,62 +71,144 @@ const createTranscriptFromRecording = async (recordingSid) => {
     
     console.log(`📝 Creating CI transcript from recording: ${recordingSid}`);
     
-    const response = await axios.post(url, body, {
-      auth: { 
-        username: username, 
-        password: password 
-      },
-      headers: { 
-        'Content-Type': 'application/x-www-form-urlencoded' 
-      },
-    });
-    
-    console.log(`✅ CI transcript created: ${response.data.sid}`);
-    return response.data;
+    try {
+      const response = await axios.post(url, body, {
+        auth: { 
+          username: credentials.username, 
+          password: credentials.password 
+        },
+        headers: { 
+          'Content-Type': 'application/x-www-form-urlencoded' 
+        },
+      });
+      
+      console.log(`✅ CI transcript created: ${response.data.sid}`);
+      return response.data;
+    } catch (error) {
+      // Fallback to Auth Token if API Keys fail
+      const isAuthError = error.response?.status === 401 || error.response?.status === 403;
+      const hasAuthToken = !!process.env.TWILIO_AUTH_TOKEN;
+      const wasUsingApiKey = credentials.usingApiKey;
+      
+      if (isAuthError && wasUsingApiKey && hasAuthToken) {
+        console.warn('⚠️ API Key failed for CI transcript, falling back to Auth Token...');
+        credentials = {
+          accountSid: credentials.accountSid,
+          username: credentials.accountSid,
+          password: process.env.TWILIO_AUTH_TOKEN,
+          usingApiKey: false
+        };
+        
+        const retryResponse = await axios.post(url, body, {
+          auth: { 
+            username: credentials.username, 
+            password: credentials.password 
+          },
+          headers: { 
+            'Content-Type': 'application/x-www-form-urlencoded' 
+          },
+        });
+        
+        console.log(`✅ CI transcript created (using Auth Token fallback): ${retryResponse.data.sid}`);
+        return retryResponse.data;
+      }
+      throw error;
+    }
   } catch (error) {
     console.error('Error creating CI transcript:', error.response?.data || error.message);
     throw error;
   }
 };
 
-// Fetch Conversation Summary from CI OperatorResults
+// Fetch Conversation Summary from CI OperatorResults (with Auth Token fallback)
 const fetchConversationSummary = async (transcriptSid) => {
   try {
-    const { username, password } = getTwilioCredentials();
+    let credentials = getTwilioCredentials();
     const operatorUrl = `https://intelligence.twilio.com/v2/Transcripts/${transcriptSid}/OperatorResults?Redacted=false`;
     
-    const response = await axios.get(operatorUrl, {
-      auth: { username, password }
-    });
-    
-    const results = response.data?.operator_results || [];
-    
-    // Find Conversation Summary operator
-    let summary = null;
-    for (const r of results) {
-      if (r.name && r.name.toLowerCase().includes('conversation summary')) {
-        summary = r;
-        break;
-      }
-    }
-    
-    // Fallback: Look for text-generation operator
-    if (!summary) {
+    try {
+      const response = await axios.get(operatorUrl, {
+        auth: { username: credentials.username, password: credentials.password }
+      });
+      
+      const results = response.data?.operator_results || [];
+      
+      // Find Conversation Summary operator
+      let summary = null;
       for (const r of results) {
-        if (r.operator_type === 'text-generation' && r.text_generation_results?.result) {
+        if (r.name && r.name.toLowerCase().includes('conversation summary')) {
           summary = r;
           break;
         }
       }
+      
+      // Fallback: Look for text-generation operator
+      if (!summary) {
+        for (const r of results) {
+          if (r.operator_type === 'text-generation' && r.text_generation_results?.result) {
+            summary = r;
+            break;
+          }
+        }
+      }
+      
+      // Extract text from summary
+      let text = null;
+      if (summary?.text_generation_results?.result) {
+        text = String(summary.text_generation_results.result).trim();
+      }
+      
+      return { summary: text, raw: results };
+    } catch (error) {
+      // Fallback to Auth Token if API Keys fail
+      const isAuthError = error.response?.status === 401 || error.response?.status === 403;
+      const hasAuthToken = !!process.env.TWILIO_AUTH_TOKEN;
+      const wasUsingApiKey = credentials.usingApiKey;
+      
+      if (isAuthError && wasUsingApiKey && hasAuthToken) {
+        console.warn('⚠️ API Key failed for conversation summary, falling back to Auth Token...');
+        credentials = {
+          accountSid: credentials.accountSid,
+          username: credentials.accountSid,
+          password: process.env.TWILIO_AUTH_TOKEN,
+          usingApiKey: false
+        };
+        
+        const retryResponse = await axios.get(operatorUrl, {
+          auth: { username: credentials.username, password: credentials.password }
+        });
+        
+        const results = retryResponse.data?.operator_results || [];
+        
+        // Find Conversation Summary operator
+        let summary = null;
+        for (const r of results) {
+          if (r.name && r.name.toLowerCase().includes('conversation summary')) {
+            summary = r;
+            break;
+          }
+        }
+        
+        // Fallback: Look for text-generation operator
+        if (!summary) {
+          for (const r of results) {
+            if (r.operator_type === 'text-generation' && r.text_generation_results?.result) {
+              summary = r;
+              break;
+            }
+          }
+        }
+        
+        // Extract text from summary
+        let text = null;
+        if (summary?.text_generation_results?.result) {
+          text = String(summary.text_generation_results.result).trim();
+        }
+        
+        return { summary: text, raw: results };
+      }
+      throw error;
     }
-    
-    // Extract text from summary
-    let text = null;
-    if (summary?.text_generation_results?.result) {
-      text = String(summary.text_generation_results.result).trim();
-    }
-    
-    return { summary: text, raw: results };
   } catch (error) {
     console.error('Error fetching conversation summary:', error.message);
     throw error;
@@ -330,18 +412,29 @@ const detectAppointmentBooked = async (summaryText) => {
   return detectAppointmentBookedWithKeywords(summaryText);
 };
 
-// Helper to make Twilio API requests
-const twilioRequest = async (method, endpoint, formData = null) => {
-  const { accountSid, username, password } = getTwilioCredentials();
-  const baseUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}`;
+// Helper to make Twilio API requests with fallback to Auth Token if API Keys fail
+const twilioRequest = async (method, endpoint, formData = null, retryWithAuthToken = true) => {
+  let credentials = getTwilioCredentials();
+  const baseUrl = `https://api.twilio.com/2010-04-01/Accounts/${credentials.accountSid}`;
+  
+  // Detailed logging for debugging authentication issues
+  console.log('🔐 Twilio API Request:', {
+    method,
+    endpoint,
+    accountSid: `${credentials.accountSid.substring(0, 4)}...`,
+    username: `${credentials.username.substring(0, 4)}...`,
+    passwordLength: credentials.password?.length || 0,
+    usingApiKey: credentials.usingApiKey,
+    url: `${baseUrl}${endpoint}`
+  });
   
   try {
     const config = {
       method,
       url: `${baseUrl}${endpoint}`,
       auth: {
-        username: username, // API Key SID (if using API Keys) or Account SID (if using Auth Token)
-        password: password, // API Key Secret (if using API Keys) or Auth Token (if using Auth Token)
+        username: credentials.username, // API Key SID (if using API Keys) or Account SID (if using Auth Token)
+        password: credentials.password, // API Key Secret (if using API Keys) or Auth Token (if using Auth Token)
       },
     };
     
@@ -353,9 +446,80 @@ const twilioRequest = async (method, endpoint, formData = null) => {
     }
     
     const response = await axios(config);
+    console.log(`✅ Twilio API success: ${method} ${endpoint} (using ${credentials.usingApiKey ? 'API Key' : 'Auth Token'})`);
     return response.data;
   } catch (error) {
-    console.error('Twilio API error:', error.response?.data || error.message);
+    // If API Keys failed with 401/403 and we have Auth Token available, try fallback
+    const isAuthError = error.response?.status === 401 || error.response?.status === 403;
+    const hasAuthToken = !!process.env.TWILIO_AUTH_TOKEN;
+    const wasUsingApiKey = credentials.usingApiKey;
+    
+    if (isAuthError && retryWithAuthToken && wasUsingApiKey && hasAuthToken) {
+      console.warn('⚠️ API Key authentication failed, falling back to Auth Token...');
+      console.log('🔄 Retrying with Auth Token:', {
+        method,
+        endpoint,
+        accountSid: `${credentials.accountSid.substring(0, 4)}...`
+      });
+      
+      // Retry with Auth Token
+      credentials = {
+        accountSid: credentials.accountSid,
+        username: credentials.accountSid, // Use Account SID as username for Auth Token
+        password: process.env.TWILIO_AUTH_TOKEN, // Use Auth Token as password
+        usingApiKey: false
+      };
+      
+      try {
+        const retryConfig = {
+          method,
+          url: `${baseUrl}${endpoint}`,
+          auth: {
+            username: credentials.username,
+            password: credentials.password,
+          },
+        };
+        
+        if (formData && method === 'POST') {
+          retryConfig.headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          };
+          retryConfig.data = formData;
+        }
+        
+        const retryResponse = await axios(retryConfig);
+        console.log(`✅ Twilio API success: ${method} ${endpoint} (using Auth Token fallback)`);
+        return retryResponse.data;
+      } catch (retryError) {
+        console.error('❌ Twilio API error (Auth Token fallback also failed):', {
+          method,
+          endpoint,
+          status: retryError.response?.status,
+          statusText: retryError.response?.statusText,
+          data: retryError.response?.data,
+          message: retryError.message
+        });
+        throw retryError;
+      }
+    }
+    
+    // Log the original error
+    console.error('❌ Twilio API error:', {
+      method,
+      endpoint,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message,
+      accountSid: `${credentials.accountSid.substring(0, 4)}...`,
+      usingApiKey: credentials.usingApiKey,
+      triedFallback: isAuthError && wasUsingApiKey && hasAuthToken,
+      // Don't log actual credentials, but log their presence
+      hasUsername: !!credentials.username,
+      hasPassword: !!credentials.password,
+      usernameLength: credentials.username?.length,
+      passwordLength: credentials.password?.length
+    });
     throw error;
   }
 };
@@ -388,17 +552,32 @@ router.get('/numbers', authenticateToken, authorizeRole(['admin']), async (req, 
       console.log('🔍 Twilio credentials check:', {
         hasAccountSid: !!process.env.TWILIO_ACCOUNT_SID,
         accountSidLength: process.env.TWILIO_ACCOUNT_SID?.length,
-        accountSidPrefix: process.env.TWILIO_ACCOUNT_SID?.substring(0, 2),
+        accountSidPrefix: process.env.TWILIO_ACCOUNT_SID?.substring(0, 4),
+        accountSidFull: process.env.TWILIO_ACCOUNT_SID, // Log full value for debugging
         hasApiKey: !!(process.env.TWILIO_API_KEY_SID && process.env.TWILIO_API_KEY_SECRET),
         apiKeySidLength: process.env.TWILIO_API_KEY_SID?.length,
-        apiKeySidPrefix: process.env.TWILIO_API_KEY_SID?.substring(0, 2),
+        apiKeySidPrefix: process.env.TWILIO_API_KEY_SID?.substring(0, 4),
+        apiKeySidFull: process.env.TWILIO_API_KEY_SID, // Log full value for debugging
         apiKeySecretLength: process.env.TWILIO_API_KEY_SECRET?.length,
+        apiKeySecretPrefix: process.env.TWILIO_API_KEY_SECRET?.substring(0, 4), // First 4 chars only
         hasAuthToken: !!process.env.TWILIO_AUTH_TOKEN,
         usingApiKey: credentials.usingApiKey,
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        backendUrl: process.env.BACKEND_URL || 'NOT SET',
+        railwayDomain: process.env.RAILWAY_PUBLIC_DOMAIN || 'NOT SET'
       });
     } catch (credError) {
       console.error('❌ Twilio credentials not configured:', credError.message);
+      const missingVars = [];
+      if (!process.env.TWILIO_ACCOUNT_SID) missingVars.push('TWILIO_ACCOUNT_SID');
+      if (!process.env.TWILIO_API_KEY_SID && !process.env.TWILIO_AUTH_TOKEN) {
+        if (!process.env.TWILIO_API_KEY_SID) missingVars.push('TWILIO_API_KEY_SID');
+        if (!process.env.TWILIO_API_KEY_SECRET && !process.env.TWILIO_AUTH_TOKEN) {
+          missingVars.push('TWILIO_API_KEY_SECRET or TWILIO_AUTH_TOKEN');
+        }
+      }
+      
+      console.error('❌ Missing environment variables:', missingVars);
       console.error('❌ Available env vars:', {
         TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? `${process.env.TWILIO_ACCOUNT_SID.substring(0, 4)}...` : 'NOT SET',
         TWILIO_API_KEY_SID: process.env.TWILIO_API_KEY_SID ? `${process.env.TWILIO_API_KEY_SID.substring(0, 4)}...` : 'NOT SET',
@@ -408,6 +587,7 @@ router.get('/numbers', authenticateToken, authorizeRole(['admin']), async (req, 
       return res.status(500).json({ 
         error: 'Twilio credentials not configured',
         details: credError.message,
+        missing: missingVars,
         help: 'Please set either TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET (recommended) or TWILIO_AUTH_TOKEN in environment variables.'
       });
     }
@@ -1927,6 +2107,55 @@ function formatDuration(seconds) {
     return `${secs}s`;
   }
 }
+
+// GET /api/twilio/test-credentials - Test Twilio credentials (admin only, for debugging)
+router.get('/test-credentials', authenticateToken, authorizeRole(['admin']), (req, res) => {
+  try {
+    const credentials = getTwilioCredentials();
+    
+    // Try to make a simple API call to verify credentials work
+    return twilioRequest('GET', '/IncomingPhoneNumbers.json?PageSize=1')
+      .then(() => {
+        res.json({
+          success: true,
+          message: 'Twilio credentials are valid and working',
+          credentials: {
+            hasAccountSid: !!credentials.accountSid,
+            accountSidPrefix: credentials.accountSid?.substring(0, 4),
+            usingApiKey: credentials.usingApiKey,
+            hasUsername: !!credentials.username,
+            hasPassword: !!credentials.password
+          }
+        });
+      })
+      .catch((error) => {
+        res.status(500).json({
+          success: false,
+          message: 'Twilio credentials test failed',
+          error: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+          credentials: {
+            hasAccountSid: !!credentials.accountSid,
+            accountSidPrefix: credentials.accountSid?.substring(0, 4),
+            usingApiKey: credentials.usingApiKey
+          }
+        });
+      });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get Twilio credentials',
+      error: error.message,
+      env: {
+        TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? `${process.env.TWILIO_ACCOUNT_SID.substring(0, 4)}...` : 'NOT SET',
+        TWILIO_API_KEY_SID: process.env.TWILIO_API_KEY_SID ? `${process.env.TWILIO_API_KEY_SID.substring(0, 4)}...` : 'NOT SET',
+        TWILIO_API_KEY_SECRET: process.env.TWILIO_API_KEY_SECRET ? 'SET' : 'NOT SET',
+        TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN ? 'SET' : 'NOT SET'
+      }
+    });
+  }
+});
 
 // GET /api/twilio/ai-status - Check if AI detection is enabled (admin only)
 router.get('/ai-status', authenticateToken, authorizeRole(['admin']), (req, res) => {
