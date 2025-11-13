@@ -47,3 +47,4 @@ insightsSchema.index({ locationId: 1, 'range.start': 1, 'range.end': 1 });
 
 module.exports = mongoose.model('Insights', insightsSchema);
 
+

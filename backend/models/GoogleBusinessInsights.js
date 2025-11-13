@@ -67,3 +67,4 @@ GoogleBusinessInsightsSchema.index({ customerId: 1, date: -1 });
 
 module.exports = mongoose.model('GoogleBusinessInsights', GoogleBusinessInsightsSchema);
 
+

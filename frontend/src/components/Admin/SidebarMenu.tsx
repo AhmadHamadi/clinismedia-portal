@@ -84,6 +84,7 @@ const SidebarMenu = () => {
     { label: "Manage Google Ads", path: "/admin/google-ads" },
     { label: "Manage Google Business", path: "/admin/google-business" },
     { label: "Manage Facebook", path: "/admin/facebook" },
+    { label: "Manage Twilio", path: "/admin/twilio" },
     { label: "Manage Instagram Insights", path: "/admin/instagram-insights" },
     { label: "Manage Gallery Edits", path: "/admin/gallery" },
     { label: "Manage Shared Folder", path: "/admin/shared-folders" },

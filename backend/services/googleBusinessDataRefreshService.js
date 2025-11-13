@@ -18,9 +18,12 @@ class GoogleBusinessDataRefreshService {
       console.log('🔄 Starting daily Google Business Profile data refresh...');
       
       // Get all customers with Google Business Profile connected
+      // Only include customers who have both access token and refresh token, and are not marked as needing re-auth
       const customers = await User.find({
         googleBusinessProfileId: { $exists: true, $ne: null },
-        googleBusinessAccessToken: { $exists: true, $ne: null }
+        googleBusinessAccessToken: { $exists: true, $ne: null },
+        googleBusinessRefreshToken: { $exists: true, $ne: null },
+        googleBusinessNeedsReauth: { $ne: true } // Skip customers already marked as needing re-auth
       });
 
       console.log(`📊 Found ${customers.length} customers with Google Business Profile connected`);
@@ -47,6 +50,16 @@ class GoogleBusinessDataRefreshService {
       for (const customer of customers) {
         try {
           console.log(`🔄 Refreshing data for ${customer.name} (${customer.googleBusinessProfileName})`);
+          
+          // Validate that refresh token exists
+          if (!customer.googleBusinessRefreshToken) {
+            console.error(`⚠️ No refresh token found for ${customer.name}. Marking as needing re-authentication.`);
+            await User.findByIdAndUpdate(customer._id, {
+              googleBusinessNeedsReauth: true
+            });
+            errorCount++;
+            continue; // Skip this customer
+          }
           
           // Set up OAuth client for this customer
           oauth2Client.setCredentials({
@@ -80,13 +93,21 @@ class GoogleBusinessDataRefreshService {
               console.log(`✅ Token refreshed for ${customer.name}`);
             } catch (refreshError) {
               console.error(`❌ Token refresh failed for ${customer.name}:`, refreshError.message);
+              console.error(`❌ Refresh error details:`, refreshError.response?.data || refreshError.message);
               
-              if (refreshError.message?.includes('invalid_grant')) {
+              // Handle invalid_grant error (expired/revoked refresh token)
+              if (refreshError.message?.includes('invalid_grant') || 
+                  refreshError.response?.data?.error === 'invalid_grant') {
                 // Mark customer as needing re-auth
                 await User.findByIdAndUpdate(customer._id, {
                   googleBusinessNeedsReauth: true
                 });
-                console.log(`⚠️ Marked ${customer.name} as needing re-authentication`);
+                console.log(`⚠️ Marked ${customer.name} as needing re-authentication (refresh token expired or revoked)`);
+                errorCount++;
+              } else {
+                // Other errors (network, API, etc.)
+                console.error(`⚠️ Token refresh failed for ${customer.name} due to: ${refreshError.message}`);
+                errorCount++;
               }
               continue; // Skip this customer
             }
