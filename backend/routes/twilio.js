@@ -367,6 +367,51 @@ const twilioRequest = async (method, endpoint, formData = null) => {
 // GET /api/twilio/numbers - List all available Twilio phone numbers (admin only)
 router.get('/numbers', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
+    // Check if Twilio credentials are configured
+    let credentials;
+    try {
+      credentials = getTwilioCredentials();
+      
+      // Validate credential format
+      const accountSidPattern = /^AC[a-f0-9]{32}$/i;
+      if (!accountSidPattern.test(process.env.TWILIO_ACCOUNT_SID)) {
+        console.warn('⚠️ TWILIO_ACCOUNT_SID format may be invalid (should start with AC and be 34 chars)');
+      }
+      
+      if (credentials.usingApiKey) {
+        const apiKeyPattern = /^SK[a-f0-9]{32}$/i;
+        if (!apiKeyPattern.test(process.env.TWILIO_API_KEY_SID)) {
+          console.warn('⚠️ TWILIO_API_KEY_SID format may be invalid (should start with SK and be 34 chars)');
+        }
+      }
+      
+      console.log('🔍 Twilio credentials check:', {
+        hasAccountSid: !!process.env.TWILIO_ACCOUNT_SID,
+        accountSidLength: process.env.TWILIO_ACCOUNT_SID?.length,
+        accountSidPrefix: process.env.TWILIO_ACCOUNT_SID?.substring(0, 2),
+        hasApiKey: !!(process.env.TWILIO_API_KEY_SID && process.env.TWILIO_API_KEY_SECRET),
+        apiKeySidLength: process.env.TWILIO_API_KEY_SID?.length,
+        apiKeySidPrefix: process.env.TWILIO_API_KEY_SID?.substring(0, 2),
+        apiKeySecretLength: process.env.TWILIO_API_KEY_SECRET?.length,
+        hasAuthToken: !!process.env.TWILIO_AUTH_TOKEN,
+        usingApiKey: credentials.usingApiKey,
+        environment: process.env.NODE_ENV || 'development'
+      });
+    } catch (credError) {
+      console.error('❌ Twilio credentials not configured:', credError.message);
+      console.error('❌ Available env vars:', {
+        TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? `${process.env.TWILIO_ACCOUNT_SID.substring(0, 4)}...` : 'NOT SET',
+        TWILIO_API_KEY_SID: process.env.TWILIO_API_KEY_SID ? `${process.env.TWILIO_API_KEY_SID.substring(0, 4)}...` : 'NOT SET',
+        TWILIO_API_KEY_SECRET: process.env.TWILIO_API_KEY_SECRET ? 'SET' : 'NOT SET',
+        TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN ? 'SET' : 'NOT SET'
+      });
+      return res.status(500).json({ 
+        error: 'Twilio credentials not configured',
+        details: credError.message,
+        help: 'Please set either TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET (recommended) or TWILIO_AUTH_TOKEN in environment variables.'
+      });
+    }
+    
     const numbers = await twilioRequest('GET', '/IncomingPhoneNumbers.json');
     
     const formattedNumbers = numbers.incoming_phone_numbers.map(num => ({
@@ -398,12 +443,32 @@ router.get('/numbers', authenticateToken, authorizeRole(['admin']), async (req, 
       }
     });
     
+    console.log(`✅ Successfully fetched ${formattedNumbers.length} Twilio phone numbers`);
     res.json({ numbers: formattedNumbers });
   } catch (error) {
-    console.error('Error fetching Twilio numbers:', error);
+    console.error('❌ Error fetching Twilio numbers:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    
+    // Provide more helpful error messages
+    let errorMessage = 'Failed to fetch Twilio phone numbers';
+    let errorDetails = error.message;
+    
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      errorMessage = 'Twilio authentication failed';
+      errorDetails = 'Invalid Twilio credentials. Please check your TWILIO_ACCOUNT_SID and authentication method (API Key or Auth Token).';
+    } else if (error.response?.status === 404) {
+      errorMessage = 'Twilio account not found';
+      errorDetails = 'The Twilio Account SID does not exist or is incorrect.';
+    }
+    
     res.status(500).json({ 
-      error: 'Failed to fetch Twilio phone numbers',
-      details: error.message 
+      error: errorMessage,
+      details: errorDetails,
+      help: 'Please verify your Twilio credentials are set correctly in environment variables.'
     });
   }
 });

@@ -5,10 +5,10 @@ const authorizeRole = require('../middleware/authorizeRole');
 const User = require('../models/User');
 const GoogleBusinessInsights = require('../models/GoogleBusinessInsights');
 const { google } = require('googleapis');
+const axios = require('axios');
 
 // Helper function to fetch business insights data with batching for long ranges
 async function fetchBusinessInsightsData(oauth2Client, locationName, startDate, endDate, accessToken) {
-  const axios = require('axios');
   
   // Convert dates to Date objects for range calculation
   const start = new Date(startDate + 'T00:00:00Z');
@@ -171,11 +171,25 @@ function assertGbpCall({ locationId, start, end, metrics }) {
 
 // OAuth 2.0 configuration
 const backendPort = process.env.PORT || 5000;
-const backendUrl = process.env.BACKEND_URL || `http://localhost:${backendPort}`;
+// Use RAILWAY_PUBLIC_DOMAIN if available (Railway provides this), otherwise use BACKEND_URL
+const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
+  ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+  : (process.env.BACKEND_URL || `http://localhost:${backendPort}`);
+// Ensure redirect URI is properly set - must match Google Cloud Console configuration
+const redirectUri = process.env.GOOGLE_BUSINESS_REDIRECT_URI || `${backendUrl}/api/google-business/callback`;
+
+console.log('🔧 Google Business OAuth Configuration:', {
+  backendUrl,
+  redirectUri,
+  hasClientId: !!process.env.GOOGLE_BUSINESS_CLIENT_ID,
+  hasClientSecret: !!process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
+  railwayDomain: process.env.RAILWAY_PUBLIC_DOMAIN
+});
+
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_BUSINESS_CLIENT_ID,
   process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
-  process.env.GOOGLE_BUSINESS_REDIRECT_URI || `${backendUrl}/api/google-business/callback`
+  redirectUri
 );
 
 // OAuth scopes for Google Business Profile
@@ -183,22 +197,59 @@ const SCOPES = [
   'https://www.googleapis.com/auth/business.manage'
 ];
 
+// Helper: Get fresh access token from refresh token (direct API call - doesn't require redirect URI match)
+// This fixes the issue where tokens authorized with localhost fail to refresh in production
+async function refreshGoogleBusinessToken(refreshToken) {
+  try {
+    const response = await axios.post('https://oauth2.googleapis.com/token', {
+      client_id: process.env.GOOGLE_BUSINESS_CLIENT_ID,
+      client_secret: process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    });
+    
+    return {
+      access_token: response.data.access_token,
+      refresh_token: response.data.refresh_token || refreshToken, // Use new if provided, otherwise keep old
+      expires_in: response.data.expires_in,
+    };
+  } catch (error) {
+    console.error('❌ Direct token refresh failed:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    throw error;
+  }
+}
+
 // GET /api/google-business/auth/admin - Initiate OAuth flow for admin (info@clinimedia.ca)
 router.get('/auth/admin', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    // Generate OAuth URL for admin account
+    // Check if required environment variables are set
+    if (!process.env.GOOGLE_BUSINESS_CLIENT_ID) {
+      console.error('❌ GOOGLE_BUSINESS_CLIENT_ID is not set');
+      return res.status(500).json({ error: 'Google Business Client ID is not configured. Please add GOOGLE_BUSINESS_CLIENT_ID to environment variables.' });
+    }
+    if (!process.env.GOOGLE_BUSINESS_CLIENT_SECRET) {
+      console.error('❌ GOOGLE_BUSINESS_CLIENT_SECRET is not set');
+      return res.status(500).json({ error: 'Google Business Client Secret is not configured. Please add GOOGLE_BUSINESS_CLIENT_SECRET to environment variables.' });
+    }
+    
+    // Use the same redirect URI logic
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: SCOPES,
       state: 'admin', // Use 'admin' as state for admin OAuth
       prompt: 'consent', // Force consent screen to get refresh token
-      redirect_uri: process.env.GOOGLE_BUSINESS_REDIRECT_URI || `${backendUrl}/api/google-business/callback`
+      redirect_uri: redirectUri
     });
 
+    console.log('✅ OAuth URL generated successfully');
     res.json({ authUrl });
   } catch (error) {
-    console.error('OAuth URL generation error:', error);
-    res.status(500).json({ error: 'Failed to generate OAuth URL' });
+    console.error('❌ OAuth URL generation error:', error);
+    res.status(500).json({ error: 'Failed to generate OAuth URL', details: error.message });
   }
 });
 
@@ -207,13 +258,13 @@ router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), async
   try {
     const { clinicId } = req.params;
     
-    // Generate OAuth URL with frontend redirect
+    // Use the same redirect URI logic as admin auth
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: SCOPES,
       state: clinicId, // Pass clinic ID in state
       prompt: 'consent', // Force consent screen to get refresh token
-      redirect_uri: process.env.GOOGLE_BUSINESS_REDIRECT_URI || `${backendUrl}/api/google-business/callback`
+      redirect_uri: redirectUri
     });
 
     res.json({ authUrl });
@@ -722,26 +773,43 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
     // Pre-call expiry guard: refresh if token expires within 60 seconds
     if (now > (expiresAt - refreshThreshold)) {
       console.log('🔄 Token expires soon, refreshing proactively...');
+      
+      if (!customer.googleBusinessRefreshToken) {
+        console.error('❌ No refresh token available for customer');
+        await User.findByIdAndUpdate(customerId, {
+          googleBusinessNeedsReauth: true
+        });
+        return res.status(401).json({ 
+          error: 'Google Business Profile refresh token missing. Please ask your administrator to reconnect.',
+          requiresReauth: true
+        });
+      }
+      
       try {
-        const { credentials } = await oauth2Client.refreshAccessToken();
+        // Use direct token refresh (like Google Ads) - doesn't require redirect URI match
+        const refreshedTokens = await refreshGoogleBusinessToken(customer.googleBusinessRefreshToken);
         
         console.log('🔍 Refresh credentials received:', {
-          hasAccessToken: !!credentials.access_token,
-          hasRefreshToken: !!credentials.refresh_token,
-          expiresIn: credentials.expires_in,
-          expiresInType: typeof credentials.expires_in
+          hasAccessToken: !!refreshedTokens.access_token,
+          hasRefreshToken: !!refreshedTokens.refresh_token,
+          expiresIn: refreshedTokens.expires_in
         });
         
         // Update customer with new tokens and recompute expiry
         let newExpiry = null;
-        if (credentials.expires_in && !isNaN(Number(credentials.expires_in))) {
-          newExpiry = new Date(Date.now() + credentials.expires_in * 1000);
+        if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in))) {
+          newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
         }
         
         const updateData = {
-          googleBusinessAccessToken: credentials.access_token,
+          googleBusinessAccessToken: refreshedTokens.access_token,
           googleBusinessNeedsReauth: false // Clear reauth flag on successful refresh
         };
+        
+        // Preserve refresh token (use new if provided, otherwise keep existing)
+        if (refreshedTokens.refresh_token) {
+          updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
+        }
         
         if (newExpiry) {
           updateData.googleBusinessTokenExpiry = newExpiry;
@@ -749,15 +817,20 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
         
         await User.findByIdAndUpdate(customerId, updateData);
         
-        // Update our local credentials
-        oauth2Client.setCredentials(credentials);
-        console.log('✅ Token refreshed successfully, new expiry:', newExpiry);
+        // Update our local OAuth client credentials for API calls
+        oauth2Client.setCredentials({
+          access_token: refreshedTokens.access_token,
+          refresh_token: refreshedTokens.refresh_token || customer.googleBusinessRefreshToken
+        });
+        
+        console.log('✅ Token refreshed successfully using direct API call, new expiry:', newExpiry);
       } catch (refreshError) {
         console.error('❌ Token refresh failed:', refreshError.message);
         console.error('❌ Refresh error details:', refreshError.response?.data);
         
         // Handle refresh token rotation (invalid_grant)
-        if (refreshError.message?.includes('invalid_grant') || refreshError.response?.data?.error === 'invalid_grant') {
+        if (refreshError.response?.data?.error === 'invalid_grant' || 
+            refreshError.message?.includes('invalid_grant')) {
           // Mark customer as needing re-auth
           await User.findByIdAndUpdate(customerId, {
             googleBusinessNeedsReauth: true
@@ -774,7 +847,7 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
         
         return res.status(401).json({ 
           error: 'Google Business Profile token refresh failed. Please ask your administrator to reconnect.',
-          details: refreshError.message 
+          details: refreshError.response?.data?.error_description || refreshError.message 
         });
       }
     }
