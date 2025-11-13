@@ -14,6 +14,7 @@ import FacebookManagementPage from './FacebookManagement/FacebookManagementPage'
 import SharedFolderManagementPage from './SharedFolderManagement/SharedFolderManagementPage';
 import GoogleAdsManagementPage from './GoogleAdsManagement/GoogleAdsManagementPage';
 import GoogleBusinessManagementPage from './GoogleBusinessManagement/GoogleBusinessManagementPage';
+import TwilioManagementPage from './TwilioManagement/TwilioManagementPage';
 import InstagramInsightsManagementPage from './InstagramInsightsManagement/InstagramInsightsManagementPage';
 
 const AdminLayout = () => {
@@ -51,6 +52,7 @@ const AdminLayout = () => {
         <Route path="/shared-folders" element={<SharedFolderManagementPage />} />
           <Route path="/google-ads" element={<GoogleAdsManagementPage />} />
           <Route path="/google-business" element={<GoogleBusinessManagementPage />} />
+          <Route path="/twilio" element={<TwilioManagementPage />} />
           <Route path="/instagram-insights" element={<InstagramInsightsManagementPage />} />
         </Routes>
       </div>

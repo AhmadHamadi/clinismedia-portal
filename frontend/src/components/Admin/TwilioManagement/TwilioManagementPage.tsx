@@ -1,0 +1,496 @@
+import React, { useState } from 'react';
+import { FaPhone, FaSpinner, FaSyncAlt, FaCheckCircle, FaTimesCircle, FaUnlink, FaEdit, FaTimes } from 'react-icons/fa';
+import { useTwilioManagement, Customer, TwilioPhoneNumber } from './TwilioManagementLogic';
+import axios from 'axios';
+
+const TwilioManagementPage: React.FC = () => {
+  const {
+    customers,
+    phoneNumbers,
+    loading,
+    error,
+    connecting,
+    fetchCustomers,
+    fetchPhoneNumbers,
+    connectPhoneNumber,
+    disconnectPhoneNumber,
+    getTwilioStatus,
+  } = useTwilioManagement();
+
+  const [selectedConnections, setSelectedConnections] = useState<{ 
+    [customerId: string]: { 
+      phoneNumber: string; 
+      forwardNumber: string;
+      forwardNumberNew: string;
+      forwardNumberExisting: string;
+      menuMessage: string;
+    } 
+  }>({});
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [showMenuFields, setShowMenuFields] = useState(true); // Assume menu is enabled by default
+  const [editingMessage, setEditingMessage] = useState<string | null>(null); // Clinic ID being edited
+  const [editingMessageValue, setEditingMessageValue] = useState<string>('');
+  const [updatingMessage, setUpdatingMessage] = useState<string | null>(null);
+
+  const handleConnect = async (customer: Customer) => {
+    const connection = selectedConnections[customer._id];
+    if (!connection) {
+      setConnectError('Please select a phone number and enter at least one forward number');
+      return;
+    }
+
+    // At least one forward number must be provided
+    const forwardNum = connection.forwardNumber || connection.forwardNumberNew || connection.forwardNumberExisting;
+    if (!forwardNum) {
+      setConnectError('Please enter a forward number');
+      return;
+    }
+
+    try {
+      setConnectError(null);
+      await connectPhoneNumber(
+        customer._id, 
+        connection.phoneNumber, 
+        connection.forwardNumber || undefined,
+        connection.forwardNumberNew || undefined,
+        connection.forwardNumberExisting || undefined,
+        connection.menuMessage || undefined
+      );
+      setSelectedConnections(prev => {
+        const next = { ...prev };
+        delete next[customer._id];
+        return next;
+      });
+    } catch (err: any) {
+      setConnectError(err.message || 'Failed to connect phone number');
+    }
+  };
+
+  const handleDisconnect = async (customer: Customer) => {
+    if (window.confirm(`Are you sure you want to disconnect ${customer.twilioPhoneNumber} from ${customer.name}?`)) {
+      try {
+        await disconnectPhoneNumber(customer._id);
+      } catch (err) {
+        // Error is handled in the hook
+      }
+    }
+  };
+
+  const handlePhoneNumberChange = (customerId: string, phoneNumber: string) => {
+    // Get the customer to use their name in the default message
+    const customer = customers.find(c => c._id === customerId);
+    const defaultMessage = customer 
+      ? `Thank you for calling ${customer.name}. Press 1 for new patients, press 2 for existing patients.`
+      : '';
+    
+    setSelectedConnections(prev => ({
+      ...prev,
+      [customerId]: {
+        ...prev[customerId],
+        phoneNumber,
+        forwardNumber: prev[customerId]?.forwardNumber || '',
+        forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
+        forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
+        // Pre-fill with default message if not already set
+        menuMessage: prev[customerId]?.menuMessage || defaultMessage,
+      },
+    }));
+  };
+
+  const handleForwardNumberChange = (customerId: string, forwardNumber: string) => {
+    setSelectedConnections(prev => ({
+      ...prev,
+      [customerId]: {
+        ...prev[customerId],
+        phoneNumber: prev[customerId]?.phoneNumber || '',
+        forwardNumber,
+        forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
+        forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
+        menuMessage: prev[customerId]?.menuMessage || '',
+      },
+    }));
+  };
+
+  const handleForwardNumberNewChange = (customerId: string, forwardNumberNew: string) => {
+    setSelectedConnections(prev => ({
+      ...prev,
+      [customerId]: {
+        ...prev[customerId],
+        phoneNumber: prev[customerId]?.phoneNumber || '',
+        forwardNumber: prev[customerId]?.forwardNumber || '',
+        forwardNumberNew,
+        forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
+        menuMessage: prev[customerId]?.menuMessage || '',
+      },
+    }));
+  };
+
+  const handleForwardNumberExistingChange = (customerId: string, forwardNumberExisting: string) => {
+    setSelectedConnections(prev => ({
+      ...prev,
+      [customerId]: {
+        ...prev[customerId],
+        phoneNumber: prev[customerId]?.phoneNumber || '',
+        forwardNumber: prev[customerId]?.forwardNumber || '',
+        forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
+        forwardNumberExisting,
+        menuMessage: prev[customerId]?.menuMessage || '',
+      },
+    }));
+  };
+
+  const handleMenuMessageChange = (customerId: string, menuMessage: string) => {
+    setSelectedConnections(prev => ({
+      ...prev,
+      [customerId]: {
+        ...prev[customerId],
+        phoneNumber: prev[customerId]?.phoneNumber || '',
+        forwardNumber: prev[customerId]?.forwardNumber || '',
+        forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
+        forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
+        menuMessage,
+      },
+    }));
+  };
+
+  const handleEditMessage = (customer: Customer) => {
+    // Get the current message or generate default
+    const currentMessage = customer.twilioMenuMessage || `Thank you for calling ${customer.name}. Press 1 for new patients, press 2 for existing patients.`;
+    setEditingMessage(customer._id);
+    setEditingMessageValue(currentMessage);
+  };
+
+  const handleCancelEditMessage = () => {
+    setEditingMessage(null);
+    setEditingMessageValue('');
+  };
+
+  const handleSaveMessage = async (customerId: string) => {
+    try {
+      setUpdatingMessage(customerId);
+      const token = localStorage.getItem('adminToken');
+      
+      // If message is empty or just whitespace, send null to reset to default
+      const messageToSave = editingMessageValue.trim() || null;
+      
+      await axios.patch(
+        `${import.meta.env.VITE_API_BASE_URL}/twilio/update-message/${customerId}`,
+        { menuMessage: messageToSave },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Refresh customers to get updated message
+      await fetchCustomers();
+      setEditingMessage(null);
+      setEditingMessageValue('');
+    } catch (err: any) {
+      console.error('Failed to update message:', err);
+      alert(err.response?.data?.error || 'Failed to update message');
+    } finally {
+      setUpdatingMessage(null);
+    }
+  };
+
+  const availablePhoneNumbers = phoneNumbers.filter(num => !num.assigned);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <FaSpinner className="animate-spin text-4xl text-[#98c6d5] mx-auto mb-4" />
+          <p className="text-gray-600">Loading Twilio management...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4">
+      <div className="w-full mx-auto">
+        {/* Header */}
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center">
+            <FaPhone className="text-2xl text-[#98c6d5] mr-2" />
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">Twilio Call Management</h1>
+              <p className="text-xs text-gray-600">Connect phone numbers to clinics and manage call forwarding</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                fetchCustomers();
+                fetchPhoneNumbers();
+              }}
+              className="flex items-center px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm font-semibold hover:bg-gray-300"
+              title="Refresh customer list and phone numbers"
+            >
+              <FaSyncAlt className="mr-1 text-xs" /> Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-3 bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Phone Numbers Summary */}
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="bg-white rounded-lg shadow-md p-3">
+            <div className="text-xs text-gray-600">Total Phone Numbers</div>
+            <div className="text-lg font-bold text-gray-900">{phoneNumbers.length}</div>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-3">
+            <div className="text-xs text-gray-600">Available</div>
+            <div className="text-lg font-bold text-green-600">{availablePhoneNumbers.length}</div>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-3">
+            <div className="text-xs text-gray-600">Assigned</div>
+            <div className="text-lg font-bold text-blue-600">{phoneNumbers.filter(n => n.assigned).length}</div>
+          </div>
+        </div>
+
+        {/* Customers Table */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-200">
+            <h2 className="text-base font-semibold text-gray-900">Clinic Phone Number Assignments</h2>
+            <p className="text-xs text-gray-600 mt-1">
+              {customers.length} clinic{customers.length !== 1 ? 's' : ''} found
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full divide-y divide-gray-200" style={{ tableLayout: 'auto' }}>
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '15%' }}>
+                    Clinic
+                  </th>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '12%' }}>
+                    Location
+                  </th>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '15%' }}>
+                    Twilio Number
+                  </th>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '30%' }}>
+                    Forward Numbers
+                  </th>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '10%' }}>
+                    Status
+                  </th>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '10%' }}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {customers.map((customer) => {
+                  const status = getTwilioStatus(customer);
+                  const isConnecting = connecting === customer._id;
+                  
+                  return (
+                    <tr key={customer._id} className="hover:bg-gray-50">
+                      <td className="px-2 py-1.5" style={{ width: '15%' }}>
+                        <div>
+                          <div className="text-xs font-medium text-gray-900 truncate" title={customer.name}>{customer.name}</div>
+                          <div className="text-xs text-gray-500 truncate" title={customer.email}>{customer.email}</div>
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-gray-900 whitespace-nowrap" style={{ width: '12%' }}>
+                        {customer.location || 'N/A'}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-gray-900" style={{ width: '15%' }}>
+                        {status.connected ? (
+                          <span className="font-mono text-xs">{status.phoneNumber}</span>
+                        ) : (
+                          <select
+                            className="border rounded px-1.5 py-1 w-full text-xs"
+                            value={selectedConnections[customer._id]?.phoneNumber || customer.twilioPhoneNumber || ''}
+                            onChange={(e) => handlePhoneNumberChange(customer._id, e.target.value)}
+                            disabled={isConnecting || availablePhoneNumbers.length === 0}
+                          >
+                            <option value="">Select...</option>
+                            {availablePhoneNumbers.map((num) => (
+                              <option key={num.sid} value={num.phoneNumber}>
+                                {num.phoneNumber}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-gray-900" style={{ width: '30%' }}>
+                        {status.connected ? (
+                          <div className="space-y-1">
+                            <div className="font-mono text-xs truncate" title={customer.twilioForwardNumberNew || customer.twilioForwardNumberExisting || customer.twilioForwardNumber || 'N/A'}>
+                              {customer.twilioForwardNumberNew || customer.twilioForwardNumberExisting || customer.twilioForwardNumber || 'N/A'}
+                            </div>
+                            {editingMessage === customer._id ? (
+                              <div className="space-y-1">
+                                <textarea
+                                  className="border rounded px-1.5 py-1 w-full text-xs resize-none"
+                                  rows={3}
+                                  value={editingMessageValue}
+                                  onChange={(e) => setEditingMessageValue(e.target.value)}
+                                  disabled={updatingMessage === customer._id}
+                                  placeholder={`Thank you for calling ${customer.name}. Press 1 for new patients, press 2 for existing patients.`}
+                                />
+                                <p className="text-xs text-gray-500">
+                                  Leave empty to use default message with clinic name
+                                </p>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => handleSaveMessage(customer._id)}
+                                    disabled={updatingMessage === customer._id}
+                                    className="px-2 py-0.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
+                                  >
+                                    {updatingMessage === customer._id ? 'Saving...' : 'Save'}
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEditMessage}
+                                    disabled={updatingMessage === customer._id}
+                                    className="px-2 py-0.5 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400 disabled:bg-gray-200"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-start gap-1">
+                                <div className="flex-1 min-w-0">
+                                  <div 
+                                    className="text-xs text-gray-600 truncate" 
+                                    title={customer.twilioMenuMessage || `Thank you for calling ${customer.name}. Press 1 for new patients, press 2 for existing patients.`}
+                                  >
+                                    "{customer.twilioMenuMessage 
+                                      ? (customer.twilioMenuMessage.length > 40 ? customer.twilioMenuMessage.substring(0, 40) + '...' : customer.twilioMenuMessage)
+                                      : `Thank you for calling ${customer.name}. Press 1 for new patients, press 2 for existing patients.`.substring(0, 40) + '...'
+                                    }"
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleEditMessage(customer)}
+                                  className="flex-shrink-0 p-0.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                                  title="View and edit full message"
+                                >
+                                  <FaEdit className="text-xs" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <input
+                              type="text"
+                              placeholder="+14165551234"
+                              className="border rounded px-1.5 py-0.5 w-full text-xs font-mono"
+                              value={selectedConnections[customer._id]?.forwardNumber || selectedConnections[customer._id]?.forwardNumberNew || selectedConnections[customer._id]?.forwardNumberExisting || ''}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                handleForwardNumberChange(customer._id, value);
+                                handleForwardNumberNewChange(customer._id, value);
+                                handleForwardNumberExistingChange(customer._id, value);
+                              }}
+                              disabled={isConnecting}
+                            />
+                             <textarea
+                               placeholder="Custom message (optional)"
+                               className="border rounded px-1.5 py-0.5 w-full text-xs resize-none"
+                               rows={2}
+                               value={selectedConnections[customer._id]?.menuMessage || `Thank you for calling ${customer.name}. Press 1 for new patients, press 2 for existing patients.`}
+                               onChange={(e) => handleMenuMessageChange(customer._id, e.target.value)}
+                               disabled={isConnecting}
+                             />
+                             <p className="text-xs text-gray-500 mt-0.5">
+                               Default message includes clinic name. Edit as needed.
+                             </p>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 whitespace-nowrap" style={{ width: '10%' }}>
+                        {status.connected ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                            <FaCheckCircle className="mr-0.5 text-xs" /> Connected
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                            <FaTimesCircle className="mr-0.5 text-xs" /> Not Connected
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 whitespace-nowrap text-xs font-medium" style={{ width: '10%' }}>
+                        {status.connected ? (
+                          <button
+                            onClick={() => handleDisconnect(customer)}
+                            className="text-red-600 hover:text-red-900 text-xs"
+                            disabled={isConnecting}
+                            title="Disconnect"
+                          >
+                            <FaUnlink className="inline mr-0.5" /> Disconnect
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleConnect(customer)}
+                            disabled={
+                              isConnecting || 
+                              !selectedConnections[customer._id]?.phoneNumber || 
+                              (!selectedConnections[customer._id]?.forwardNumber && 
+                               !selectedConnections[customer._id]?.forwardNumberNew && 
+                               !selectedConnections[customer._id]?.forwardNumberExisting)
+                            }
+                            className="text-blue-600 hover:text-blue-900 disabled:text-gray-400 disabled:cursor-not-allowed text-xs"
+                            title="Connect"
+                          >
+                            {isConnecting ? (
+                              <>
+                                <FaSpinner className="inline mr-0.5 animate-spin" /> Connecting...
+                              </>
+                            ) : (
+                              'Connect'
+                            )}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {customers.length === 0 && (
+            <div className="text-center py-12">
+              <FaPhone className="text-4xl text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No clinics found</h3>
+              <p className="text-gray-500">Add some clinics first to manage their phone number connections.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Connect Error */}
+        {connectError && (
+          <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {connectError}
+          </div>
+        )}
+
+        {/* Instructions */}
+        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-blue-900 mb-3">How it works</h3>
+          <div className="space-y-2 text-sm text-blue-800">
+            <p>• <strong>Select Phone Number:</strong> Choose an available Twilio phone number from the dropdown.</p>
+            <p>• <strong>Enter Forward Number:</strong> Enter the clinic's phone number where calls should be forwarded (E.164 format: +1XXXXXXXXXX).</p>
+            <p>• <strong>Connect:</strong> Click "Connect" to assign the phone number to the clinic. Webhooks will be configured automatically.</p>
+            <p>• <strong>Disconnect:</strong> Click "Disconnect" to remove the phone number assignment from a clinic.</p>
+            <p>• <strong>Refresh:</strong> Use the refresh button to reload clinics and phone numbers.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TwilioManagementPage;
+

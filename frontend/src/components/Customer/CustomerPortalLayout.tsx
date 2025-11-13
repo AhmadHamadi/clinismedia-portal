@@ -13,6 +13,7 @@ import CustomerGalleryPage from './CustomerGalleryPage';
 import CustomerInvoicePage from './CustomerInvoicePage';
 import NotificationPage from './NotificationPage';
 import GoogleAdsPage from './GoogleAdsPage';
+import CallLogsPage from './CallLogsPage';
 import GoogleBusinessAnalyticsPage from './GoogleBusinessAnalyticsPage';
 
 const CustomerPortalLayout: React.FC = () => {
@@ -100,6 +101,7 @@ const CustomerPortalLayout: React.FC = () => {
             <Route path="notifications" element={<NotificationPage />} />
             <Route path="google-ads" element={<GoogleAdsPage />} />
             <Route path="google-business-analytics" element={<GoogleBusinessAnalyticsPage />} />
+            <Route path="call-logs" element={<CallLogsPage />} />
             <Route path="" element={<CustomerDashboard />} />
           </Routes>
         </main>

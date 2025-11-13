@@ -127,6 +127,11 @@ const AdminDash = () => {
           onClick={() => navigate("/admin/facebook")}
         />
         <DashboardBox
+          title="Manage Twilio"
+          description="Connect phone numbers to clinics and manage call forwarding"
+          onClick={() => navigate("/admin/twilio")}
+        />
+        <DashboardBox
           title="Manage Instagram Insights"
           description="Upload and manage Instagram insight images"
           onClick={() => navigate("/admin/instagram-insights")}

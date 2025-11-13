@@ -18,6 +18,8 @@ app.use(cors({
 connectDB();
 
 app.use(express.json());
+// Support URL-encoded bodies (for Twilio webhooks)
+app.use(express.urlencoded({ extended: true }));
 
 // Import routes
 const authRoutes = require("./routes/auth");
@@ -38,6 +40,7 @@ const instagramInsightsImagesRoutes = require('./routes/instagramInsightsImages'
 const emailNotificationSettingsRoutes = require('./routes/emailNotificationSettings');
 const customerNotificationsRoutes = require('./routes/customerNotifications');
 const googleBusinessRoutes = require('./routes/googleBusiness');
+const twilioRoutes = require('./routes/twilio');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
@@ -57,6 +60,7 @@ app.use('/api/instagram-insights', instagramInsightsImagesRoutes);
 app.use('/api/email-notification-settings', emailNotificationSettingsRoutes);
 app.use('/api/customer-notifications', customerNotificationsRoutes);
 app.use('/api/google-business', googleBusinessRoutes);
+app.use('/api/twilio', twilioRoutes);
 app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
 app.use('/uploads/invoices', express.static(__dirname + '/uploads/invoices'));
 app.use('/uploads/customer-logos', express.static(__dirname + '/uploads/customer-logos'));

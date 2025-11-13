@@ -115,6 +115,26 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  twilioPhoneNumber: {
+    type: String,
+    default: null,
+  },
+  twilioForwardNumber: {
+    type: String,
+    default: null,
+  },
+  twilioForwardNumberNew: {
+    type: String,
+    default: null,
+  },
+  twilioForwardNumberExisting: {
+    type: String,
+    default: null,
+  },
+  twilioMenuMessage: {
+    type: String,
+    default: null, // Custom menu message, falls back to default if not set
+  },
   sharedFolderLink: {
     type: String,
     default: null,
