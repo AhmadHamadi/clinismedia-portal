@@ -574,7 +574,7 @@ const CallLogsPage: React.FC = () => {
                           ? [tempStartDate] 
                           : (startDate && endDate) 
                             ? [startDate, endDate] 
-                            : null
+                            : undefined
                     }
                     onChange={handleCustomDateRangeChange}
                     range
@@ -704,7 +704,7 @@ const CallLogsPage: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-800">Recent Calls</h2>
             {stats && (
               <p className="text-xs text-gray-600 mt-1">
-                Showing {callLogs.length} of {stats.totalCount} calls
+                Showing {callLogs.length} of {stats.totalCalls} calls
               </p>
             )}
           </div>
