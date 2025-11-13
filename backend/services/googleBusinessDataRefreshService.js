@@ -5,12 +5,43 @@ const axios = require('axios');
 
 // OAuth 2.0 configuration
 const backendPort = process.env.PORT || 5000;
-const backendUrl = process.env.BACKEND_URL || `http://localhost:${backendPort}`;
+// Use RAILWAY_PUBLIC_DOMAIN if available (Railway provides this), otherwise use BACKEND_URL
+const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
+  ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+  : (process.env.BACKEND_URL || `http://localhost:${backendPort}`);
+// Ensure redirect URI is properly set - must match Google Cloud Console configuration
+const redirectUri = process.env.GOOGLE_BUSINESS_REDIRECT_URI || `${backendUrl}/api/google-business/callback`;
+
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_BUSINESS_CLIENT_ID,
   process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
-  process.env.GOOGLE_BUSINESS_REDIRECT_URI || `${backendUrl}/api/google-business/callback`
+  redirectUri
 );
+
+// Helper: Get fresh access token from refresh token (direct API call - doesn't require redirect URI match)
+async function refreshGoogleBusinessToken(refreshToken) {
+  try {
+    const response = await axios.post('https://oauth2.googleapis.com/token', {
+      client_id: process.env.GOOGLE_BUSINESS_CLIENT_ID,
+      client_secret: process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    });
+    
+    return {
+      access_token: response.data.access_token,
+      refresh_token: response.data.refresh_token || refreshToken, // Use new if provided, otherwise keep old
+      expires_in: response.data.expires_in,
+    };
+  } catch (error) {
+    console.error('❌ Direct token refresh failed:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    throw error;
+  }
+}
 
 class GoogleBusinessDataRefreshService {
   static async refreshAllBusinessProfiles() {
@@ -75,29 +106,41 @@ class GoogleBusinessDataRefreshService {
           if (now > (expiresAt - refreshThreshold)) {
             console.log(`🔄 Refreshing token for ${customer.name}...`);
             try {
-              const { credentials } = await oauth2Client.refreshAccessToken();
+              // Use direct token refresh (like Google Ads) - doesn't require redirect URI match
+              const refreshedTokens = await refreshGoogleBusinessToken(customer.googleBusinessRefreshToken);
               
               // Update customer with new tokens
               let newExpiry = null;
-              if (credentials.expires_in && !isNaN(Number(credentials.expires_in))) {
-                newExpiry = new Date(Date.now() + credentials.expires_in * 1000);
+              if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in))) {
+                newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
               }
               
-              await User.findByIdAndUpdate(customer._id, {
-                googleBusinessAccessToken: credentials.access_token,
+              const updateData = {
+                googleBusinessAccessToken: refreshedTokens.access_token,
                 googleBusinessTokenExpiry: newExpiry
+              };
+              
+              // Preserve refresh token if provided (Google may rotate it)
+              if (refreshedTokens.refresh_token) {
+                updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
+              }
+              
+              await User.findByIdAndUpdate(customer._id, updateData);
+              
+              // Update our local OAuth client credentials for API calls
+              oauth2Client.setCredentials({
+                access_token: refreshedTokens.access_token,
+                refresh_token: refreshedTokens.refresh_token || customer.googleBusinessRefreshToken
               });
               
-              // Update our local credentials
-              oauth2Client.setCredentials(credentials);
-              console.log(`✅ Token refreshed for ${customer.name}`);
+              console.log(`✅ Token refreshed for ${customer.name} using direct API call`);
             } catch (refreshError) {
               console.error(`❌ Token refresh failed for ${customer.name}:`, refreshError.message);
               console.error(`❌ Refresh error details:`, refreshError.response?.data || refreshError.message);
               
               // Handle invalid_grant error (expired/revoked refresh token)
-              if (refreshError.message?.includes('invalid_grant') || 
-                  refreshError.response?.data?.error === 'invalid_grant') {
+              if (refreshError.response?.data?.error === 'invalid_grant' || 
+                  refreshError.message?.includes('invalid_grant')) {
                 // Mark customer as needing re-auth
                 await User.findByIdAndUpdate(customer._id, {
                   googleBusinessNeedsReauth: true
