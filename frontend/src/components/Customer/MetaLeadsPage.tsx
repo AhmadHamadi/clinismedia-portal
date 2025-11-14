@@ -213,7 +213,7 @@ const MetaLeadsPage: React.FC = () => {
       setEditAppointmentStatus(false);
       // Update the selected lead appointment status in state
       if (selectedLead) {
-        setSelectedLead({ ...selectedLead, appointmentBooked, appointmentBookingReason: appointmentReason || null });
+        setSelectedLead({ ...selectedLead, appointmentBooked, appointmentBookingReason: appointmentReason || undefined });
       }
       // Keep modal open but refresh data
       fetchLeads();
@@ -895,49 +895,6 @@ const MetaLeadsPage: React.FC = () => {
               </div>
             )}
 
-            {/* Appointment Section - Bigger (only if contacted) */}
-            {selectedLead.status === 'contacted' && !editAppointmentStatus && selectedLead.appointmentBooked !== null && selectedLead.appointmentBooked !== undefined && (
-              <div className="mb-6 p-6 bg-purple-50 border-2 border-purple-200 rounded-lg">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 mb-3">Appointment Status</h3>
-                    <div className="flex items-center gap-3 mb-2">
-                      {selectedLead.appointmentBooked === true ? (
-                        <>
-                          <FaCalendarCheck className="text-2xl text-purple-600" />
-                          <span className="text-xl font-semibold text-purple-700">Booked</span>
-                        </>
-                      ) : (
-                        <span className="text-xl font-semibold text-gray-700">Not Booked</span>
-                      )}
-                    </div>
-                    {selectedLead.appointmentBookedAt && (
-                      <p className="text-base text-gray-700 mt-3">
-                        <span className="font-semibold">Booked At:</span>{' '}
-                        <span className="text-gray-900">{formatDate(selectedLead.appointmentBookedAt)}</span>
-                      </p>
-                    )}
-                    {selectedLead.appointmentBookingReason && (
-                      <div className="mt-4 p-3 bg-white rounded border border-purple-300">
-                        <p className="font-semibold text-gray-900 mb-2">Reason:</p>
-                        <p className="text-base text-gray-700">{selectedLead.appointmentBookingReason}</p>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEditAppointmentStatus(!editAppointmentStatus);
-                      setEditContactStatus(false);
-                    }}
-                    className="ml-4 px-5 py-3 text-base font-semibold text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg border-2 border-purple-300 transition-colors"
-                  >
-                    <FaEdit className="inline mr-2" />
-                    Edit
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Status Update - Show only when edit button is clicked */}
             {(editContactStatus || selectedLead.status === 'new') && (
               <div className="mb-6 p-6 bg-blue-50 border-2 border-blue-300 rounded-lg">
@@ -998,6 +955,49 @@ const MetaLeadsPage: React.FC = () => {
                       Cancel
                     </button>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Appointment Section - Bigger (only if contacted) */}
+            {selectedLead.status === 'contacted' && !editAppointmentStatus && selectedLead.appointmentBooked !== null && selectedLead.appointmentBooked !== undefined && (
+              <div className="mb-6 p-6 bg-purple-50 border-2 border-purple-200 rounded-lg">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-900 mb-3">Appointment Status</h3>
+                    <div className="flex items-center gap-3 mb-2">
+                      {selectedLead.appointmentBooked === true ? (
+                        <>
+                          <FaCalendarCheck className="text-2xl text-purple-600" />
+                          <span className="text-xl font-semibold text-purple-700">Booked</span>
+                        </>
+                      ) : (
+                        <span className="text-xl font-semibold text-gray-700">Not Booked</span>
+                      )}
+                    </div>
+                    {selectedLead.appointmentBookedAt && (
+                      <p className="text-base text-gray-700 mt-3">
+                        <span className="font-semibold">Booked At:</span>{' '}
+                        <span className="text-gray-900">{formatDate(selectedLead.appointmentBookedAt)}</span>
+                      </p>
+                    )}
+                    {selectedLead.appointmentBookingReason && (
+                      <div className="mt-4 p-3 bg-white rounded border border-purple-300">
+                        <p className="font-semibold text-gray-900 mb-2">Reason:</p>
+                        <p className="text-base text-gray-700">{selectedLead.appointmentBookingReason}</p>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditAppointmentStatus(!editAppointmentStatus);
+                      setEditContactStatus(false);
+                    }}
+                    className="ml-4 px-5 py-3 text-base font-semibold text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg border-2 border-purple-300 transition-colors"
+                  >
+                    <FaEdit className="inline mr-2" />
+                    Edit
+                  </button>
                 </div>
               </div>
             )}
