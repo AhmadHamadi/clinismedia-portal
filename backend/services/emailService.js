@@ -20,23 +20,39 @@ class EmailService {
   // Common email sending function - all emails sent FROM notifications@clinimedia.ca
   static async sendEmail(subject, content, toEmail, errorMessage, fromEmail = 'notifications@clinimedia.ca') {
     try {
+      const logoPath = path.join(__dirname, '../assets/CliniMedia_Logo1.png');
+      const fs = require('fs');
+      const attachments = [];
+
+      // Only attach logo if it exists
+      if (fs.existsSync(logoPath)) {
+        attachments.push({
+          filename: 'CliniMedia_Logo1.png',
+          path: logoPath,
+          cid: 'clinimedia-logo'
+        });
+      } else {
+        console.warn(`⚠️  Logo file not found at ${logoPath} - email will be sent without logo`);
+      }
+
       await transporter.sendMail({
         from: fromEmail,
         to: toEmail, // Send to specific customer email
         subject,
         html: EmailService.createEmailTemplate(content),
-        attachments: [
-          {
-            filename: 'CliniMedia_Logo1.png',
-            path: path.join(__dirname, '../assets/CliniMedia_Logo1.png'),
-            cid: 'clinimedia-logo'
-          }
-        ]
+        attachments
       });
 
       console.log(`📧 Email sent (${subject}) -> ${toEmail}`);
     } catch (error) {
       console.error(errorMessage, error);
+      // Log more details about the error for debugging
+      if (error.response) {
+        console.error('Email error response:', error.response);
+      }
+      if (error.responseCode) {
+        console.error('Email error code:', error.responseCode);
+      }
       throw error;
     }
   }

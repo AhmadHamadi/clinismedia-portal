@@ -147,6 +147,11 @@ const AdminDash = () => {
           onClick={() => navigate("/admin/shared-folders")}
           notificationCount={unreadNotesCount}
         />
+        <DashboardBox
+          title="Manage Meta Leads"
+          description="Configure email subject mappings and manage Facebook leads"
+          onClick={() => navigate("/admin/meta-leads")}
+        />
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import { MdOutlinePerson } from "react-icons/md"; // person icon for username
 import { FaFingerprint } from "react-icons/fa";
 import { FaRegEye, FaRegEyeSlash } from "react-icons/fa";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import logo from "../assets/CliniMedia_Logo.png";
 
@@ -13,6 +13,7 @@ const Login = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
 
 
@@ -35,15 +36,43 @@ const Login = () => {
       if (user.role === "admin") {
         localStorage.setItem("adminToken", token);
         localStorage.setItem("adminData", JSON.stringify(user));
-        navigate("/admin");
+        
+        // Check for returnUrl or leadId query parameter
+        const returnUrl = searchParams.get('returnUrl');
+        if (returnUrl) {
+          navigate(returnUrl);
+        } else {
+          navigate("/admin");
+        }
       } else if (user.role === "customer") {
         localStorage.setItem("customerToken", token);
         localStorage.setItem("customerData", JSON.stringify(user));
-        navigate("/customer/dashboard");
+        
+        // Check for leadId query parameter - just redirect to meta leads page
+        const leadId = searchParams.get('leadId');
+        if (leadId) {
+          // Redirect to meta leads page
+          navigate("/customer/meta-leads");
+        } else {
+          // Check for returnUrl parameter
+          const returnUrl = searchParams.get('returnUrl');
+          if (returnUrl) {
+            navigate(returnUrl);
+          } else {
+            navigate("/customer/dashboard");
+          }
+        }
       } else if (user.role === "employee") {
         localStorage.setItem("employeeToken", token);
         localStorage.setItem("employeeData", JSON.stringify(user));
-        navigate("/employee/dashboard");
+        
+        // Check for returnUrl query parameter
+        const returnUrl = searchParams.get('returnUrl');
+        if (returnUrl) {
+          navigate(returnUrl);
+        } else {
+          navigate("/employee/dashboard");
+        }
       } else {
         setError("Invalid user role");
       }

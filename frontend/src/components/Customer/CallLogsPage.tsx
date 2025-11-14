@@ -282,43 +282,36 @@ const CallLogsPage: React.FC = () => {
     }
   };
 
-  const getStatusLabel = (dialCallStatus: string | null, status: string) => {
+  const getStatusLabel = (dialCallStatus: string | null, status: string, duration: number = 0) => {
     // Use dialCallStatus if available (more accurate for forwarded calls)
     if (dialCallStatus) {
       if (dialCallStatus === 'answered') {
         return 'Answered';
-      } else if (dialCallStatus === 'no-answer') {
-        return 'No Answer';
-      } else if (dialCallStatus === 'busy') {
-        return 'Busy';
-      } else if (dialCallStatus === 'failed') {
-        return 'Failed';
-      } else if (dialCallStatus === 'canceled') {
-        return 'Canceled';
+      } else if (dialCallStatus === 'no-answer' || dialCallStatus === 'busy' || 
+                 dialCallStatus === 'failed' || dialCallStatus === 'canceled') {
+        // All non-answered statuses should show as "Missed"
+        return 'Missed';
       } else if (dialCallStatus === 'completed') {
-        // This shouldn't happen, but handle it
-        return 'Completed';
+        // If completed with duration > 0, it was answered
+        // If completed with duration = 0, it was not answered (missed)
+        return duration > 0 ? 'Answered' : 'Missed';
       }
     }
     // Fallback to status if dialCallStatus is not available
-    switch (status) {
-      case 'completed':
-        return 'Completed';
-      case 'failed':
-        return 'Failed';
-      case 'busy':
-        return 'Busy';
-      case 'no-answer':
-        return 'No Answer';
-      case 'canceled':
-        return 'Canceled';
-      case 'ringing':
-        return 'Ringing';
-      case 'in-progress':
-        return 'In Progress';
-      default:
-        return status;
+    // If status is 'completed' but no dialCallStatus, check duration to determine if answered
+    if (status === 'completed') {
+      // If duration > 0, it was answered; otherwise missed
+      return duration > 0 ? 'Answered' : 'Missed';
     }
+    // For other non-answered statuses, show as "Missed"
+    if (status === 'failed' || status === 'busy' || status === 'no-answer' || status === 'canceled') {
+      return 'Missed';
+    }
+    // For in-progress statuses, show actual status
+    if (status === 'ringing' || status === 'in-progress') {
+      return status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ');
+    }
+    return status;
   };
 
   // Date filter handlers
@@ -774,7 +767,7 @@ const CallLogsPage: React.FC = () => {
                       <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center">
                           <span className="text-xs">{getStatusIcon(log.dialCallStatus, log.status)}</span>
-                          <span className="text-xs text-gray-900 ml-1.5">{getStatusLabel(log.dialCallStatus, log.status)}</span>
+                          <span className="text-xs text-gray-900 ml-1.5">{getStatusLabel(log.dialCallStatus, log.status, log.duration)}</span>
                         </div>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
@@ -820,7 +813,58 @@ const CallLogsPage: React.FC = () => {
                       </td>
                       {config?.recordingEnabled && (
                         <td className="px-3 py-2 whitespace-nowrap">
-                          {log.recordingSid ? (
+                          {/* Show voicemail for missed calls */}
+                          {log.dialCallStatus && log.dialCallStatus !== 'answered' && log.voicemailUrl ? (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  setLoadingRecording(true);
+                                  setSelectedCall(log);
+                                  setShowRecordingModal(true);
+                                  
+                                  const token = localStorage.getItem('customerToken');
+                                  if (!token) {
+                                    alert('Please log in to access voicemail');
+                                    setShowRecordingModal(false);
+                                    return;
+                                  }
+                                  
+                                  // Use voicemail endpoint for missed calls
+                                  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+                                  const voicemailApiUrl = `${apiBaseUrl}/twilio/voicemail/${log.callSid}`;
+                                  
+                                  // Fetch voicemail with credentials
+                                  const response = await fetch(voicemailApiUrl, {
+                                    method: 'GET',
+                                    headers: {
+                                      'Authorization': `Bearer ${token}`
+                                    },
+                                    credentials: 'include' // Include credentials for CORS
+                                  });
+                                  
+                                  if (response.ok) {
+                                    const blob = await response.blob();
+                                    const blobUrl = URL.createObjectURL(blob);
+                                    setRecordingUrl(blobUrl);
+                                  } else {
+                                    alert('Failed to load voicemail. Please try again.');
+                                    setShowRecordingModal(false);
+                                  }
+                                } catch (error) {
+                                  console.error('Error loading voicemail:', error);
+                                  alert('Failed to load voicemail');
+                                  setShowRecordingModal(false);
+                                } finally {
+                                  setLoadingRecording(false);
+                                }
+                              }}
+                              className="text-purple-600 hover:text-purple-800 text-xs flex items-center gap-1 cursor-pointer underline"
+                              title="Listen to voicemail"
+                            >
+                              <FaHeadphones className="text-xs" />
+                              Voicemail
+                            </button>
+                          ) : log.recordingSid && log.dialCallStatus === 'answered' ? (
                             <button
                               onClick={async () => {
                                 try {
@@ -839,11 +883,13 @@ const CallLogsPage: React.FC = () => {
                                   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
                                   const recordingApiUrl = `${apiBaseUrl}/twilio/recording/${log.recordingSid}`;
                                   
-                                  // Fetch recording
+                                  // Fetch recording with credentials
                                   const response = await fetch(recordingApiUrl, {
+                                    method: 'GET',
                                     headers: {
                                       'Authorization': `Bearer ${token}`
-                                    }
+                                    },
+                                    credentials: 'include' // Include credentials for CORS
                                   });
                                   
                                   if (response.ok) {
@@ -919,8 +965,8 @@ const CallLogsPage: React.FC = () => {
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <FaHeadphones className="text-blue-500" />
-                Call Recording
+                <FaHeadphones className={selectedCall && selectedCall.dialCallStatus && selectedCall.dialCallStatus !== 'answered' && selectedCall.voicemailUrl ? "text-purple-500" : "text-blue-500"} />
+                {selectedCall && selectedCall.dialCallStatus && selectedCall.dialCallStatus !== 'answered' && selectedCall.voicemailUrl ? 'Voicemail' : 'Call Recording'}
               </h2>
               <button
                 onClick={() => {

@@ -4,6 +4,7 @@ const cors = require("cors");           // Add CORS
 const connectDB = require("./config/db");
 const ScheduledEmailService = require("./services/scheduledEmailService");
 const GoogleBusinessDataRefreshService = require("./services/googleBusinessDataRefreshService");
+const metaLeadsEmailService = require("./services/metaLeadsEmailService");
 const { sessionManager } = require("./middleware/sessionManager");
 require("dotenv").config();
 
@@ -41,6 +42,7 @@ const emailNotificationSettingsRoutes = require('./routes/emailNotificationSetti
 const customerNotificationsRoutes = require('./routes/customerNotifications');
 const googleBusinessRoutes = require('./routes/googleBusiness');
 const twilioRoutes = require('./routes/twilio');
+const metaLeadsRoutes = require('./routes/metaLeads');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
@@ -61,6 +63,7 @@ app.use('/api/email-notification-settings', emailNotificationSettingsRoutes);
 app.use('/api/customer-notifications', customerNotificationsRoutes);
 app.use('/api/google-business', googleBusinessRoutes);
 app.use('/api/twilio', twilioRoutes);
+app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
 app.use('/uploads/invoices', express.static(__dirname + '/uploads/invoices'));
 app.use('/uploads/customer-logos', express.static(__dirname + '/uploads/customer-logos'));
@@ -111,4 +114,8 @@ app.listen(PORT, () => {
   GoogleBusinessDataRefreshService.refreshAllBusinessProfiles();
   ScheduledEmailService.sendDailyReminders();
   ScheduledEmailService.sendProactiveBookingReminders();
+  
+  // Start Meta leads email monitoring (checks every 5 minutes)
+  const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL) || 5;
+  metaLeadsEmailService.startMonitoring(leadsCheckInterval);
 });

@@ -88,6 +88,7 @@ const SidebarMenu = () => {
     { label: "Manage Instagram Insights", path: "/admin/instagram-insights" },
     { label: "Manage Gallery Edits", path: "/admin/gallery" },
     { label: "Manage Shared Folder", path: "/admin/shared-folders" },
+    { label: "Manage Meta Leads", path: "/admin/meta-leads" },
   ];
 
   const getButtonClasses = (path: string) => {

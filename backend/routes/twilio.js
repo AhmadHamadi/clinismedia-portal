@@ -1138,12 +1138,15 @@ router.post('/voice/incoming', async (req, res) => {
         transcriptionStart = `<Start><Transcription intelligenceService="${viServiceSid}" track="both"/></Start>`;
       }
       
+      // Voicemail recording callback (when dial times out or no answer)
+      const voicemailCallback = `${baseUrl}/api/twilio/voice/voicemail?CallSid=${CallSid}`;
+      
       if (enableRecording) {
         twiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial callerId="${To}" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial callerId="${To}" timeout="30" action="${voicemailCallback}" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1152,7 +1155,7 @@ router.post('/voice/incoming', async (req, res) => {
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial callerId="${To}" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial callerId="${To}" timeout="30" action="${voicemailCallback}" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1183,12 +1186,15 @@ router.post('/voice/incoming', async (req, res) => {
         transcriptionStart = `<Start><Transcription intelligenceService="${viServiceSid}" track="both"/></Start>`;
       }
       
+      // Voicemail recording callback (when dial times out or no answer)
+      const voicemailCallback = `${baseUrl}/api/twilio/voice/voicemail?CallSid=${CallSid}`;
+      
       if (enableRecording) {
         twiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial callerId="${To}" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial callerId="${To}" timeout="30" action="${voicemailCallback}" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1197,7 +1203,7 @@ router.post('/voice/incoming', async (req, res) => {
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial callerId="${To}" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial callerId="${To}" timeout="30" action="${voicemailCallback}" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1446,6 +1452,105 @@ router.get('/voice/dial-status', (req, res) => {
   res.status(200).send('OK');
 });
 
+// GET /api/twilio/voice/voicemail - Handle voicemail recording (when dial times out or no answer)
+router.get('/voice/voicemail', async (req, res) => {
+  try {
+    const { CallSid, DialCallStatus } = req.query;
+    
+    console.log(`📞 Voicemail triggered for CallSid: ${CallSid}, DialCallStatus: ${DialCallStatus}`);
+    
+    // Get voice setting
+    const voice = process.env.TWILIO_VOICE || 'Polly.Joanna-Neural';
+    
+    // Get base URL for voicemail callbacks
+    let voicemailBaseUrl = process.env.BACKEND_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000';
+    voicemailBaseUrl = voicemailBaseUrl.replace(/\/$/, '');
+    if (!voicemailBaseUrl.startsWith('http://localhost') && !voicemailBaseUrl.startsWith('https://')) {
+      voicemailBaseUrl = `https://${voicemailBaseUrl}`;
+    }
+    
+    // TwiML to record voicemail
+    const twiML = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="${voice}">Please leave a message after the tone. Press the pound key when you're finished.</Say>
+  <Record 
+    maxLength="300" 
+    finishOnKey="#" 
+    action="${voicemailBaseUrl}/api/twilio/voice/voicemail-complete?CallSid=${CallSid}" 
+    recordingStatusCallback="${voicemailBaseUrl}/api/twilio/voice/voicemail-status" 
+    recordingStatusCallbackMethod="POST"
+    transcribe="false"
+  />
+  <Say voice="${voice}">Thank you for your message. Goodbye.</Say>
+  <Hangup/>
+</Response>`;
+    
+    res.type('text/xml');
+    res.send(twiML);
+  } catch (error) {
+    console.error('❌ Error handling voicemail request:', error);
+    res.type('text/xml');
+    res.status(500).send(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`);
+  }
+});
+
+// POST /api/twilio/voice/voicemail-status - Handle voicemail recording status
+router.post('/voice/voicemail-status', async (req, res) => {
+  try {
+    const { CallSid, RecordingSid, RecordingUrl, RecordingStatus, RecordingDuration } = req.body;
+    
+    console.log(`📹 Voicemail recording status: CallSid=${CallSid}, Status=${RecordingStatus}, Duration=${RecordingDuration}`);
+    
+    if (RecordingStatus === 'completed' && RecordingSid && CallSid) {
+      // Get existing call log to check status
+      const existingLog = await CallLog.findOne({ callSid: CallSid });
+      
+      // Only store voicemail if call was not answered (it's a missed call)
+      // If call was answered, this recording is a regular call recording, not voicemail
+      if (existingLog && existingLog.dialCallStatus !== 'answered') {
+        // Store voicemail in call log
+        // Note: recordingSid is used for voicemail playback (since voicemail only happens on missed calls,
+        // there won't be a regular call recording, so we can safely reuse recordingSid)
+        const updateData = {
+          voicemailUrl: RecordingUrl || null,
+          voicemailDuration: RecordingDuration ? parseInt(RecordingDuration) : null,
+          recordingSid: RecordingSid // Store for voicemail playback (safe since call wasn't answered)
+        };
+        
+        await CallLog.findOneAndUpdate(
+          { callSid: CallSid },
+          updateData,
+          { new: true }
+        ).catch(err => console.error('Error updating call log with voicemail:', err));
+        
+        console.log(`✅ Voicemail saved for CallSid: ${CallSid}, Duration: ${RecordingDuration}s`);
+      } else if (existingLog && existingLog.dialCallStatus === 'answered') {
+        // Call was answered, this is a regular recording, not voicemail
+        // Don't store voicemail for answered calls
+        console.log(`ℹ️ Call was answered - ignoring voicemail recording (this should not happen)`);
+      } else {
+        // No call log found yet - store voicemail anyway (it will be a missed call)
+        await CallLog.findOneAndUpdate(
+          { callSid: CallSid },
+          {
+            voicemailUrl: RecordingUrl || null,
+            voicemailDuration: RecordingDuration ? parseInt(RecordingDuration) : null,
+            recordingSid: RecordingSid // Store for voicemail playback
+          },
+          { upsert: true, setDefaultsOnInsert: true }
+        ).catch(err => console.error('Error updating call log with voicemail:', err));
+        
+        console.log(`✅ Voicemail saved for CallSid: ${CallSid} (no existing log found)`);
+      }
+    }
+    
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('❌ Error handling voicemail status:', error);
+    res.status(200).send('OK');
+  }
+});
+
 // POST /api/twilio/voice/dial-status - Handle Dial call status updates (tracks if clinic answered)
 // This is the ONLY place where dialCallStatus is set
 router.post('/voice/dial-status', async (req, res) => {
@@ -1568,6 +1673,28 @@ router.post('/voice/dial-status', async (req, res) => {
 // Customer Endpoints - Call Logs
 // ============================================
 
+// OPTIONS handler for CORS preflight (recording endpoint) - MUST be before GET route
+router.options('/recording/:recordingSid', (req, res) => {
+  const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
+  res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  res.status(204).send();
+});
+
+// OPTIONS handler for CORS preflight (voicemail endpoint) - MUST be before GET route
+router.options('/voicemail/:callSid', (req, res) => {
+  const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
+  res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  res.status(204).send();
+});
+
 // GET /api/twilio/recording/:recordingSid - Proxy Twilio recording with authentication (customer only)
 router.get('/recording/:recordingSid', authenticateToken, async (req, res) => {
   try {
@@ -1593,6 +1720,14 @@ router.get('/recording/:recordingSid', authenticateToken, async (req, res) => {
     // Get Twilio credentials
     const { accountSid, username, password } = getTwilioCredentials();
     
+    // Set CORS headers explicitly for production (BEFORE fetching/streaming)
+    // When using credentials, origin cannot be '*' - must be specific origin
+    const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
+    res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    
     // Fetch recording media from Twilio API
     // Twilio recording media URL format: https://api.twilio.com/2010-04-01/Accounts/{AccountSid}/Recordings/{RecordingSid}.mp3
     try {
@@ -1607,10 +1742,29 @@ router.get('/recording/:recordingSid', authenticateToken, async (req, res) => {
         responseType: 'stream'
       });
       
-      // Set appropriate headers for audio streaming
+      // Set appropriate headers for audio streaming (BEFORE piping)
       res.setHeader('Content-Type', 'audio/mpeg');
       res.setHeader('Content-Disposition', `inline; filename="recording-${recordingSid}.mp3"`);
       res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      
+      // Handle errors during streaming
+      audioResponse.data.on('error', (error) => {
+        console.error('Error streaming audio:', error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to stream audio', details: error.message });
+        }
+      });
+      
+      // Handle response errors
+      res.on('error', (error) => {
+        console.error('Error writing response:', error);
+        // Clean up the stream if response errors
+        if (audioResponse.data && typeof audioResponse.data.destroy === 'function') {
+          audioResponse.data.destroy();
+        }
+      });
       
       // Stream the audio to the client
       audioResponse.data.pipe(res);
@@ -1619,11 +1773,113 @@ router.get('/recording/:recordingSid', authenticateToken, async (req, res) => {
       if (error.response) {
         console.error('Twilio API error:', error.response.status, error.response.data);
       }
+      // Set CORS headers even for errors
+      const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
+      res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
+      res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
       res.status(500).json({ error: 'Failed to fetch recording', details: error.message });
     }
   } catch (error) {
     console.error('Error in recording proxy:', error);
+    // Set CORS headers even for errors
+    const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
+    res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
     res.status(500).json({ error: 'Failed to proxy recording', details: error.message });
+  }
+});
+
+// GET /api/twilio/voicemail/:callSid - Proxy Twilio voicemail recording with authentication (customer only)
+router.get('/voicemail/:callSid', authenticateToken, async (req, res) => {
+  try {
+    const { callSid } = req.params;
+    const customerId = req.user.id;
+    
+    // Verify user is a customer
+    const user = await User.findById(customerId);
+    if (!user || user.role !== 'customer') {
+      return res.status(403).json({ error: 'Access denied. Customers only.' });
+    }
+    
+    // Verify this call belongs to this customer and has a voicemail
+    const callLog = await CallLog.findOne({
+      callSid: callSid,
+      customerId: customerId,
+      voicemailUrl: { $exists: true, $ne: null }
+    });
+    
+    if (!callLog || !callLog.recordingSid) {
+      return res.status(404).json({ error: 'Voicemail not found or access denied.' });
+    }
+    
+    // Get Twilio credentials
+    const { accountSid, username, password } = getTwilioCredentials();
+    
+    // Set CORS headers explicitly for production (BEFORE fetching/streaming)
+    // When using credentials, origin cannot be '*' - must be specific origin
+    const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
+    res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    
+    // Fetch voicemail recording from Twilio API (using recordingSid which stores the voicemail SID)
+    try {
+      const recordingMediaUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${callLog.recordingSid}.mp3`;
+      
+      // Fetch the actual audio file from Twilio with authentication
+      const audioResponse = await axios.get(recordingMediaUrl, {
+        auth: {
+          username: username,
+          password: password
+        },
+        responseType: 'stream'
+      });
+      
+      // Set appropriate headers for audio streaming (BEFORE piping)
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Disposition', `inline; filename="voicemail-${callSid}.mp3"`);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      
+      // Handle errors during streaming
+      audioResponse.data.on('error', (error) => {
+        console.error('Error streaming voicemail:', error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to stream voicemail', details: error.message });
+        }
+      });
+      
+      // Handle response errors
+      res.on('error', (error) => {
+        console.error('Error writing response:', error);
+        // Clean up the stream if response errors
+        if (audioResponse.data && typeof audioResponse.data.destroy === 'function') {
+          audioResponse.data.destroy();
+        }
+      });
+      
+      // Stream the audio to the client
+      audioResponse.data.pipe(res);
+    } catch (error) {
+      console.error('Error fetching voicemail from Twilio:', error);
+      if (error.response) {
+        console.error('Twilio API error:', error.response.status, error.response.data);
+      }
+      // Set CORS headers even for errors
+      const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
+      res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
+      res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+      res.status(500).json({ error: 'Failed to fetch voicemail', details: error.message });
+    }
+  } catch (error) {
+    console.error('Error in voicemail proxy:', error);
+    // Set CORS headers even for errors
+    const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
+    res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+    res.status(500).json({ error: 'Failed to proxy voicemail', details: error.message });
   }
 });
 
