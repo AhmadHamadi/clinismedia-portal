@@ -836,8 +836,8 @@ const MetaLeadsPage: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                 <FaEdit className="text-blue-500" />
                 Manage Lead
               </h2>
@@ -852,90 +852,32 @@ const MetaLeadsPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Lead Info */}
-            <div className="mb-4 text-sm text-gray-600">
-              <p><span className="font-medium">Received:</span> {formatDate(selectedLead.emailDate)}</p>
-              <p>
-                <span className="font-medium">Name:</span>{' '}
-                {selectedLead.leadInfo?.name ? (
-                  <span className="text-gray-900">{selectedLead.leadInfo.name}</span>
-                ) : (
-                  <span className="text-gray-400 italic">Not provided</span>
-                )}
-              </p>
-              <p>
-                <span className="font-medium">Phone:</span>{' '}
-                {selectedLead.leadInfo?.phone ? (
-                  <span className="text-gray-900">{selectedLead.leadInfo.phone}</span>
-                ) : (
-                  <span className="text-gray-400 italic">Not provided</span>
-                )}
-              </p>
-              <p>
-                <span className="font-medium">Email:</span>{' '}
-                {selectedLead.leadInfo?.email ? (
-                  <span className="text-gray-900">{selectedLead.leadInfo.email}</span>
-                ) : (
-                  <span className="text-gray-400 italic">Not provided</span>
-                )}
-              </p>
-              {selectedLead.leadInfo?.fields?.city && (
-                <p><span className="font-medium">City:</span> {selectedLead.leadInfo.fields.city}</p>
-              )}
-              {selectedLead.leadInfo?.fields?.address && (
-                <p><span className="font-medium">Address:</span> {selectedLead.leadInfo.fields.address}</p>
-              )}
-              {selectedLead.leadInfo?.message ? (
-                <div className="mt-2">
-                  <p className="font-medium mb-1">Message:</p>
-                  <p className="text-gray-700 bg-gray-50 p-2 rounded">{selectedLead.leadInfo.message}</p>
-                </div>
-              ) : (
-                <div className="mt-2">
-                  <p className="font-medium mb-1">Message:</p>
-                  <p className="text-gray-400 italic bg-gray-50 p-2 rounded">No message provided</p>
-                </div>
-              )}
-              {/* Show any other fields that were extracted */}
-              {selectedLead.leadInfo?.fields && Object.keys(selectedLead.leadInfo.fields).length > 0 && (
-                <div className="mt-2">
-                  <p className="font-medium mb-1">Additional Information:</p>
-                  <div className="text-gray-700 bg-gray-50 p-2 rounded text-xs">
-                    {Object.entries(selectedLead.leadInfo.fields)
-                      .filter(([key]) => !['name', 'email', 'phone', 'city', 'address', 'message', 'comments', 'notes'].includes(key.toLowerCase()))
-                      .map(([key, value]) => (
-                        <p key={key}><span className="font-medium capitalize">{key}:</span> {String(value)}</p>
-                      ))}
-                  </div>
-                </div>
-              )}
-              {/* Status and Timestamps */}
-              <div className="mt-3 pt-3 border-t border-gray-200">
+            {/* Status Section - Bigger */}
+            {!editContactStatus && selectedLead.status !== 'new' && (
+              <div className="mb-6 p-6 bg-gray-50 border-2 border-gray-200 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <p>
-                      <span className="font-medium">Status:</span>{' '}
-                      <span className="inline-flex items-center gap-1">
-                        {getStatusIcon(selectedLead.status)}
-                        <span>{getStatusLabel(selectedLead.status)}</span>
-                      </span>
-                    </p>
+                    <h3 className="text-lg font-bold text-gray-900 mb-3">Contact Status</h3>
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-2xl">{getStatusIcon(selectedLead.status)}</span>
+                      <span className="text-xl font-semibold text-gray-900">{getStatusLabel(selectedLead.status)}</span>
+                    </div>
                     {selectedLead.contactedAt && (
-                      <p className="mt-1">
-                        <span className="font-medium">Contacted At:</span>{' '}
+                      <p className="text-base text-gray-700 mt-3">
+                        <span className="font-semibold">Contacted At:</span>{' '}
                         <span className="text-gray-900">{formatDate(selectedLead.contactedAt)}</span>
                       </p>
                     )}
                     {selectedLead.notContactedAt && (
-                      <p className="mt-1">
-                        <span className="font-medium">Not Contacted At:</span>{' '}
+                      <p className="text-base text-gray-700 mt-3">
+                        <span className="font-semibold">Not Contacted At:</span>{' '}
                         <span className="text-gray-900">{formatDate(selectedLead.notContactedAt)}</span>
                       </p>
                     )}
                     {selectedLead.notContactedReason && (
-                      <div className="mt-2">
-                        <p className="font-medium mb-1">Reason (Not Contacted):</p>
-                        <p className="text-gray-700 bg-gray-50 p-2 rounded text-xs">{selectedLead.notContactedReason}</p>
+                      <div className="mt-4 p-3 bg-white rounded border border-gray-300">
+                        <p className="font-semibold text-gray-900 mb-2">Reason (Not Contacted):</p>
+                        <p className="text-base text-gray-700">{selectedLead.notContactedReason}</p>
                       </div>
                     )}
                   </div>
@@ -944,67 +886,66 @@ const MetaLeadsPage: React.FC = () => {
                       setEditContactStatus(!editContactStatus);
                       setEditAppointmentStatus(false);
                     }}
-                    className="ml-4 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded border border-blue-200 transition-colors"
+                    className="ml-4 px-5 py-3 text-base font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg border-2 border-blue-300 transition-colors"
                   >
-                    <FaEdit className="inline mr-1" />
+                    <FaEdit className="inline mr-2" />
                     Edit
                   </button>
                 </div>
               </div>
-              {/* Appointment Booking Info */}
-              {selectedLead.status === 'contacted' && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p>
-                        <span className="font-medium">Appointment:</span>{' '}
-                        {selectedLead.appointmentBooked === true ? (
-                          <span className="inline-flex items-center gap-1 text-purple-600 font-semibold">
-                            <FaCalendarCheck className="text-xs" />
-                            Booked
-                          </span>
-                        ) : selectedLead.appointmentBooked === false ? (
-                          <span className="text-gray-600">Not Booked</span>
-                        ) : (
-                          <span className="text-gray-400 italic">Not Set</span>
-                        )}
-                      </p>
-                      {selectedLead.appointmentBookedAt && (
-                        <p className="mt-1">
-                          <span className="font-medium">Booked At:</span>{' '}
-                          <span className="text-gray-900">{formatDate(selectedLead.appointmentBookedAt)}</span>
-                        </p>
-                      )}
-                      {selectedLead.appointmentBookingReason && (
-                        <div className="mt-2">
-                          <p className="font-medium mb-1">Reason:</p>
-                          <p className="text-gray-700 bg-gray-50 p-2 rounded text-xs">{selectedLead.appointmentBookingReason}</p>
-                        </div>
+            )}
+
+            {/* Appointment Section - Bigger (only if contacted) */}
+            {selectedLead.status === 'contacted' && !editAppointmentStatus && selectedLead.appointmentBooked !== null && selectedLead.appointmentBooked !== undefined && (
+              <div className="mb-6 p-6 bg-purple-50 border-2 border-purple-200 rounded-lg">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-900 mb-3">Appointment Status</h3>
+                    <div className="flex items-center gap-3 mb-2">
+                      {selectedLead.appointmentBooked === true ? (
+                        <>
+                          <FaCalendarCheck className="text-2xl text-purple-600" />
+                          <span className="text-xl font-semibold text-purple-700">Booked</span>
+                        </>
+                      ) : (
+                        <span className="text-xl font-semibold text-gray-700">Not Booked</span>
                       )}
                     </div>
-                    <button
-                      onClick={() => {
-                        setEditAppointmentStatus(!editAppointmentStatus);
-                        setEditContactStatus(false);
-                      }}
-                      className="ml-4 px-3 py-1.5 text-xs font-medium text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded border border-purple-200 transition-colors"
-                    >
-                      <FaEdit className="inline mr-1" />
-                      Edit
-                    </button>
+                    {selectedLead.appointmentBookedAt && (
+                      <p className="text-base text-gray-700 mt-3">
+                        <span className="font-semibold">Booked At:</span>{' '}
+                        <span className="text-gray-900">{formatDate(selectedLead.appointmentBookedAt)}</span>
+                      </p>
+                    )}
+                    {selectedLead.appointmentBookingReason && (
+                      <div className="mt-4 p-3 bg-white rounded border border-purple-300">
+                        <p className="font-semibold text-gray-900 mb-2">Reason:</p>
+                        <p className="text-base text-gray-700">{selectedLead.appointmentBookingReason}</p>
+                      </div>
+                    )}
                   </div>
+                  <button
+                    onClick={() => {
+                      setEditAppointmentStatus(!editAppointmentStatus);
+                      setEditContactStatus(false);
+                    }}
+                    className="ml-4 px-5 py-3 text-base font-semibold text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg border-2 border-purple-300 transition-colors"
+                  >
+                    <FaEdit className="inline mr-2" />
+                    Edit
+                  </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Status Update - Show only when edit button is clicked */}
             {(editContactStatus || selectedLead.status === 'new') && (
-              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 className="text-base font-bold text-gray-800 mb-3">
+              <div className="mb-6 p-6 bg-blue-50 border-2 border-blue-300 rounded-lg">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">
                   {selectedLead.status === 'new' ? 'Have you contacted this lead? *' : 'Update Contact Status'}
                 </h3>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="mb-4">
+                  <label className="block text-base font-semibold text-gray-700 mb-3">
                     Select your answer:
                   </label>
                   <select
@@ -1016,7 +957,7 @@ const MetaLeadsPage: React.FC = () => {
                         setEditAppointmentStatus(false);
                       }
                     }}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                    className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base bg-white"
                     style={{ color: '#111827' }}
                   >
                     <option value="contacted" style={{ color: '#111827' }}>Yes, I contacted this lead</option>
@@ -1026,33 +967,33 @@ const MetaLeadsPage: React.FC = () => {
                 
                 {/* Show reason input if "not_contacted" is selected */}
                 {statusUpdate === 'not_contacted' && (
-                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="mt-4">
+                    <label className="block text-base font-semibold text-gray-700 mb-2">
                       Please provide a reason why this lead was not contacted: *
                     </label>
                     <textarea
                       value={notContactedReason}
                       onChange={(e) => setNotContactedReason(e.target.value)}
                       placeholder="Enter your reason here..."
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 bg-white"
                       style={{ color: '#111827' }}
-                      rows={3}
+                      rows={4}
                       required
                     />
                   </div>
                 )}
                 
-                <div className="flex gap-2 mt-3">
+                <div className="flex gap-3 mt-5">
                   <button
                     onClick={() => handleStatusUpdate(selectedLead._id, statusUpdate)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-base font-semibold"
                   >
                     Update Contact Status
                   </button>
                   {editContactStatus && selectedLead.status !== 'new' && (
                     <button
                       onClick={() => setEditContactStatus(false)}
-                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 text-sm font-medium"
+                      className="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-base font-semibold"
                     >
                       Cancel
                     </button>
@@ -1063,9 +1004,9 @@ const MetaLeadsPage: React.FC = () => {
 
             {/* Appointment Status - Show only when edit button is clicked or status is new/contacted and appointment not set */}
             {selectedLead.status === 'contacted' && (editAppointmentStatus || (selectedLead.appointmentBooked === null || selectedLead.appointmentBooked === undefined)) && (
-              <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                <h3 className="text-base font-bold text-gray-800 mb-3">Did this contact turn into an appointment? *</h3>
-                <div className="flex gap-4 mb-3">
+              <div className="mb-6 p-6 bg-purple-50 border-2 border-purple-300 rounded-lg">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">Did this contact turn into an appointment? *</h3>
+                <div className="flex gap-6 mb-4">
                   <label className="flex items-center cursor-pointer">
                     <input
                       type="radio"
@@ -1076,9 +1017,9 @@ const MetaLeadsPage: React.FC = () => {
                         setAppointmentBooked(true);
                         setAppointmentReason('');
                       }}
-                      className="mr-2"
+                      className="mr-3 w-5 h-5"
                     />
-                    <span className="text-gray-900 font-medium">Yes</span>
+                    <span className="text-gray-900 font-semibold text-base">Yes</span>
                   </label>
                   <label className="flex items-center cursor-pointer">
                     <input
@@ -1087,25 +1028,25 @@ const MetaLeadsPage: React.FC = () => {
                       value="no"
                       checked={appointmentBooked === false}
                       onChange={() => setAppointmentBooked(false)}
-                      className="mr-2"
+                      className="mr-3 w-5 h-5"
                     />
-                    <span className="text-gray-900 font-medium">No</span>
+                    <span className="text-gray-900 font-semibold text-base">No</span>
                   </label>
                 </div>
                 
                 {/* Require reason if "No" is selected */}
                 {appointmentBooked === false && (
-                  <div className="mb-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="mb-4">
+                    <label className="block text-base font-semibold text-gray-700 mb-2">
                       Why not? *
                     </label>
                     <textarea
                       value={appointmentReason}
                       onChange={(e) => setAppointmentReason(e.target.value)}
                       placeholder="Please provide a reason why the appointment was not booked..."
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 bg-white"
                       style={{ color: '#111827' }}
-                      rows={3}
+                      rows={4}
                       required
                     />
                   </div>
@@ -1113,32 +1054,32 @@ const MetaLeadsPage: React.FC = () => {
                 
                 {/* Optional reason if "Yes" is selected */}
                 {appointmentBooked === true && (
-                  <div className="mb-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="mb-4">
+                    <label className="block text-base font-semibold text-gray-700 mb-2">
                       Additional Notes (Optional)
                     </label>
                     <textarea
                       value={appointmentReason}
                       onChange={(e) => setAppointmentReason(e.target.value)}
                       placeholder="Any additional notes about the appointment..."
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 bg-white"
                       style={{ color: '#111827' }}
-                      rows={2}
+                      rows={3}
                     />
                   </div>
                 )}
                 
-                <div className="flex gap-2">
+                <div className="flex gap-3 mt-5">
                   <button
                     onClick={() => handleAppointmentUpdate(selectedLead._id)}
-                    className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm"
+                    className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-base font-semibold"
                   >
                     Save Appointment Status
                   </button>
                   {editAppointmentStatus && (selectedLead.appointmentBooked !== null && selectedLead.appointmentBooked !== undefined) && (
                     <button
                       onClick={() => setEditAppointmentStatus(false)}
-                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 text-sm"
+                      className="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-base font-semibold"
                     >
                       Cancel
                     </button>
@@ -1147,25 +1088,6 @@ const MetaLeadsPage: React.FC = () => {
               </div>
             )}
 
-            {/* Notes */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add notes about this lead..."
-                className="w-full border border-gray-300 rounded-md px-3 py-2 mb-2 text-sm text-gray-900 bg-white"
-                style={{ color: '#111827' }}
-                rows={4}
-              />
-              <button
-                onClick={() => handleNotesUpdate(selectedLead._id)}
-                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
-              >
-                Save Notes
-              </button>
-            </div>
-
             {/* Modal Footer */}
             <div className="mt-6 flex justify-end">
               <button
@@ -1173,7 +1095,7 @@ const MetaLeadsPage: React.FC = () => {
                   setShowLeadDetails(false);
                   setSelectedLead(null);
                 }}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-base font-semibold"
               >
                 Close
               </button>
