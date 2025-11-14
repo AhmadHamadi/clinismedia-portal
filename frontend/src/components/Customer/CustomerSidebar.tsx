@@ -13,7 +13,7 @@ interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
-  section?: 'metaInsights' | 'gallery' | 'invoices' | 'onboarding' | 'instagramInsights';
+  section?: 'metaInsights' | 'gallery' | 'invoices' | 'onboarding' | 'instagramInsights' | 'metaLeads';
   group?: string; // For grouping items (e.g., 'tracking')
   comingSoon?: boolean; // For items that are not yet available
 }
@@ -25,7 +25,8 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
     gallery: 0,
     invoices: 0,
     onboarding: 0,
-    instagramInsights: 0
+    instagramInsights: 0,
+    metaLeads: 0
   });
 
   // Regular navigation items (not in a group)
@@ -44,7 +45,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
   // Tracking section items
   const trackingItems: NavItem[] = [
     { label: "Call Logs", path: "/customer/call-logs", icon: <FaPhone />, group: "tracking" },
-    { label: "Meta Lead Tracking", path: "/customer/facebook-insights", icon: <FaFacebook />, section: "metaInsights", group: "tracking", comingSoon: true },
+    { label: "Meta Leads", path: "/customer/meta-leads", icon: <FaFacebook />, group: "tracking", section: "metaLeads" },
   ];
 
   // Fetch unread counts

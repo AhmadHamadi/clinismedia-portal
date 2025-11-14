@@ -10,7 +10,9 @@
     "google-ads-api": "^21.0.1",
     "google-auth-library": "^10.4.2",
     "googleapis": "^160.0.0",
+    "imap": "^0.8.19",
     "jsonwebtoken": "^9.0.2",
+    "mailparser": "^3.9.0",
     "mongodb": "^6.16.0",
     "mongoose": "^8.15.0",
     "multer": "^2.0.1",
@@ -27,6 +29,8 @@
     "start": "node server.js",
     "test": "jest --detectOpenHandles",
     "setup-test-db": "node scripts/setupTestDatabase.js",
-    "check-production": "node scripts/checkProductionSetup.js"
+    "check-production": "node scripts/checkProductionSetup.js",
+    "check-email": "node scripts/checkEmailConfig.js",
+    "check-leads-email": "node scripts/checkLeadsEmailConfig.js"
   }
 }

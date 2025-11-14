@@ -25,7 +25,9 @@ const CustomerDashboard = () => {
     metaInsights: 0,
     gallery: 0,
     invoices: 0,
-    onboarding: 0
+    onboarding: 0,
+    instagramInsights: 0,
+    metaLeads: 0
   });
 
   useEffect(() => {
@@ -79,6 +81,7 @@ const CustomerDashboard = () => {
       window.removeEventListener('refreshCustomerNotifications', handleRefreshNotifications);
     };
   }, []);
+
 
   const getUpcomingMediaDay = (): (MediaDay & { status: string }) | null => {
     const now = new Date();
@@ -177,6 +180,7 @@ const CustomerDashboard = () => {
           </p>
         </div>
       </div>
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Profile Section */}
         <div>

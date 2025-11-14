@@ -15,6 +15,7 @@ import NotificationPage from './NotificationPage';
 import GoogleAdsPage from './GoogleAdsPage';
 import CallLogsPage from './CallLogsPage';
 import GoogleBusinessAnalyticsPage from './GoogleBusinessAnalyticsPage';
+import MetaLeadsPage from './MetaLeadsPage';
 
 const CustomerPortalLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -51,6 +52,8 @@ const CustomerPortalLayout: React.FC = () => {
       clearNotificationBadge('invoices');
     } else if (location.pathname === '/customer/onboarding-tasks') {
       clearNotificationBadge('onboarding');
+    } else if (location.pathname === '/customer/meta-leads') {
+      clearNotificationBadge('metaLeads');
     } else if (location.pathname === '/customer/notifications') {
       // Clear all badges when visiting notifications page
       const clearAllBadges = async () => {
@@ -102,6 +105,7 @@ const CustomerPortalLayout: React.FC = () => {
             <Route path="google-ads" element={<GoogleAdsPage />} />
             <Route path="google-business-analytics" element={<GoogleBusinessAnalyticsPage />} />
             <Route path="call-logs" element={<CallLogsPage />} />
+            <Route path="meta-leads" element={<MetaLeadsPage />} />
             <Route path="" element={<CustomerDashboard />} />
           </Routes>
         </main>
