@@ -25,6 +25,9 @@ const customerNotificationSchema = new mongoose.Schema({
   instagramInsights: {
     unreadCount: { type: Number, default: 0 },
     lastUpdated: { type: Date, default: Date.now }
+  },
+  callLogs: {
+    lastViewed: { type: Date, default: null } // Track when customer last viewed Call Logs page
   }
 }, { timestamps: true });
 

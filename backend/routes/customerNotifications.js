@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const CustomerNotification = require('../models/CustomerNotification');
 const MetaLead = require('../models/MetaLead');
+const CallLog = require('../models/CallLog');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 
@@ -16,11 +17,26 @@ router.get('/unread-counts', authenticateToken, authorizeRole('customer'), async
       await notification.save();
     }
     
-    // Get count of new Meta Leads (status = 'new' - not contacted or not_contacted yet)
+    // Get count of new Meta Leads (status = 'new' - leads that haven't been managed yet)
     const newMetaLeadsCount = await MetaLead.countDocuments({
       customerId: req.user._id,
       status: 'new'
     });
+    
+    // Get count of new Call Logs (calls created after lastViewed timestamp)
+    let newCallLogsCount = 0;
+    if (notification.callLogs && notification.callLogs.lastViewed) {
+      // Count calls created after the last viewed timestamp
+      newCallLogsCount = await CallLog.countDocuments({
+        customerId: req.user._id,
+        startedAt: { $gt: notification.callLogs.lastViewed }
+      });
+    } else {
+      // If never viewed, count all calls
+      newCallLogsCount = await CallLog.countDocuments({
+        customerId: req.user._id
+      });
+    }
     
     res.json({
       metaInsights: notification.metaInsights.unreadCount,
@@ -28,7 +44,8 @@ router.get('/unread-counts', authenticateToken, authorizeRole('customer'), async
       invoices: notification.invoices.unreadCount,
       onboarding: notification.onboarding.unreadCount,
       instagramInsights: notification.instagramInsights?.unreadCount || 0,
-      metaLeads: newMetaLeadsCount
+      metaLeads: newMetaLeadsCount,
+      callLogs: newCallLogsCount
     });
   } catch (error) {
     console.error('Error fetching unread counts:', error);
@@ -40,7 +57,7 @@ router.get('/unread-counts', authenticateToken, authorizeRole('customer'), async
 router.post('/mark-read/:section', authenticateToken, authorizeRole('customer'), async (req, res) => {
   try {
     const { section } = req.params;
-    const validSections = ['metaInsights', 'gallery', 'invoices', 'onboarding', 'instagramInsights', 'metaLeads'];
+    const validSections = ['metaInsights', 'gallery', 'invoices', 'onboarding', 'instagramInsights', 'metaLeads', 'callLogs'];
     
     if (!validSections.includes(section)) {
       return res.status(400).json({ message: 'Invalid section' });
@@ -49,9 +66,30 @@ router.post('/mark-read/:section', authenticateToken, authorizeRole('customer'),
     // Handle metaLeads separately - it's calculated dynamically, so we don't need to update CustomerNotification
     if (section === 'metaLeads') {
       // For metaLeads, we don't actually mark them as read in the database
-      // The count is dynamic based on status='new', so visiting the page doesn't clear the count
-      // The count will only decrease when leads are marked as 'contacted' or 'not_contacted'
+      // The count is dynamic based on status='new' (unmanaged leads)
+      // The count will decrease when leads are marked as 'contacted' or 'not_contacted'
       res.json({ message: 'metaLeads section accessed', unreadCount: 0 });
+      return;
+    }
+    
+    // Handle callLogs separately - update lastViewed timestamp
+    if (section === 'callLogs') {
+      let notification = await CustomerNotification.findOne({ customerId: req.user._id });
+      
+      if (!notification) {
+        notification = new CustomerNotification({ customerId: req.user._id });
+      }
+      
+      // Update lastViewed to current time
+      if (!notification.callLogs) {
+        notification.callLogs = { lastViewed: new Date() };
+      } else {
+        notification.callLogs.lastViewed = new Date();
+      }
+      
+      await notification.save();
+      
+      res.json({ message: 'callLogs section accessed', unreadCount: 0 });
       return;
     }
     

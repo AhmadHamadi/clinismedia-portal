@@ -48,7 +48,7 @@ const CustomerOnboardingTasks: React.FC = () => {
   if (assignedTasks.length === 0) return <div className="p-6 text-gray-600">No onboarding tasks assigned yet.</div>;
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold text-[#303b45] mb-4">Your Onboarding Checklist</h1>
       {tasksByCategory.map(({ category, tasks }) => (
         tasks.length > 0 && (

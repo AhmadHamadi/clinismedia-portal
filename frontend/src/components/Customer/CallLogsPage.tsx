@@ -101,6 +101,27 @@ const CallLogsPage: React.FC = () => {
     fetchCallLogs();
     fetchStats();
     fetchConfig();
+    
+    // Mark Call Logs as read when page opens
+    const markCallLogsAsRead = async () => {
+      try {
+        const token = localStorage.getItem('customerToken');
+        if (!token) return;
+        
+        await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/customer-notifications/mark-read/callLogs`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        // Trigger notification refresh
+        window.dispatchEvent(new Event('refreshCustomerNotifications'));
+      } catch (err) {
+        console.error('Error marking call logs as read:', err);
+      }
+    };
+    
+    markCallLogsAsRead();
   }, [startDate, endDate]);
 
   const fetchCallLogs = async () => {
@@ -428,8 +449,8 @@ const CallLogsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 bg-gray-50 min-h-screen">
-      <div className="w-full mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+      <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
         {/* Header */}
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">

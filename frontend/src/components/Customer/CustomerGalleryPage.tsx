@@ -67,7 +67,7 @@ const CustomerGalleryPage: React.FC = () => {
   if (loading) return <div className="p-6 text-gray-600">Loading media items...</div>;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 p-6">
+    <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 md:gap-8 p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
       {/* Left: Current Gallery Item */}
       <div className="w-full lg:w-2/3">
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-2 py-8 bg-gradient-to-br from-[#f8fafc] to-[#e0f2fe]">

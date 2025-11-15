@@ -146,8 +146,8 @@ const InstagramInsightsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 md:p-8 overflow-x-hidden">
+      <div className="max-w-7xl xl:max-w-7xl 2xl:max-w-7xl mx-auto w-full">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
