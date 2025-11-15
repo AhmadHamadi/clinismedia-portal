@@ -15,6 +15,7 @@ import NotificationPage from './NotificationPage';
 import GoogleAdsPage from './GoogleAdsPage';
 import CallLogsPage from './CallLogsPage';
 import GoogleBusinessAnalyticsPage from './GoogleBusinessAnalyticsPage';
+import CustomerQuickBooksInvoicesPage from './CustomerQuickBooksInvoicesPage';
 import MetaLeadsPage from './MetaLeadsPage';
 
 const CustomerPortalLayout: React.FC = () => {
@@ -106,6 +107,7 @@ const CustomerPortalLayout: React.FC = () => {
             <Route path="google-business-analytics" element={<GoogleBusinessAnalyticsPage />} />
             <Route path="call-logs" element={<CallLogsPage />} />
             <Route path="meta-leads" element={<MetaLeadsPage />} />
+            <Route path="quickbooks-invoices" element={<CustomerQuickBooksInvoicesPage />} />
             <Route path="" element={<CustomerDashboard />} />
           </Routes>
         </main>

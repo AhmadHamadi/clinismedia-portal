@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaHome, FaCalendarAlt, FaTasks, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt, FaGoogle, FaShare, FaInstagram, FaPhone } from 'react-icons/fa';
+import { FaHome, FaCalendarAlt, FaTasks, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt, FaGoogle, FaShare, FaInstagram, FaPhone, FaDollarSign } from 'react-icons/fa';
 import axios from 'axios';
 import logo1 from '../../assets/CliniMedia_Logo1.png';
 import { logout } from '../../utils/auth';
@@ -13,7 +13,7 @@ interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
-  section?: 'metaInsights' | 'gallery' | 'invoices' | 'onboarding' | 'instagramInsights' | 'metaLeads';
+  section?: 'metaInsights' | 'gallery' | 'invoices' | 'onboarding' | 'instagramInsights' | 'metaLeads' | 'quickbooksInvoices';
   group?: string; // For grouping items (e.g., 'tracking')
   comingSoon?: boolean; // For items that are not yet available
 }
@@ -28,6 +28,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
     instagramInsights: 0,
     metaLeads: 0
   });
+  const [unpaidInvoicesCount, setUnpaidInvoicesCount] = useState(0);
 
   // Regular navigation items (not in a group)
   const regularNavItems: NavItem[] = [
@@ -40,6 +41,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
     { label: "Share Your Media", path: "/customer/shared-media", icon: <FaShare /> },
     { label: "View Media", path: "/customer/gallery", icon: <FaImages />, section: "gallery" },
     { label: "View Your Invoice", path: "/customer/invoices", icon: <FaFileInvoice />, section: "invoices" },
+    { label: "QuickBooks Invoices", path: "/customer/quickbooks-invoices", icon: <FaDollarSign />, section: "quickbooksInvoices" },
   ];
 
   // Tracking section items
@@ -82,6 +84,63 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
     };
   }, []);
 
+  // Fetch unpaid QuickBooks invoices count
+  useEffect(() => {
+    const fetchUnpaidInvoicesCount = async () => {
+      try {
+        const token = localStorage.getItem('customerToken');
+        const userStr = localStorage.getItem('customerData');
+        
+        if (!token || !userStr) return;
+
+        const user = JSON.parse(userStr);
+        const customerId = user._id || user.id;
+        
+        if (!customerId) return;
+
+        // Check if QuickBooks is connected first
+        const statusResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/quickbooks/status`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!statusResponse.data?.connected) {
+          setUnpaidInvoicesCount(0);
+          return;
+        }
+
+        // Fetch invoices
+        const invoicesResponse = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL}/quickbooks/customer/${customerId}/invoices`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        const invoices = invoicesResponse.data.invoices || [];
+        
+        // Count unpaid invoices (status !== 'paid' and balance > 0)
+        const unpaidCount = invoices.filter((inv: any) => {
+          if (!inv) return false;
+          const status = inv.status || 'unknown';
+          const balance = Number(inv.balance || 0);
+          return (status !== 'paid' && balance > 0);
+        }).length;
+
+        setUnpaidInvoicesCount(unpaidCount);
+      } catch (error: any) {
+        // Silently fail - don't show error if QuickBooks not connected or not mapped
+        console.log('[Sidebar] Could not fetch unpaid invoices count:', error.response?.status);
+        setUnpaidInvoicesCount(0);
+      }
+    };
+
+    fetchUnpaidInvoicesCount();
+    // Poll every 30 seconds for updates (less frequent than notifications)
+    const interval = setInterval(fetchUnpaidInvoicesCount, 30000);
+    
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
+
   const handleLogout = async () => {
     const confirmed = window.confirm("Are you sure you want to logout? You will need to login again to access your account.");
     if (confirmed) {
@@ -118,8 +177,14 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
               >
                 {item.icon}
                 <span className="ml-3">{item.label}</span>
-                {/* Notification badge */}
-                {item.section && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
+                {/* QuickBooks unpaid invoices badge */}
+                {item.section === 'quickbooksInvoices' && unpaidInvoicesCount > 0 && (
+                  <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    {unpaidInvoicesCount}
+                  </span>
+                )}
+                {/* Notification badge for other sections */}
+                {item.section && item.section !== 'quickbooksInvoices' && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
                   <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
                     {unreadCounts[item.section as keyof typeof unreadCounts]}
                   </span>

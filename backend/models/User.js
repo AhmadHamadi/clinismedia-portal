@@ -164,6 +164,35 @@ const userSchema = new mongoose.Schema({
   ],
   visibleGalleryItems: [{ type: mongoose.Schema.Types.ObjectId, ref: 'GalleryItem' }],
   visibleInvoices: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' }],
+  // QuickBooks Integration
+  quickbooksAccessToken: {
+    type: String,
+    default: null,
+  },
+  quickbooksRefreshToken: {
+    type: String,
+    default: null,
+  },
+  quickbooksRealmId: {
+    type: String,
+    default: null, // Company ID
+  },
+  quickbooksTokenExpiry: {
+    type: Date,
+    default: null,
+  },
+  quickbooksConnected: {
+    type: Boolean,
+    default: false,
+  },
+  quickbooksLastSynced: {
+    type: Date,
+    default: null,
+  },
+  quickbooksOAuthState: {
+    type: String,
+    default: null, // Temporary state for OAuth flow
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model("User", userSchema);

@@ -17,6 +17,7 @@ import GoogleBusinessManagementPage from './GoogleBusinessManagement/GoogleBusin
 import TwilioManagementPage from './TwilioManagement/TwilioManagementPage';
 import InstagramInsightsManagementPage from './InstagramInsightsManagement/InstagramInsightsManagementPage';
 import MetaLeadsManagementPage from './MetaLeadsManagementPage';
+import QuickBooksManagementPage from './QuickBooksManagement/QuickBooksManagementPage';
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -56,6 +57,7 @@ const AdminLayout = () => {
           <Route path="/twilio" element={<TwilioManagementPage />} />
           <Route path="/instagram-insights" element={<InstagramInsightsManagementPage />} />
           <Route path="/meta-leads" element={<MetaLeadsManagementPage />} />
+          <Route path="/quickbooks" element={<QuickBooksManagementPage />} />
         </Routes>
       </div>
     </div>
