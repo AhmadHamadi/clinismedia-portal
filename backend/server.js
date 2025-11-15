@@ -1,12 +1,44 @@
 // backend/server.js
+// Load environment variables FIRST before any other imports
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Debug: Check what's in process.env BEFORE loading .env
+console.log('🔍 BEFORE loading .env:');
+console.log('   QUICKBOOKS_ENVIRONMENT (system):', process.env.QUICKBOOKS_ENVIRONMENT);
+
+// Explicitly load .env from backend directory with override enabled
+// override: true ensures .env values override any existing system/env variables
+const envPath = path.join(__dirname, '.env');
+const result = dotenv.config({ 
+  path: envPath,
+  override: true // IMPORTANT: Override any existing env vars (like from system or Railway)
+});
+
+// Debug: Check what's in process.env AFTER loading .env
+console.log('🔍 AFTER loading .env:');
+console.log('   QUICKBOOKS_ENVIRONMENT (after .env):', process.env.QUICKBOOKS_ENVIRONMENT);
+
+// Debug: Verify environment variables are loaded
+console.log('🔍 Server Startup - Environment Check:');
+console.log('   .env file path:', envPath);
+if (result.error) {
+  console.error('   ❌ ERROR loading .env file:', result.error);
+} else {
+  console.log('   ✅ .env file loaded successfully (with override: true)');
+}
+console.log('   QUICKBOOKS_ENVIRONMENT:', process.env.QUICKBOOKS_ENVIRONMENT);
+console.log('   QUICKBOOKS_CLIENT_ID:', process.env.QUICKBOOKS_CLIENT_ID ? 'SET' : 'NOT SET');
+console.log('   NODE_ENV:', process.env.NODE_ENV);
+
 const express = require("express");
 const cors = require("cors");           // Add CORS
 const connectDB = require("./config/db");
 const ScheduledEmailService = require("./services/scheduledEmailService");
 const GoogleBusinessDataRefreshService = require("./services/googleBusinessDataRefreshService");
 const metaLeadsEmailService = require("./services/metaLeadsEmailService");
+const QuickBooksTokenRefreshService = require("./services/quickbooksTokenRefreshService");
 const { sessionManager } = require("./middleware/sessionManager");
-require("dotenv").config();
 
 const app = express();
 
@@ -43,6 +75,7 @@ const customerNotificationsRoutes = require('./routes/customerNotifications');
 const googleBusinessRoutes = require('./routes/googleBusiness');
 const twilioRoutes = require('./routes/twilio');
 const metaLeadsRoutes = require('./routes/metaLeads');
+const quickbooksRoutes = require('./routes/quickbooks');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
@@ -64,6 +97,7 @@ app.use('/api/customer-notifications', customerNotificationsRoutes);
 app.use('/api/google-business', googleBusinessRoutes);
 app.use('/api/twilio', twilioRoutes);
 app.use('/api/meta-leads', metaLeadsRoutes);
+app.use('/api/quickbooks', quickbooksRoutes);
 app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
 app.use('/uploads/invoices', express.static(__dirname + '/uploads/invoices'));
 app.use('/uploads/customer-logos', express.static(__dirname + '/uploads/customer-logos'));
@@ -118,4 +152,7 @@ app.listen(PORT, () => {
   // Start Meta leads email monitoring (checks every 5 minutes)
   const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL) || 5;
   metaLeadsEmailService.startMonitoring(leadsCheckInterval);
+  
+  // Start QuickBooks token refresh service (runs every 30 minutes)
+  QuickBooksTokenRefreshService.start();
 });

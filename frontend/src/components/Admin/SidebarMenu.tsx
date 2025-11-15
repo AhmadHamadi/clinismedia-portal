@@ -89,6 +89,7 @@ const SidebarMenu = () => {
     { label: "Manage Gallery Edits", path: "/admin/gallery" },
     { label: "Manage Shared Folder", path: "/admin/shared-folders" },
     { label: "Manage Meta Leads", path: "/admin/meta-leads" },
+    { label: "QuickBooks", path: "/admin/quickbooks" },
   ];
 
   const getButtonClasses = (path: string) => {

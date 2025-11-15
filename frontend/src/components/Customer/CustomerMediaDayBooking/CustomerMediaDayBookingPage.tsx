@@ -137,45 +137,17 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     const lastBooking = acceptedBookings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     const interval = customer.bookingIntervalMonths || 1;
     
-    // Calculate next allowed date with start-of-period logic
+    // Calculate next allowed date by adding the interval months to the last booking date
+    // Example: If last booking is January and interval is 3 months, next booking is April (not February)
     const lastDate = new Date(lastBooking.date);
     let nextDate;
     
-    if (interval === 1) {
-      // Monthly: Next booking must be at start of next month
-      nextDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1);
-    } else if (interval === 2) {
-      // Bi-monthly: Every 2 months (Jan, Mar, May, Jul, Sep, Nov)
-      nextDate = new Date(lastDate);
-      nextDate.setMonth(nextDate.getMonth() + 2);
-      nextDate.setDate(1);
-    } else if (interval === 3) {
-      // Quarterly: Next booking must be at start of next quarter
-      const currentQuarter = Math.floor(lastDate.getMonth() / 3);
-      const nextQuarterStartMonth = (currentQuarter + 1) * 3;
-      
-      // If we're at Q4, move to Q1 of next year
-      if (nextQuarterStartMonth >= 12) {
-        nextDate = new Date(lastDate.getFullYear() + 1, 0, 1); // January 1st
-      } else {
-        nextDate = new Date(lastDate.getFullYear(), nextQuarterStartMonth, 1);
-      }
-    } else if (interval === 4) {
-      // 4 times per year: Every 3 months (Jan, Apr, Jul, Oct)
-      nextDate = new Date(lastDate);
-      nextDate.setMonth(nextDate.getMonth() + 3);
-      nextDate.setDate(1);
-    } else if (interval === 6) {
-      // 6 times per year: Every 2 months (Jan, Mar, May, Jul, Sep, Nov)
-      nextDate = new Date(lastDate);
-      nextDate.setMonth(nextDate.getMonth() + 2);
-      nextDate.setDate(1);
-    } else {
-      // Fallback to old logic for other intervals
-      nextDate = new Date(lastDate);
-      nextDate.setMonth(nextDate.getMonth() + interval);
-      nextDate.setDate(1);
-    }
+    // Simply add the interval months to the last booking date
+    // This ensures correct calculation: January + 3 months = April, not February
+    nextDate = new Date(lastDate);
+    nextDate.setMonth(nextDate.getMonth() + interval);
+    nextDate.setDate(1); // Set to first day of the month
+    nextDate.setHours(0, 0, 0, 0); // Reset time to start of day
     
     setNextAllowedBookingDate(nextDate);
   }, [customer, bookings]);
