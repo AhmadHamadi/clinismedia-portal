@@ -84,14 +84,14 @@ const CustomerPortalLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-gray-100 overflow-x-hidden">
       {/* Sidebar - Always visible */}
       <CustomerSidebar onLogout={handleLogout} />
       
       {/* Main Content */}
-      <div className="flex-1 flex flex-col ml-64">
+      <div className="flex-1 flex flex-col ml-64 overflow-x-hidden">
         {/* Page Content */}
-        <main className="flex-1">
+        <main className="flex-1 overflow-x-hidden w-full">
           <Routes>
             <Route path="dashboard" element={<CustomerDashboard />} />
             <Route path="media-day-booking" element={<CustomerMediaDayBookingPage />} />

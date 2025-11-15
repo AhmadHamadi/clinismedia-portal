@@ -228,9 +228,9 @@ const FacebookInsightsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden">
       {/* Facebook Insights */}
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+        <div className="max-w-7xl xl:max-w-7xl 2xl:max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 sm:gap-8 md:gap-10 w-full">
           {/* Sidebar: Month History */}
           <div className="w-full lg:w-1/4 mb-8 lg:mb-0">
             <div className="bg-white rounded-lg shadow-md p-4">

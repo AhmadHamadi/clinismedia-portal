@@ -296,8 +296,8 @@ const CustomerMediaDayBookingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f9fafb] via-[#f3f4f6] to-[#e5e7eb] py-8">
-      <div className="max-w-6xl mx-auto px-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#f9fafb] via-[#f3f4f6] to-[#e5e7eb] py-6 sm:py-8 md:py-10 overflow-x-hidden">
+      <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 md:px-8 w-full">
         {/* Header */}
         <div className="text-center mb-12 relative flex flex-col items-center pt-8 pb-4">
           <h1 className="text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow font-sans tracking-tight flex items-center justify-center gap-2 leading-normal py-2">

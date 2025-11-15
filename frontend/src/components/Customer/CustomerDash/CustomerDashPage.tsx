@@ -28,7 +28,8 @@ const CustomerDashboard = () => {
     invoices: 0,
     onboarding: 0,
     instagramInsights: 0,
-    metaLeads: 0
+    metaLeads: 0,
+    callLogs: 0
   });
   const [unpaidInvoicesCount, setUnpaidInvoicesCount] = useState(0);
 
@@ -224,26 +225,26 @@ const CustomerDashboard = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-3 py-3" style={{ transform: 'scale(0.9)', transformOrigin: 'top left', width: '111%' }}>
+    <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-6 w-full overflow-x-hidden">
       {/* Intro Box */}
-      <div className="bg-gradient-to-br from-[#e0f2fe] to-[#f8fafc] rounded-lg shadow-lg p-3 border border-[#e0e7ef] mb-3 relative overflow-hidden flex items-center justify-center min-h-[100px]">
+      <div className="bg-gradient-to-br from-[#e0f2fe] to-[#f8fafc] rounded-lg shadow-lg p-3 sm:p-4 md:p-6 border border-[#e0e7ef] mb-3 sm:mb-4 md:mb-6 relative overflow-hidden flex items-center justify-center min-h-[100px] sm:min-h-[120px] md:min-h-[140px]">
         {/* Decorative Sparkles in Corners */}
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="absolute top-1 left-1 opacity-30 rotate-12 pointer-events-none"><path d="M16 2L18.09 10.26L26 12L18.09 13.74L16 22L13.91 13.74L6 12L13.91 10.26L16 2Z" fill="#98c6d5"/></svg>
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="absolute top-1 right-1 opacity-20 -rotate-12 pointer-events-none"><path d="M16 2L18.09 10.26L26 12L18.09 13.74L16 22L13.91 13.74L6 12L13.91 10.26L16 2Z" fill="#98c6d5"/></svg>
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="absolute bottom-1 left-1 opacity-20 -rotate-6 pointer-events-none"><path d="M16 2L18.09 10.26L26 12L18.09 13.74L16 22L13.91 13.74L6 12L13.91 10.26L16 2Z" fill="#98c6d5"/></svg>
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="absolute bottom-1 right-1 opacity-30 rotate-6 pointer-events-none"><path d="M16 2L18.09 10.26L26 12L18.09 13.74L16 22L13.91 13.74L6 12L13.91 10.26L16 2Z" fill="#98c6d5"/></svg>
-        <div className="z-10 w-full max-w-xl text-center mx-auto">
-          <h1 className="text-lg md:text-xl font-extrabold text-[#1877f3] mb-0.5 font-sans text-center">Welcome to Your CliniMedia Portal!</h1>
-          <p className="text-gray-700 text-xs md:text-sm font-medium text-center mx-auto">
+        <div className="z-10 w-full max-w-xl lg:max-w-2xl xl:max-w-3xl text-center mx-auto">
+          <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-extrabold text-[#1877f3] mb-1 sm:mb-2 font-sans text-center">Welcome to Your CliniMedia Portal!</h1>
+          <p className="text-gray-700 text-xs sm:text-sm md:text-base lg:text-lg font-medium text-center mx-auto">
             We're excited to help your clinic shine. Here you can easily <span className="text-[#60a5fa] font-bold">book your next Media Day</span>, access your <span className="text-[#60a5fa] font-bold">professional photo galleries</span>, manage <span className="text-[#60a5fa] font-bold">invoices</span>, and track <span className="text-[#60a5fa] font-bold">onboarding tasks</span>, monitor your <span className="text-[#60a5fa] font-bold">Facebook and Google advertisements</span>—all in one place. Our team is here to support you every step of the way.
           </p>
         </div>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
         {/* Profile Section */}
         <div>
-          <div className="flex flex-col md:flex-row items-center md:items-end gap-2 bg-white rounded-lg shadow p-3 h-full">
+          <div className="flex flex-col md:flex-row items-center md:items-end gap-2 sm:gap-3 md:gap-4 bg-white rounded-lg shadow p-3 sm:p-4 md:p-6 h-full">
             {/* Logo or Profile Icon */}
             <div className="flex-shrink-0">
               {customer.customerSettings?.logoUrl ? (
@@ -253,15 +254,15 @@ const CustomerDashboard = () => {
                   className="w-16 h-16 rounded-full object-cover border-2 border-[#98c6d5] bg-white"
                 />
               ) : (
-                <UserCircleIcon className="w-12 h-12 text-[#98c6d5] bg-gray-100 rounded-full" />
+                <UserCircleIcon className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 text-[#98c6d5] bg-gray-100 rounded-full" />
               )}
             </div>
             <div className="flex-1 flex flex-col items-center md:items-start justify-center">
-              <h2 className="text-base font-bold text-gray-900 mb-0 text-center md:text-left">
+              <h2 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-gray-900 mb-0 text-center md:text-left">
                 {customer.name}
               </h2>
               {customer.email && (
-                <div className="text-gray-500 text-[10px] mt-0.5 mb-0.5 text-center md:text-left">
+                <div className="text-gray-500 text-[10px] sm:text-xs md:text-sm mt-0.5 mb-0.5 text-center md:text-left">
                   {customer.email}
                 </div>
               )}
@@ -342,148 +343,153 @@ const CustomerDashboard = () => {
         </div>
         {/* Quick Actions Section (next row, spans both columns) */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow p-3">
-            <h3 className="text-sm font-bold mb-3" style={{ color: '#14b8a6' }}>Quick Actions</h3>
+          <div className="bg-white rounded-lg shadow p-3 sm:p-4 md:p-6">
+            <h3 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold mb-3 sm:mb-4 md:mb-6" style={{ color: '#14b8a6' }}>Quick Actions</h3>
             
             {/* Main Actions Section */}
-            <div className="mb-4">
-              <h4 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 px-1">Main Actions</h4>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="mb-4 sm:mb-6 md:mb-8">
+              <h4 className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 sm:mb-3 md:mb-4 px-1">Main Actions</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
                 {/* Media Day Calendar */}
                 <button
                   onClick={() => navigate("/customer/media-day-booking")}
-                  className="flex flex-col items-center p-2.5 bg-[#fef3c7] rounded-lg hover:bg-[#fde68a] transition relative shadow-sm hover:shadow-md"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-[#fef3c7] rounded-lg hover:bg-[#fde68a] transition relative shadow-sm hover:shadow-md"
                 >
-                  <FaCalendarAlt className="w-5 h-5 text-[#f59e0b] mb-1" />
-                  <span className="font-medium text-gray-800 text-[10px] text-center leading-tight">Media Day Calendar</span>
+                  <FaCalendarAlt className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#f59e0b] mb-1 sm:mb-2" />
+                  <span className="font-medium text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">Media Day Calendar</span>
                 </button>
                 {/* Onboarding Tasks */}
                 <button
                   onClick={() => navigate("/customer/onboarding-tasks")}
-                  className="flex flex-col items-center p-2.5 bg-[#e0f2fe] rounded-lg hover:bg-[#bae6fd] transition relative shadow-sm hover:shadow-md"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-[#e0f2fe] rounded-lg hover:bg-[#bae6fd] transition relative shadow-sm hover:shadow-md"
                 >
                   {unreadCounts.onboarding > 0 && (
-                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full">
+                    <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 inline-flex items-center justify-center min-w-[16px] sm:min-w-[18px] h-4 sm:h-5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-bold leading-none text-white bg-red-600 rounded-full">
                       {unreadCounts.onboarding}
                     </span>
                   )}
-                  <FaTasks className="w-5 h-5 text-[#3b82f6] mb-1" />
-                  <span className="font-medium text-gray-800 text-[10px] text-center leading-tight">Onboarding Tasks</span>
+                  <FaTasks className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#3b82f6] mb-1 sm:mb-2" />
+                  <span className="font-medium text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">Onboarding Tasks</span>
                 </button>
                 {/* View Media (Gallery) */}
                 <button
                   onClick={() => navigate("/customer/gallery")}
-                  className="flex flex-col items-center p-2.5 bg-[#d1fae5] rounded-lg hover:bg-[#6ee7b7] transition relative shadow-sm hover:shadow-md"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-[#d1fae5] rounded-lg hover:bg-[#6ee7b7] transition relative shadow-sm hover:shadow-md"
                 >
                   {unreadCounts.gallery > 0 && (
-                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full">
+                    <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 inline-flex items-center justify-center min-w-[16px] sm:min-w-[18px] h-4 sm:h-5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-bold leading-none text-white bg-red-600 rounded-full">
                       {unreadCounts.gallery}
                     </span>
                   )}
-                  <FaImages className="w-5 h-5 text-[#22c55e] mb-1" />
-                  <span className="font-medium text-gray-800 text-[10px] text-center leading-tight">View Media</span>
+                  <FaImages className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#22c55e] mb-1 sm:mb-2" />
+                  <span className="font-medium text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">View Media</span>
                 </button>
                 {/* Share Your Media */}
                 <button
                   onClick={() => navigate("/customer/shared-media")}
-                  className="flex flex-col items-center p-2.5 bg-[#e0f2fe] rounded-lg hover:bg-[#bae6fd] transition relative shadow-sm hover:shadow-md"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-[#e0f2fe] rounded-lg hover:bg-[#bae6fd] transition relative shadow-sm hover:shadow-md"
                 >
-                  <FaShare className="w-5 h-5 text-[#0ea5e9] mb-1" />
-                  <span className="font-medium text-gray-800 text-[10px] text-center leading-tight">Share Your Media</span>
+                  <FaShare className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#0ea5e9] mb-1 sm:mb-2" />
+                  <span className="font-medium text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">Share Your Media</span>
                 </button>
                 {/* QuickBooks Invoices */}
                 <button
                   onClick={() => navigate("/customer/quickbooks-invoices")}
-                  className="flex flex-col items-center p-2.5 bg-[#dbeafe] rounded-lg hover:bg-[#bfdbfe] transition relative shadow-sm hover:shadow-md"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-[#dbeafe] rounded-lg hover:bg-[#bfdbfe] transition relative shadow-sm hover:shadow-md"
                 >
                   {unpaidInvoicesCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full">
+                    <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 inline-flex items-center justify-center min-w-[16px] sm:min-w-[18px] h-4 sm:h-5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-bold leading-none text-white bg-red-600 rounded-full">
                       {unpaidInvoicesCount}
                     </span>
                   )}
-                  <FaDollarSign className="w-5 h-5 text-[#2563eb] mb-1" />
-                  <span className="font-medium text-gray-800 text-[10px] text-center leading-tight">QuickBooks Invoices</span>
+                  <FaDollarSign className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#2563eb] mb-1 sm:mb-2" />
+                  <span className="font-medium text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">QuickBooks Invoices</span>
                 </button>
               </div>
             </div>
 
             {/* Marketing & Insights Section */}
-            <div className="mb-4">
-              <h4 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 px-1">Marketing & Insights</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="mb-4 sm:mb-6 md:mb-8">
+              <h4 className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 sm:mb-3 md:mb-4 px-1">Marketing & Insights</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
                 {/* Meta Insights (Facebook Insights) */}
                 <button
                   onClick={() => navigate("/customer/facebook-insights")}
-                  className="flex flex-col items-center p-2.5 bg-[#e7f0fd] rounded-lg hover:bg-[#c7e0fa] transition relative shadow-sm hover:shadow-md"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-[#e7f0fd] rounded-lg hover:bg-[#c7e0fa] transition relative shadow-sm hover:shadow-md"
                 >
                   {unreadCounts.metaInsights > 0 && (
-                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full">
+                    <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 inline-flex items-center justify-center min-w-[16px] sm:min-w-[18px] h-4 sm:h-5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-bold leading-none text-white bg-red-600 rounded-full">
                       {unreadCounts.metaInsights}
                     </span>
                   )}
-                  <FaFacebook className="w-5 h-5 text-[#1877f3] mb-1" />
-                  <span className="font-medium text-gray-800 text-[10px] text-center leading-tight">Meta Insights</span>
+                  <FaFacebook className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#1877f3] mb-1 sm:mb-2" />
+                  <span className="font-medium text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">Meta Insights</span>
                 </button>
                 {/* Google Ads */}
                 <button
                   onClick={() => navigate("/customer/google-ads")}
-                  className="flex flex-col items-center p-2.5 bg-[#fef3c7] rounded-lg hover:bg-[#fde68a] transition relative shadow-sm hover:shadow-md"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-[#fef3c7] rounded-lg hover:bg-[#fde68a] transition relative shadow-sm hover:shadow-md"
                 >
-                  <FaGoogle className="w-5 h-5 text-[#ea4335] mb-1" />
-                  <span className="font-medium text-gray-800 text-[10px] text-center leading-tight">Google Ads</span>
+                  <FaGoogle className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#ea4335] mb-1 sm:mb-2" />
+                  <span className="font-medium text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">Google Ads</span>
                 </button>
                 {/* Google Business */}
                 <button
                   onClick={() => navigate("/customer/google-business-analytics")}
-                  className="flex flex-col items-center p-2.5 bg-[#fef3c7] rounded-lg hover:bg-[#fde68a] transition relative shadow-sm hover:shadow-md"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-[#fef3c7] rounded-lg hover:bg-[#fde68a] transition relative shadow-sm hover:shadow-md"
                 >
-                  <FaGoogle className="w-5 h-5 text-[#4285f4] mb-1" />
-                  <span className="font-medium text-gray-800 text-[10px] text-center leading-tight">Google Business</span>
+                  <FaGoogle className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#4285f4] mb-1 sm:mb-2" />
+                  <span className="font-medium text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">Google Business</span>
                 </button>
                 {/* Instagram Insights */}
                 <button
                   onClick={() => navigate("/customer/instagram-insights")}
-                  className="flex flex-col items-center p-2.5 bg-[#fce7f3] rounded-lg hover:bg-[#fbcfe8] transition relative shadow-sm hover:shadow-md"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-[#fce7f3] rounded-lg hover:bg-[#fbcfe8] transition relative shadow-sm hover:shadow-md"
                 >
                   {unreadCounts.instagramInsights > 0 && (
-                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full">
+                    <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 inline-flex items-center justify-center min-w-[16px] sm:min-w-[18px] h-4 sm:h-5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-bold leading-none text-white bg-red-600 rounded-full">
                       {unreadCounts.instagramInsights}
                     </span>
                   )}
-                  <FaInstagram className="w-5 h-5 text-[#e4405f] mb-1" />
-                  <span className="font-medium text-gray-800 text-[10px] text-center leading-tight">Instagram Insights</span>
+                  <FaInstagram className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#e4405f] mb-1 sm:mb-2" />
+                  <span className="font-medium text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">Instagram Insights</span>
                 </button>
               </div>
             </div>
 
             {/* Tracking Section - HIGHLIGHTED */}
-            <div className="bg-gradient-to-br from-[#eff6ff] via-[#dbeafe] to-[#bfdbfe] rounded-lg p-3 border-2 border-[#3b82f6] shadow-lg">
-              <div className="mb-2">
-                <h4 className="text-xs font-bold text-[#1e40af] uppercase tracking-wider px-1">
+            <div className="bg-gradient-to-br from-[#eff6ff] via-[#dbeafe] to-[#bfdbfe] rounded-lg p-3 sm:p-4 md:p-6 border-2 border-[#3b82f6] shadow-lg">
+              <div className="mb-2 sm:mb-3 md:mb-4">
+                <h4 className="text-xs sm:text-sm md:text-base lg:text-lg font-bold text-[#1e40af] uppercase tracking-wider px-1">
                   Tracking
                 </h4>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4">
                 {/* Call Logs */}
                 <button
                   onClick={() => navigate("/customer/call-logs")}
-                  className="flex flex-col items-center p-2.5 bg-white rounded-lg hover:bg-[#eff6ff] transition relative shadow-md hover:shadow-lg border border-[#3b82f6]"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-white rounded-lg hover:bg-[#eff6ff] transition relative shadow-md hover:shadow-lg border border-[#3b82f6]"
                 >
-                  <FaPhone className="w-5 h-5 text-[#6b7280] mb-1" />
-                  <span className="font-semibold text-gray-800 text-[10px] text-center leading-tight">Call Logs</span>
+                  {unreadCounts.callLogs > 0 && (
+                    <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 inline-flex items-center justify-center min-w-[16px] sm:min-w-[18px] h-4 sm:h-5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                      {unreadCounts.callLogs}
+                    </span>
+                  )}
+                  <FaPhone className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#6b7280] mb-1 sm:mb-2" />
+                  <span className="font-semibold text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">Call Logs</span>
                 </button>
                 {/* Meta Leads */}
                 <button
                   onClick={() => navigate("/customer/meta-leads")}
-                  className="flex flex-col items-center p-2.5 bg-white rounded-lg hover:bg-[#eff6ff] transition relative shadow-md hover:shadow-lg border border-[#3b82f6]"
+                  className="flex flex-col items-center p-2.5 sm:p-3 md:p-4 bg-white rounded-lg hover:bg-[#eff6ff] transition relative shadow-md hover:shadow-lg border border-[#3b82f6]"
                 >
                   {unreadCounts.metaLeads > 0 && (
-                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full">
+                    <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 inline-flex items-center justify-center min-w-[16px] sm:min-w-[18px] h-4 sm:h-5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-bold leading-none text-white bg-red-600 rounded-full">
                       {unreadCounts.metaLeads}
                     </span>
                   )}
-                  <FaFacebook className="w-5 h-5 text-[#1877f3] mb-1" />
-                  <span className="font-semibold text-gray-800 text-[10px] text-center leading-tight">Meta Leads</span>
+                  <FaFacebook className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-[#1877f3] mb-1 sm:mb-2" />
+                  <span className="font-semibold text-gray-800 text-[10px] sm:text-xs md:text-sm text-center leading-tight">Meta Leads</span>
                 </button>
               </div>
             </div>

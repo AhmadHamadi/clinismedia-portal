@@ -247,8 +247,8 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6 md:p-8 overflow-x-hidden">
+      <div className="max-w-7xl xl:max-w-7xl 2xl:max-w-7xl mx-auto w-full">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-100">
           <div className="flex items-center justify-between">

@@ -162,7 +162,7 @@ const SharedMediaPage: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
