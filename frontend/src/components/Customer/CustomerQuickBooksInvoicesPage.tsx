@@ -26,6 +26,7 @@ interface Invoice {
   privateNote: string | null;
   pdfUrl?: string;
   paymentUrl?: string;
+  invoiceLink?: string | null; // Direct payment link from QuickBooks
 }
 
 const CustomerQuickBooksInvoicesPage: React.FC = () => {
