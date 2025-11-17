@@ -14,9 +14,18 @@ const multer = require('multer');
 const path = require('path');
 
 // Set up multer storage for customer logos
+const fs = require('fs');
+const uploadsDir = path.join(__dirname, '../uploads/customer-logos/');
+
+// Ensure uploads directory exists
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('✅ Created uploads/customer-logos directory');
+}
+
 const logoStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../uploads/customer-logos/'));
+    cb(null, uploadsDir);
   },
   filename: function (req, file, cb) {
     const ext = path.extname(file.originalname);
@@ -24,7 +33,20 @@ const logoStorage = multer.diskStorage({
     cb(null, uniqueName);
   },
 });
-const uploadLogo = multer({ storage: logoStorage });
+const uploadLogo = multer({ 
+  storage: logoStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
 
 // GET customer profile (authenticated)
 router.get("/profile", authenticateToken, async (req, res) => {
@@ -145,14 +167,56 @@ router.put("/:id", authenticateToken, authorizeRole(['admin']), uploadLogo.singl
   }
 });
 
+// Error handling middleware for multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: "File size too large. Maximum size is 5MB." });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+  if (err) {
+    if (err.message === 'Only image files are allowed') {
+      return res.status(400).json({ error: "Only image files are allowed." });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+  next();
+};
+
 // PUT update customer profile (authenticated)
-router.put("/profile", authenticateToken, uploadLogo.single('logo'), async (req, res) => {
+router.put("/profile", authenticateToken, uploadLogo.single('logo'), handleMulterError, async (req, res) => {
   try {
     const { name, email, location, address, bookingIntervalMonths } = req.body;
-    const logoUrl = req.file ? `/uploads/customer-logos/${req.file.filename}` : undefined;
+    
+    // Check if file was uploaded
+    if (!req.file) {
+      // If no file, just update other fields
+      const updateData = { name, email, location, address, bookingIntervalMonths };
+      const customer = await User.findByIdAndUpdate(
+        req.user.id,
+        updateData,
+        { new: true }
+      ).select("-password");
 
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      return res.status(200).json(customer);
+    }
+
+    const logoUrl = `/uploads/customer-logos/${req.file.filename}`;
     const updateData = { name, email, location, address, bookingIntervalMonths };
-    if (logoUrl) {
+    
+    // Preserve existing customerSettings if they exist, or create new
+    const existingCustomer = await User.findById(req.user.id);
+    if (existingCustomer && existingCustomer.customerSettings) {
+      updateData.customerSettings = {
+        ...existingCustomer.customerSettings,
+        logoUrl: logoUrl
+      };
+    } else {
       updateData.customerSettings = { logoUrl };
     }
 
@@ -166,10 +230,21 @@ router.put("/profile", authenticateToken, uploadLogo.single('logo'), async (req,
       return res.status(404).json({ error: "Customer not found" });
     }
 
+    console.log('✅ Logo uploaded successfully:', logoUrl);
     res.status(200).json(customer);
   } catch (err) {
     console.error("❌ Failed to update customer profile:", err.message);
-    res.status(500).json({ error: "Server error updating customer profile" });
+    console.error("❌ Error stack:", err.stack);
+    
+    // If multer error, provide more specific message
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: "File size too large. Maximum size is 5MB." });
+    }
+    if (err.message === 'Only image files are allowed') {
+      return res.status(400).json({ error: "Only image files are allowed." });
+    }
+    
+    res.status(500).json({ error: err.message || "Server error updating customer profile" });
   }
 });
 

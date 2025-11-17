@@ -705,7 +705,22 @@ const QuickBooksManagementPage: React.FC = () => {
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return 'N/A';
-      return date.toLocaleDateString();
+      // Show both date and time for token expiry to be more accurate
+      const now = new Date();
+      const isExpired = date < now;
+      const timeUntilExpiry = date.getTime() - now.getTime();
+      const hoursUntilExpiry = Math.floor(timeUntilExpiry / (1000 * 60 * 60));
+      const minutesUntilExpiry = Math.floor((timeUntilExpiry % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (isExpired) {
+        return `${date.toLocaleDateString()} ${date.toLocaleTimeString()} (EXPIRED)`;
+      } else if (hoursUntilExpiry < 24) {
+        // If expires within 24 hours, show time remaining
+        return `${date.toLocaleDateString()} ${date.toLocaleTimeString()} (in ${hoursUntilExpiry}h ${minutesUntilExpiry}m)`;
+      } else {
+        // If more than 24 hours, just show date and time
+        return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+      }
     } catch (err) {
       console.warn('[Frontend] Error formatting date:', dateString, err);
       return 'N/A';

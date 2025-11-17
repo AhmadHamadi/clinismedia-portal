@@ -31,10 +31,21 @@ async function getValidAccessToken() {
     throw new Error('QuickBooks not connected');
   }
 
-  // Check if token is expired (with 10 minute buffer for proactive refresh)
+  // Check if token is expired (with 15 minute buffer for proactive refresh)
+  // This ensures tokens are refreshed well before expiry during API calls
   const now = new Date();
   const expiryTime = owner.quickbooksTokenExpiry ? new Date(owner.quickbooksTokenExpiry) : null;
-  const bufferTime = 10 * 60 * 1000; // 10 minutes in milliseconds (proactive refresh)
+  const bufferTime = 15 * 60 * 1000; // 15 minutes in milliseconds (proactive refresh)
+  
+  // Log current token status for debugging
+  if (expiryTime) {
+    const timeUntilExpiry = expiryTime.getTime() - now.getTime();
+    const minutesUntilExpiry = Math.floor(timeUntilExpiry / 60000);
+    const isExpired = timeUntilExpiry <= 0;
+    console.log(`[QuickBooks] Token status: ${isExpired ? 'EXPIRED' : 'Valid'}, expires in ${minutesUntilExpiry} minutes (${expiryTime.toISOString()})`);
+  } else {
+    console.log('[QuickBooks] Token expiry not set, will refresh');
+  }
   
   // If no expiry time is set, or token is expired/expiring soon, refresh it
   const shouldRefresh = !expiryTime || (expiryTime && (now.getTime() + bufferTime) >= expiryTime.getTime());
@@ -44,19 +55,27 @@ async function getValidAccessToken() {
     try {
       const refreshed = await QuickBooksService.refreshAccessToken(owner.quickbooksRefreshToken);
       
+      // Validate expiresIn is a number (should be in seconds)
+      const expiresInSeconds = parseInt(refreshed.expiresIn, 10);
+      if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
+        console.warn('[QuickBooks] Invalid expiresIn from refresh, using default 3600 seconds');
+        refreshed.expiresIn = 3600;
+      }
+      
       // Calculate new expiry time (QuickBooks tokens typically expire in 1 hour = 3600 seconds)
       const tokenExpiry = new Date();
-      tokenExpiry.setSeconds(tokenExpiry.getSeconds() + (refreshed.expiresIn || 3600));
+      tokenExpiry.setSeconds(tokenExpiry.getSeconds() + (expiresInSeconds || 3600));
       
       owner.quickbooksAccessToken = refreshed.accessToken;
       owner.quickbooksRefreshToken = refreshed.refreshToken || owner.quickbooksRefreshToken; // Keep existing if not provided
       owner.quickbooksTokenExpiry = tokenExpiry;
       await owner.save();
       
-      console.log('[QuickBooks] Token refreshed successfully. New expiry:', tokenExpiry.toISOString());
+      console.log('[QuickBooks] ✅ Token refreshed successfully. New expiry:', tokenExpiry.toISOString());
+      console.log('[QuickBooks] Token will expire in', expiresInSeconds, 'seconds (', Math.floor(expiresInSeconds / 60), 'minutes)');
       return refreshed.accessToken;
     } catch (error) {
-      console.error('[QuickBooks] Failed to refresh token:', error);
+      console.error('[QuickBooks] ❌ Failed to refresh token:', error);
       // If refresh fails, mark as disconnected so user knows to reconnect
       owner.quickbooksConnected = false;
       await owner.save().catch(err => console.error('[QuickBooks] Failed to update connection status:', err));
@@ -81,6 +100,14 @@ router.get('/connect', authenticateToken, authorizeRole(['admin']), async (req, 
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Log environment info for debugging
+    console.log('[QuickBooks Connect] Environment check:');
+    console.log('  NODE_ENV:', process.env.NODE_ENV);
+    console.log('  RAILWAY_PUBLIC_DOMAIN:', process.env.RAILWAY_PUBLIC_DOMAIN || 'NOT SET');
+    console.log('  BACKEND_URL:', process.env.BACKEND_URL || 'NOT SET');
+    console.log('  QUICKBOOKS_REDIRECT_URI:', process.env.QUICKBOOKS_REDIRECT_URI || 'NOT SET');
+    console.log('  QUICKBOOKS_CLIENT_ID:', process.env.QUICKBOOKS_CLIENT_ID ? 'SET' : 'NOT SET');
+
     // Generate state for OAuth security - include user ID
     const randomState = crypto.randomBytes(16).toString('hex');
     const state = `${userId}:${randomState}`;
@@ -89,12 +116,20 @@ router.get('/connect', authenticateToken, authorizeRole(['admin']), async (req, 
     user.quickbooksOAuthState = state;
     await user.save();
 
+    // Get authorization URL - this will throw if redirect URI is invalid
     const authUrl = QuickBooksService.getAuthorizationUrl(state);
+    
+    console.log('[QuickBooks Connect] Generated auth URL successfully');
+    console.log('[QuickBooks Connect] Redirect URI being used:', QuickBooksService.redirectUri);
     
     res.json({ authUrl, state });
   } catch (error) {
-    console.error('Error initiating QuickBooks connection:', error);
-    res.status(500).json({ error: 'Failed to initiate QuickBooks connection' });
+    console.error('❌ Error initiating QuickBooks connection:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      error: error.message || 'Failed to initiate QuickBooks connection',
+      details: 'Check server logs for more information'
+    });
   }
 });
 
@@ -153,9 +188,22 @@ router.get('/callback', async (req, res) => {
     // Exchange code for tokens
     const tokens = await QuickBooksService.exchangeCodeForTokens(code);
 
-    // Calculate token expiry
+    // Validate expiresIn is a number (should be in seconds, typically 3600 for access tokens)
+    const expiresInSeconds = parseInt(tokens.expiresIn, 10);
+    if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
+      console.warn('[QuickBooks Callback] Invalid expiresIn value:', tokens.expiresIn, 'Defaulting to 3600 seconds (1 hour)');
+      tokens.expiresIn = 3600;
+    }
+
+    // Calculate token expiry (QuickBooks access tokens expire in 1 hour = 3600 seconds)
     const tokenExpiry = new Date();
-    tokenExpiry.setSeconds(tokenExpiry.getSeconds() + tokens.expiresIn);
+    tokenExpiry.setSeconds(tokenExpiry.getSeconds() + expiresInSeconds);
+
+    console.log('[QuickBooks Callback] Token details:');
+    console.log('  expiresIn (seconds):', expiresInSeconds);
+    console.log('  expiresIn (minutes):', Math.floor(expiresInSeconds / 60));
+    console.log('  Token expiry calculated:', tokenExpiry.toISOString());
+    console.log('  Current time:', new Date().toISOString());
 
     // Save tokens to user
     user.quickbooksAccessToken = tokens.accessToken;
@@ -167,6 +215,7 @@ router.get('/callback', async (req, res) => {
     await user.save();
 
     console.log(`✅ QuickBooks connected for user ${user.name} (${user.email})`);
+    console.log(`✅ Token will expire in ${expiresInSeconds} seconds (${Math.floor(expiresInSeconds / 60)} minutes)`);
 
     res.redirect(`${frontendUrl}/admin/quickbooks?success=true`);
   } catch (error) {
