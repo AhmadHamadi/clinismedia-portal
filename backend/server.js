@@ -153,6 +153,7 @@ app.listen(PORT, () => {
   const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL) || 5;
   metaLeadsEmailService.startMonitoring(leadsCheckInterval);
   
-  // Start QuickBooks token refresh service (runs every 30 minutes)
+  // Start QuickBooks token refresh service (runs every 10 minutes - FULLY AUTOMATIC)
+  // This ensures tokens are always fresh without any manual intervention
   QuickBooksTokenRefreshService.start();
 });

@@ -850,11 +850,13 @@ const QuickBooksManagementPage: React.FC = () => {
               <div className="flex items-center text-green-600">
                 <FaCheckCircle className="mr-2" />
                 <span className="font-medium">Connected to QuickBooks</span>
+                <span className="ml-2 text-xs text-gray-500">(Auto-refreshing)</span>
               </div>
               <div className="text-sm text-gray-600">
                 <p>Company ID: {status.realmId || 'N/A'}</p>
                 {status.lastSynced && <p>Last Synced: {formatDate(status.lastSynced)}</p>}
                 {status.tokenExpiry && <p>Token Expires: {formatDate(status.tokenExpiry)}</p>}
+                <p className="text-xs text-gray-500 mt-1">✓ Tokens refresh automatically every 10 minutes</p>
               </div>
             </div>
           ) : (
