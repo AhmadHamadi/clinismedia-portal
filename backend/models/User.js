@@ -181,6 +181,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  quickbooksRefreshTokenExpiry: {
+    type: Date,
+    default: null,
+  },
   quickbooksConnected: {
     type: Boolean,
     default: false,

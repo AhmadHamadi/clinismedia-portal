@@ -140,6 +140,7 @@ class QuickBooksService {
           refreshToken: response.data.refresh_token,
           realmId: response.data.realmId,
           expiresIn: 3600, // Default to 1 hour
+          refreshTokenExpiresIn: response.data.x_refresh_token_expires_in ? parseInt(response.data.x_refresh_token_expires_in, 10) : undefined,
         };
       }
 
@@ -148,6 +149,7 @@ class QuickBooksService {
         refreshToken: response.data.refresh_token,
         realmId: response.data.realmId,
         expiresIn: expiresIn, // Use validated number
+        refreshTokenExpiresIn: response.data.x_refresh_token_expires_in ? parseInt(response.data.x_refresh_token_expires_in, 10) : undefined,
       };
     } catch (error) {
       console.error('Error exchanging code for tokens:', error.response?.data || error.message);
@@ -183,7 +185,21 @@ class QuickBooksService {
         hasRefreshToken: !!response.data.refresh_token,
         expiresIn: response.data.expires_in,
         expiresInType: typeof response.data.expires_in,
+        x_refresh_token_expires_in: response.data.x_refresh_token_expires_in,
       });
+
+      // CRITICAL: QuickBooks refresh tokens rotate every ~24 hours
+      // According to Intuit docs:
+      // - "Always store the latest refresh_token value from the most recent API server response"
+      // - "When you get a new refresh token, the previous refresh token value automatically expires"
+      // - "We update the refresh_token value every 24 hours or the next time you refresh after 24 hours"
+      const newRefreshToken = response.data.refresh_token;
+      if (!newRefreshToken) {
+        console.warn('[QuickBooksService] ⚠️ WARNING: QuickBooks did not return a new refresh_token in response.');
+        console.warn('[QuickBooksService] ⚠️ This is unusual - QuickBooks should always return refresh_token. Old token may be invalid.');
+      } else {
+        console.log('[QuickBooksService] ✅ CRITICAL: Received new refresh_token from QuickBooks - MUST save this (old one is now invalid)');
+      }
 
       // Validate expires_in is a number (should be in seconds, typically 3600 for access tokens)
       const expiresIn = parseInt(response.data.expires_in, 10);
@@ -192,15 +208,17 @@ class QuickBooksService {
         // Default to 1 hour if invalid
         return {
           accessToken: response.data.access_token,
-          refreshToken: response.data.refresh_token || refreshToken,
+          refreshToken: newRefreshToken || refreshToken, // ALWAYS prefer new refresh token
           expiresIn: 3600, // Default to 1 hour
+          refreshTokenExpiresIn: response.data.x_refresh_token_expires_in ? parseInt(response.data.x_refresh_token_expires_in, 10) : undefined,
         };
       }
 
       return {
         accessToken: response.data.access_token,
-        refreshToken: response.data.refresh_token || refreshToken, // Use new refresh token if provided
+        refreshToken: newRefreshToken || refreshToken, // ALWAYS prefer new refresh token (QuickBooks rotates these)
         expiresIn: expiresIn, // Use validated number
+        refreshTokenExpiresIn: response.data.x_refresh_token_expires_in ? parseInt(response.data.x_refresh_token_expires_in, 10) : undefined,
       };
     } catch (error) {
       console.error('Error refreshing token:', error.response?.data || error.message);
