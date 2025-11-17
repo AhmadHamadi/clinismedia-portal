@@ -156,45 +156,47 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
   };
 
   return (
-    <div className="fixed top-0 left-0 h-screen bg-white shadow-lg w-64 flex flex-col z-40">
+    <div className="fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl w-64 flex flex-col z-40">
       {/* Top: Logo */}
-      <div className="p-3 border-b border-gray-200">
+      <div className="p-3 border-b border-gray-700">
         <img
           src={logo1}
           alt="CliniMedia Logo"
-          className="h-16 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+          className="h-10 object-contain cursor-pointer hover:opacity-90 transition-opacity"
           onClick={() => navigate("/customer/dashboard")}
         />
       </div>
       {/* Middle: Navigation */}
-      <nav className="flex-1 p-3 overflow-y-visible">
+      <nav className="flex-1 p-2 overflow-y-auto">
         {/* MAIN ACTIONS Section */}
-        <div className="mb-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 px-3">
+        <div className="mb-3">
+          <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             MAIN ACTIONS
           </h3>
-          <ul className="space-y-1">
+          <ul className="space-y-0.5">
             {mainActionsItems.map((item) => (
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex items-center w-full px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
                     window.location.pathname === item.path
-                      ? 'bg-[#98c6d5] text-white shadow-md'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
+                      : 'text-gray-300 hover:bg-[#334155] hover:text-white'
                   }`}
                 >
-                  {item.icon}
-                  <span className="ml-3">{item.label}</span>
+                  <span className={`${window.location.pathname === item.path ? 'text-blue-400' : 'text-gray-400'} text-sm`}>
+                    {item.icon}
+                  </span>
+                  <span className="ml-2 flex-1 text-left">{item.label}</span>
                   {/* QuickBooks unpaid invoices badge */}
                   {item.section === 'quickbooksInvoices' && unpaidInvoicesCount > 0 && (
-                    <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-semibold leading-none text-white bg-red-500 rounded-full">
                       {unpaidInvoicesCount}
                     </span>
                   )}
                   {/* Notification badge for other sections */}
                   {item.section && item.section !== 'quickbooksInvoices' && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
-                    <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-semibold leading-none text-white bg-red-500 rounded-full">
                       {unreadCounts[item.section as keyof typeof unreadCounts]}
                     </span>
                   )}
@@ -205,26 +207,28 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
         </div>
 
         {/* MARKETING & INSIGHTS Section */}
-        <div className="mb-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 px-3">
+        <div className="mb-3">
+          <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             MARKETING & INSIGHTS
           </h3>
-          <ul className="space-y-1">
+          <ul className="space-y-0.5">
             {marketingInsightsItems.map((item) => (
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex items-center w-full px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
                     window.location.pathname === item.path
-                      ? 'bg-[#98c6d5] text-white shadow-md'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
+                      : 'text-gray-300 hover:bg-[#334155] hover:text-white'
                   }`}
                 >
-                  {item.icon}
-                  <span className="ml-3">{item.label}</span>
+                  <span className={`${window.location.pathname === item.path ? 'text-blue-400' : 'text-gray-400'} text-sm`}>
+                    {item.icon}
+                  </span>
+                  <span className="ml-2 flex-1 text-left">{item.label}</span>
                   {/* Notification badge */}
                   {item.section && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
-                    <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-semibold leading-none text-white bg-red-500 rounded-full">
                       {unreadCounts[item.section as keyof typeof unreadCounts]}
                     </span>
                   )}
@@ -235,35 +239,37 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
         </div>
 
         {/* TRACKING Section */}
-        <div className="mb-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 px-3">
+        <div className="mb-3">
+          <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             TRACKING
           </h3>
-          <ul className="space-y-1">
+          <ul className="space-y-0.5">
             {trackingItems.map((item) => (
               <li key={item.path}>
                 <button
                   onClick={() => !item.comingSoon && navigate(item.path)}
                   disabled={item.comingSoon}
-                  className={`flex items-center w-full px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex items-center w-full px-3 py-2.5 rounded-md text-sm font-medium transition-all ${
                     item.comingSoon
-                      ? 'text-gray-400 cursor-not-allowed opacity-60'
+                      ? 'text-gray-500 cursor-not-allowed opacity-50'
                       : window.location.pathname === item.path
-                      ? 'bg-[#98c6d5] text-white shadow-md'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
+                      : 'text-gray-300 hover:bg-[#334155] hover:text-white'
                   }`}
                 >
-                  {item.icon}
-                  <span className="ml-3">{item.label}</span>
+                  <span className={window.location.pathname === item.path ? 'text-blue-400' : 'text-gray-400'}>
+                    {item.icon}
+                  </span>
+                  <span className="ml-3 flex-1 text-left">{item.label}</span>
                   {/* Coming Soon badge */}
                   {item.comingSoon && (
-                    <span className="ml-auto text-xs font-medium text-gray-500 italic">
+                    <span className="ml-auto text-[10px] font-medium text-gray-500 italic">
                       Coming Soon
                     </span>
                   )}
                   {/* Notification badge */}
                   {!item.comingSoon && item.section && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
-                    <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-semibold leading-none text-white bg-red-500 rounded-full">
                       {unreadCounts[item.section as keyof typeof unreadCounts]}
                     </span>
                   )}
@@ -274,13 +280,13 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
         </div>
       </nav>
       {/* Bottom: Logout */}
-      <div className="p-3 border-t border-gray-200">
+      <div className="p-2 border-t border-gray-700">
         <button
           onClick={handleLogout}
-          className="flex items-center w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          className="flex items-center w-full px-2 py-1.5 text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors"
         >
-          <FaSignOutAlt />
-          <span className="ml-3">Logout</span>
+          <FaSignOutAlt className="text-sm" />
+          <span className="ml-2">Logout</span>
         </button>
       </div>
     </div>

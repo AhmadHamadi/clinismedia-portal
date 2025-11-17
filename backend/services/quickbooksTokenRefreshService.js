@@ -33,7 +33,7 @@ class QuickBooksTokenRefreshService {
       console.log(`[QuickBooksTokenRefresh] Found ${connectedUsers.length} QuickBooks connection(s) to check`);
       
       const now = new Date();
-      const bufferTime = 15 * 60 * 1000; // 15 minutes buffer (refresh if expiring within 15 min)
+      const bufferTime = 20 * 60 * 1000; // 20 minutes buffer (refresh if expiring within 20 min)
       
       let refreshedCount = 0;
       let errorCount = 0;
@@ -45,25 +45,34 @@ class QuickBooksTokenRefreshService {
           const shouldRefresh = !expiryTime || (expiryTime && (now.getTime() + bufferTime) >= expiryTime.getTime());
           
           if (shouldRefresh) {
-            console.log(`[QuickBooksTokenRefresh] Refreshing token for user: ${user.email || user.name || user._id}`);
+            console.log(`[QuickBooksTokenRefresh] 🔄 Refreshing token for user: ${user.email || user.name || user._id}`);
             
             const refreshed = await QuickBooksService.refreshAccessToken(user.quickbooksRefreshToken);
             
-            // Calculate new expiry time
+            // Validate expiresIn is a number (should be in seconds, typically 3600 for access tokens)
+            const expiresInSeconds = parseInt(refreshed.expiresIn, 10);
+            if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
+              console.warn(`[QuickBooksTokenRefresh] Invalid expiresIn value: ${refreshed.expiresIn}, using default 3600 seconds`);
+              refreshed.expiresIn = 3600;
+            }
+            
+            // Calculate new expiry time (QuickBooks access tokens expire in 1 hour = 3600 seconds)
             const tokenExpiry = new Date();
-            tokenExpiry.setSeconds(tokenExpiry.getSeconds() + (refreshed.expiresIn || 3600));
+            tokenExpiry.setSeconds(tokenExpiry.getSeconds() + expiresInSeconds);
             
             user.quickbooksAccessToken = refreshed.accessToken;
             user.quickbooksRefreshToken = refreshed.refreshToken || user.quickbooksRefreshToken;
             user.quickbooksTokenExpiry = tokenExpiry;
             await user.save();
             
+            const minutesUntilExpiry = Math.floor(expiresInSeconds / 60);
             console.log(`[QuickBooksTokenRefresh] ✅ Token refreshed for user: ${user.email || user.name || user._id}`);
+            console.log(`[QuickBooksTokenRefresh]    New token expires in ${minutesUntilExpiry} minutes (${tokenExpiry.toISOString()})`);
             refreshedCount++;
           } else {
             const timeUntilExpiry = expiryTime.getTime() - now.getTime();
             const minutesUntilExpiry = Math.floor(timeUntilExpiry / 60000);
-            console.log(`[QuickBooksTokenRefresh] Token still valid for user ${user.email || user.name || user._id} (expires in ${minutesUntilExpiry} minutes)`);
+            console.log(`[QuickBooksTokenRefresh] ✓ Token still valid for user ${user.email || user.name || user._id} (expires in ${minutesUntilExpiry} minutes)`);
           }
         } catch (error) {
           console.error(`[QuickBooksTokenRefresh] ❌ Failed to refresh token for user ${user.email || user.name || user._id}:`, error.message);
@@ -86,19 +95,21 @@ class QuickBooksTokenRefreshService {
   
   /**
    * Start the background token refresh service
-   * Runs every 30 minutes to proactively refresh tokens
+   * Runs every 15 minutes to proactively refresh tokens before they expire
+   * This ensures tokens are always fresh and never expire during use
    */
   static start() {
     console.log('[QuickBooksTokenRefresh] 🚀 Starting QuickBooks token refresh service...');
-    console.log('[QuickBooksTokenRefresh] Service will run every 30 minutes');
+    console.log('[QuickBooksTokenRefresh] Service will run every 15 minutes');
+    console.log('[QuickBooksTokenRefresh] Tokens will be refreshed if expiring within 20 minutes');
     
-    // Run immediately on startup
+    // Run immediately on startup to refresh any tokens that need it
     this.refreshAllTokens();
     
-    // Then run every 30 minutes
+    // Then run every 15 minutes to proactively refresh tokens
     setInterval(() => {
       this.refreshAllTokens();
-    }, 30 * 60 * 1000); // 30 minutes
+    }, 15 * 60 * 1000); // 15 minutes (more frequent to catch tokens before expiry)
     
     console.log('[QuickBooksTokenRefresh] ✅ Service started successfully');
   }

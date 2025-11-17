@@ -18,6 +18,15 @@ class QuickBooksService {
     // OAuth configuration
     this.clientId = process.env.QUICKBOOKS_CLIENT_ID;
     this.clientSecret = process.env.QUICKBOOKS_CLIENT_SECRET;
+    
+    // Validate required credentials
+    if (!this.clientId || !this.clientSecret) {
+      console.error('[QuickBooksService] ❌ Missing QuickBooks credentials!');
+      console.error('[QuickBooksService] Client ID:', this.clientId ? 'SET' : 'NOT SET');
+      console.error('[QuickBooksService] Client Secret:', this.clientSecret ? 'SET' : 'NOT SET');
+      throw new Error('QuickBooks CLIENT_ID and CLIENT_SECRET must be set in environment variables');
+    }
+    
     // Use QUICKBOOKS_REDIRECT_URI if set, otherwise construct from backend URL
     // For Railway: Use RAILWAY_PUBLIC_DOMAIN or BACKEND_URL
     // For local dev: Use localhost (only if NODE_ENV is development)
@@ -26,13 +35,26 @@ class QuickBooksService {
     if (!this.redirectUri) {
       if (process.env.NODE_ENV === 'development') {
         this.redirectUri = 'http://localhost:5000/api/quickbooks/callback';
+        console.log('[QuickBooksService] Using development redirect URI (localhost)');
       } else {
         // Production: Use Railway domain or BACKEND_URL
         const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
           ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
           : (process.env.BACKEND_URL || 'https://api.clinimediaportal.ca');
         this.redirectUri = `${backendUrl}/api/quickbooks/callback`;
+        console.log('[QuickBooksService] Using production redirect URI:', this.redirectUri);
       }
+    } else {
+      console.log('[QuickBooksService] Using QUICKBOOKS_REDIRECT_URI from environment:', this.redirectUri);
+    }
+    
+    // Validate redirect URI is set
+    if (!this.redirectUri || this.redirectUri === 'undefined') {
+      console.error('[QuickBooksService] ❌ Redirect URI is undefined or invalid!');
+      console.error('[QuickBooksService] NODE_ENV:', process.env.NODE_ENV);
+      console.error('[QuickBooksService] RAILWAY_PUBLIC_DOMAIN:', process.env.RAILWAY_PUBLIC_DOMAIN || 'NOT SET');
+      console.error('[QuickBooksService] BACKEND_URL:', process.env.BACKEND_URL || 'NOT SET');
+      throw new Error('QuickBooks redirect URI is undefined. Please set QUICKBOOKS_REDIRECT_URI or ensure RAILWAY_PUBLIC_DOMAIN/BACKEND_URL is set.');
     }
     
     // OAuth endpoints (same for both sandbox and production)
@@ -43,16 +65,25 @@ class QuickBooksService {
     this.env = qbEnv;
     this.baseUrl = QUICKBOOKS_BASE_URL;
     
-    console.log('[QuickBooksService] Initialised env =', this.env);
-    console.log('[QuickBooksService] Using base URL =', this.baseUrl);
-    console.log('[QuickBooksService] Client ID:', this.clientId ? 'SET' : 'NOT SET');
-    console.log('[QuickBooksService] Redirect URI:', this.redirectUri);
+    console.log('[QuickBooksService] ✅ Initialised env =', this.env);
+    console.log('[QuickBooksService] ✅ Using base URL =', this.baseUrl);
+    console.log('[QuickBooksService] ✅ Client ID:', this.clientId ? 'SET' : 'NOT SET');
+    console.log('[QuickBooksService] ✅ Redirect URI:', this.redirectUri);
   }
 
   /**
    * Generate OAuth authorization URL
    */
   getAuthorizationUrl(state) {
+    // Validate redirect URI before generating URL
+    if (!this.redirectUri || this.redirectUri === 'undefined') {
+      throw new Error('QuickBooks redirect URI is not set. Cannot generate authorization URL.');
+    }
+    
+    if (!this.clientId) {
+      throw new Error('QuickBooks Client ID is not set. Cannot generate authorization URL.');
+    }
+    
     const params = new URLSearchParams({
       client_id: this.clientId,
       response_type: 'code',
@@ -61,7 +92,9 @@ class QuickBooksService {
       state: state,
     });
 
-    return `${this.authUrl}?${params.toString()}`;
+    const authUrl = `${this.authUrl}?${params.toString()}`;
+    console.log('[QuickBooksService] Generated authorization URL with redirect_uri:', this.redirectUri);
+    return authUrl;
   }
 
   /**
@@ -87,11 +120,34 @@ class QuickBooksService {
         }
       );
 
+      // Log what QuickBooks returns for debugging
+      console.log('[QuickBooksService] Token exchange response:', {
+        hasAccessToken: !!response.data.access_token,
+        hasRefreshToken: !!response.data.refresh_token,
+        realmId: response.data.realmId,
+        expiresIn: response.data.expires_in,
+        expiresInType: typeof response.data.expires_in,
+        x_refresh_token_expires_in: response.data.x_refresh_token_expires_in, // Refresh token expiry (in seconds, typically 8726400 = 101 days)
+      });
+
+      // Validate expires_in is a number (should be in seconds, typically 3600 for access tokens)
+      const expiresIn = parseInt(response.data.expires_in, 10);
+      if (isNaN(expiresIn) || expiresIn <= 0) {
+        console.warn('[QuickBooksService] Invalid expires_in value:', response.data.expires_in, 'Defaulting to 3600 seconds (1 hour)');
+        // Default to 1 hour if invalid
+        return {
+          accessToken: response.data.access_token,
+          refreshToken: response.data.refresh_token,
+          realmId: response.data.realmId,
+          expiresIn: 3600, // Default to 1 hour
+        };
+      }
+
       return {
         accessToken: response.data.access_token,
         refreshToken: response.data.refresh_token,
         realmId: response.data.realmId,
-        expiresIn: response.data.expires_in,
+        expiresIn: expiresIn, // Use validated number
       };
     } catch (error) {
       console.error('Error exchanging code for tokens:', error.response?.data || error.message);
@@ -121,10 +177,30 @@ class QuickBooksService {
         }
       );
 
+      // Log what QuickBooks returns for debugging
+      console.log('[QuickBooksService] Token refresh response:', {
+        hasAccessToken: !!response.data.access_token,
+        hasRefreshToken: !!response.data.refresh_token,
+        expiresIn: response.data.expires_in,
+        expiresInType: typeof response.data.expires_in,
+      });
+
+      // Validate expires_in is a number (should be in seconds, typically 3600 for access tokens)
+      const expiresIn = parseInt(response.data.expires_in, 10);
+      if (isNaN(expiresIn) || expiresIn <= 0) {
+        console.warn('[QuickBooksService] Invalid expires_in value:', response.data.expires_in, 'Defaulting to 3600 seconds (1 hour)');
+        // Default to 1 hour if invalid
+        return {
+          accessToken: response.data.access_token,
+          refreshToken: response.data.refresh_token || refreshToken,
+          expiresIn: 3600, // Default to 1 hour
+        };
+      }
+
       return {
         accessToken: response.data.access_token,
         refreshToken: response.data.refresh_token || refreshToken, // Use new refresh token if provided
-        expiresIn: response.data.expires_in,
+        expiresIn: expiresIn, // Use validated number
       };
     } catch (error) {
       console.error('Error refreshing token:', error.response?.data || error.message);

@@ -84,7 +84,7 @@ const CustomerPortalLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-100 overflow-x-hidden">
+    <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
       {/* Sidebar - Always visible */}
       <CustomerSidebar onLogout={handleLogout} />
       
