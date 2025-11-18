@@ -5,10 +5,19 @@ const axios = require('axios');
 
 // OAuth 2.0 configuration
 const backendPort = process.env.PORT || 5000;
-// Use RAILWAY_PUBLIC_DOMAIN if available (Railway provides this), otherwise use BACKEND_URL
-const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
-  ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-  : (process.env.BACKEND_URL || `http://localhost:${backendPort}`);
+// Priority: GOOGLE_BUSINESS_REDIRECT_URI > RAILWAY_PUBLIC_DOMAIN > BACKEND_URL > Production fallback
+let backendUrl;
+if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+  backendUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+} else if (process.env.BACKEND_URL) {
+  backendUrl = process.env.BACKEND_URL;
+} else if (process.env.NODE_ENV === 'development') {
+  // Use localhost only in development
+  backendUrl = `http://localhost:${backendPort}`;
+} else {
+  // Production fallback
+  backendUrl = 'https://api.clinimediaportal.ca';
+}
 // Ensure redirect URI is properly set - must match Google Cloud Console configuration
 const redirectUri = process.env.GOOGLE_BUSINESS_REDIRECT_URI || `${backendUrl}/api/google-business/callback`;
 

@@ -22,6 +22,78 @@ async function getQuickBooksConnectionOwner() {
 }
 
 /**
+ * Helper: Determine if an OAuth error is permanent (requires re-authentication)
+ * Permanent errors include: invalid_grant, invalid_client, unauthorized_client
+ * Temporary errors include: network issues, rate limits, etc.
+ */
+function isPermanentOAuthError(error) {
+  const errorMessage = error?.message?.toLowerCase() || '';
+  const errorCode = error?.response?.data?.error || error?.error || '';
+  const errorString = errorCode.toString().toLowerCase();
+  
+  // Permanent OAuth errors that require user to reconnect
+  const permanentErrors = [
+    'invalid_grant',
+    'invalid_client',
+    'unauthorized_client',
+    'invalid_refresh_token',
+    'refresh_token_expired',
+    'access_denied'
+  ];
+  
+  return permanentErrors.some(permError => 
+    errorMessage.includes(permError) || 
+    errorString.includes(permError)
+  );
+}
+
+/**
+ * Helper: Centralized function to save tokens for a user
+ * Ensures consistent token saving logic across all refresh paths
+ */
+async function saveTokensForUser(user, refreshed) {
+  // Validate expiresIn is a number (should be in seconds)
+  const expiresInSeconds = parseInt(refreshed.expiresIn, 10);
+  if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
+    console.warn('[QuickBooks] Invalid expiresIn from refresh, using default 3600 seconds');
+    refreshed.expiresIn = 3600;
+  }
+  
+  // Calculate new expiry time (QuickBooks access tokens expire in 1 hour = 3600 seconds)
+  const tokenExpiry = new Date(Date.now() + expiresInSeconds * 1000);
+  
+  // CRITICAL: QuickBooks refresh tokens rotate every ~24 hours
+  // According to Intuit docs: "Always store the latest refresh_token value from the most recent API server response"
+  // "When you get a new refresh token, the previous refresh token value automatically expires"
+  user.quickbooksAccessToken = refreshed.accessToken;
+  
+  // ALWAYS overwrite refresh_token - QuickBooks rotates these and old ones become invalid
+  if (refreshed.refreshToken) {
+    console.log('[QuickBooks] 🔄 CRITICAL: Saving new refresh_token from QuickBooks (old one is now invalid)');
+    user.quickbooksRefreshToken = refreshed.refreshToken; // MUST overwrite - old token is invalid
+  } else {
+    // QuickBooks should always return refresh_token, but if not, log warning
+    console.warn('[QuickBooks] ⚠️ WARNING: QuickBooks did not return new refresh_token in response');
+    console.warn('[QuickBooks] ⚠️ This may cause issues if token rotated. Keeping existing refresh_token.');
+  }
+  
+  // Update expiry timestamp: now + expires_in * 1000 (expires_in is in seconds)
+  user.quickbooksTokenExpiry = tokenExpiry;
+  
+  // Store refresh token expiry if provided (x_refresh_token_expires_in in seconds)
+  if (refreshed.refreshTokenExpiresIn) {
+    const refreshTokenExpiry = new Date(Date.now() + refreshed.refreshTokenExpiresIn * 1000);
+    user.quickbooksRefreshTokenExpiry = refreshTokenExpiry;
+    console.log('[QuickBooks] Refresh token expires in', Math.floor(refreshed.refreshTokenExpiresIn / 86400), 'days');
+  }
+  
+  await user.save();
+  
+  console.log('[QuickBooks] ✅ Tokens saved successfully. New expiry:', tokenExpiry.toISOString());
+  console.log('[QuickBooks] Token will expire in', expiresInSeconds, 'seconds (', Math.floor(expiresInSeconds / 60), 'minutes)');
+}
+
+/**
  * Helper: Make a QuickBooks API call with automatic 401 retry
  * If a 401 error occurs, it will refresh the token and retry once
  */
@@ -42,40 +114,25 @@ async function quickbooksApiCall(apiCallFn) {
         
         const refreshed = await QuickBooksService.refreshAccessToken(owner.quickbooksRefreshToken);
         
-        // Validate and save the new tokens
-        const expiresInSeconds = parseInt(refreshed.expiresIn, 10);
-        if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
-          refreshed.expiresIn = 3600;
-        }
-        
-        const tokenExpiry = new Date();
-        tokenExpiry.setSeconds(tokenExpiry.getSeconds() + expiresInSeconds);
-        
-        owner.quickbooksAccessToken = refreshed.accessToken;
-        if (refreshed.refreshToken) {
-          console.log('[QuickBooks] 🔄 Saving new refresh_token after 401 retry');
-          owner.quickbooksRefreshToken = refreshed.refreshToken;
-        }
-        owner.quickbooksTokenExpiry = tokenExpiry;
-        
-        if (refreshed.refreshTokenExpiresIn) {
-          const refreshTokenExpiry = new Date();
-          refreshTokenExpiry.setSeconds(refreshTokenExpiry.getSeconds() + refreshed.refreshTokenExpiresIn);
-          owner.quickbooksRefreshTokenExpiry = refreshTokenExpiry;
-        }
-        
-        await owner.save();
+        // Save tokens using centralized helper
+        await saveTokensForUser(owner, refreshed);
         
         // Retry the API call with the new token
         console.log('[QuickBooks] Retrying API call with fresh token...');
         return await apiCallFn();
       } catch (refreshError) {
         console.error('[QuickBooks] ❌ Failed to refresh token after 401:', refreshError);
-        // Mark as disconnected
-        const owner = await getQuickBooksConnectionOwner();
-        owner.quickbooksConnected = false;
-        await owner.save().catch(() => {});
-        throw new Error('Failed to refresh QuickBooks token. Please reconnect your QuickBooks account.');
+        
+        // Only mark as disconnected if it's a permanent OAuth error
+        if (isPermanentOAuthError(refreshError)) {
+          const owner = await getQuickBooksConnectionOwner();
+          owner.quickbooksConnected = false;
+          await owner.save().catch(() => {});
+          throw new Error('Failed to refresh QuickBooks token. Please reconnect your QuickBooks account.');
+        } else {
+          // Temporary error - don't disconnect, just throw the error
+          throw refreshError;
+        }
       }
     }
     
@@ -94,11 +151,11 @@ async function getValidAccessToken() {
     throw new Error('QuickBooks not connected');
   }
 
-  // Check if token is expired (with 5 minute buffer for proactive refresh)
-  // QuickBooks access tokens expire in 1 hour - refresh 5 minutes before expiry
+  // Check if token is expired (with 2 minute buffer for proactive refresh)
+  // QuickBooks access tokens expire in 1 hour - refresh 2 minutes before expiry
   const now = new Date();
   const expiryTime = owner.quickbooksTokenExpiry ? new Date(owner.quickbooksTokenExpiry) : null;
-  const bufferTime = 5 * 60 * 1000; // 5 minutes in milliseconds (proactive refresh)
+  const bufferTime = 2 * 60 * 1000; // 2 minutes in milliseconds (proactive refresh)
   
   // Log current token status for debugging
   if (expiryTime) {
@@ -118,54 +175,22 @@ async function getValidAccessToken() {
     try {
       const refreshed = await QuickBooksService.refreshAccessToken(owner.quickbooksRefreshToken);
       
-      // Validate expiresIn is a number (should be in seconds)
-      const expiresInSeconds = parseInt(refreshed.expiresIn, 10);
-      if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
-        console.warn('[QuickBooks] Invalid expiresIn from refresh, using default 3600 seconds');
-        refreshed.expiresIn = 3600;
-      }
+      // Save tokens using centralized helper
+      await saveTokensForUser(owner, refreshed);
       
-      // Calculate new expiry time (QuickBooks tokens typically expire in 1 hour = 3600 seconds)
-      const tokenExpiry = new Date();
-      tokenExpiry.setSeconds(tokenExpiry.getSeconds() + (expiresInSeconds || 3600));
-      
-      // CRITICAL: QuickBooks refresh tokens rotate every ~24 hours
-      // According to Intuit docs: "Always store the latest refresh_token value from the most recent API server response"
-      // "When you get a new refresh token, the previous refresh token value automatically expires"
-      owner.quickbooksAccessToken = refreshed.accessToken;
-      
-      // ALWAYS overwrite refresh_token - QuickBooks rotates these and old ones become invalid
-      if (refreshed.refreshToken) {
-        console.log('[QuickBooks] 🔄 CRITICAL: Saving new refresh_token from QuickBooks (old one is now invalid)');
-        owner.quickbooksRefreshToken = refreshed.refreshToken; // MUST overwrite - old token is invalid
-      } else {
-        // QuickBooks should always return refresh_token, but if not, log warning
-        console.warn('[QuickBooks] ⚠️ WARNING: QuickBooks did not return new refresh_token in response');
-        console.warn('[QuickBooks] ⚠️ This may cause issues if token rotated. Keeping existing refresh_token.');
-      }
-      
-      // Update expiry timestamp: now + expires_in * 1000 (expires_in is in seconds)
-      owner.quickbooksTokenExpiry = tokenExpiry;
-      
-      // Store refresh token expiry if provided (x_refresh_token_expires_in in seconds)
-      if (refreshed.refreshTokenExpiresIn) {
-        const refreshTokenExpiry = new Date();
-        refreshTokenExpiry.setSeconds(refreshTokenExpiry.getSeconds() + refreshed.refreshTokenExpiresIn);
-        owner.quickbooksRefreshTokenExpiry = refreshTokenExpiry;
-        console.log('[QuickBooks] Refresh token expires in', Math.floor(refreshed.refreshTokenExpiresIn / 86400), 'days');
-      }
-      
-      await owner.save();
-      
-      console.log('[QuickBooks] ✅ Token refreshed successfully. New expiry:', tokenExpiry.toISOString());
-      console.log('[QuickBooks] Token will expire in', expiresInSeconds, 'seconds (', Math.floor(expiresInSeconds / 60), 'minutes)');
       return refreshed.accessToken;
     } catch (error) {
       console.error('[QuickBooks] ❌ Failed to refresh token:', error);
-      // If refresh fails, mark as disconnected so user knows to reconnect
-      owner.quickbooksConnected = false;
-      await owner.save().catch(err => console.error('[QuickBooks] Failed to update connection status:', err));
-      throw new Error('Failed to refresh QuickBooks token. Please reconnect your QuickBooks account.');
+      
+      // Only mark as disconnected if it's a permanent OAuth error
+      if (isPermanentOAuthError(error)) {
+        owner.quickbooksConnected = false;
+        await owner.save().catch(err => console.error('[QuickBooks] Failed to update connection status:', err));
+        throw new Error('Failed to refresh QuickBooks token. Please reconnect your QuickBooks account.');
+      } else {
+        // Temporary error - rethrow without disconnecting
+        throw error;
+      }
     }
   }
   
@@ -281,31 +306,15 @@ router.get('/callback', async (req, res) => {
       tokens.expiresIn = 3600;
     }
 
-    // Calculate token expiry (QuickBooks access tokens expire in 1 hour = 3600 seconds)
-    const tokenExpiry = new Date();
-    tokenExpiry.setSeconds(tokenExpiry.getSeconds() + expiresInSeconds);
-
     console.log('[QuickBooks Callback] Token details:');
     console.log('  expiresIn (seconds):', expiresInSeconds);
     console.log('  expiresIn (minutes):', Math.floor(expiresInSeconds / 60));
-    console.log('  Token expiry calculated:', tokenExpiry.toISOString());
-    console.log('  Current time:', new Date().toISOString());
 
-    // Save tokens to user
-    // CRITICAL: Always save the refresh_token - QuickBooks rotates these every ~24 hours
-    user.quickbooksAccessToken = tokens.accessToken;
-    user.quickbooksRefreshToken = tokens.refreshToken; // Save the refresh token from initial connection
+    // Save tokens using centralized helper
+    await saveTokensForUser(user, tokens);
+    
+    // Set additional QuickBooks connection fields
     user.quickbooksRealmId = realmId || tokens.realmId;
-    user.quickbooksTokenExpiry = tokenExpiry;
-    
-    // Store refresh token expiry if provided (x_refresh_token_expires_in in seconds)
-    if (tokens.refreshTokenExpiresIn) {
-      const refreshTokenExpiry = new Date();
-      refreshTokenExpiry.setSeconds(refreshTokenExpiry.getSeconds() + tokens.refreshTokenExpiresIn);
-      user.quickbooksRefreshTokenExpiry = refreshTokenExpiry;
-      console.log('[QuickBooks Callback] Refresh token expires in', Math.floor(tokens.refreshTokenExpiresIn / 86400), 'days');
-    }
-    
     user.quickbooksConnected = true;
     user.quickbooksOAuthState = null; // Clear state
     await user.save();
@@ -337,54 +346,29 @@ router.get('/refresh', authenticateToken, authorizeRole(['admin']), async (req, 
     console.log('[QuickBooks Refresh] Manual token refresh requested by admin');
     const refreshed = await QuickBooksService.refreshAccessToken(user.quickbooksRefreshToken);
 
-    // Validate expiresIn is a number (should be in seconds, typically 3600 for access tokens)
+    // Save tokens using centralized helper
+    await saveTokensForUser(user, refreshed);
+
+    // Reload user to get updated expiry
+    await user.populate();
     const expiresInSeconds = parseInt(refreshed.expiresIn, 10);
-    if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
-      console.warn('[QuickBooks Refresh] Invalid expiresIn from refresh, using default 3600 seconds');
-      refreshed.expiresIn = 3600;
-    }
-
-    // Calculate new expiry time (QuickBooks access tokens expire in 1 hour = 3600 seconds)
-    const tokenExpiry = new Date();
-    tokenExpiry.setSeconds(tokenExpiry.getSeconds() + expiresInSeconds);
-
-    // CRITICAL: QuickBooks refresh tokens rotate every ~24 hours
-    // According to Intuit docs: "Always store the latest refresh_token value from the most recent API server response"
-    // "When you get a new refresh token, the previous refresh token value automatically expires"
-    user.quickbooksAccessToken = refreshed.accessToken;
-    
-    // ALWAYS overwrite refresh_token - QuickBooks rotates these and old ones become invalid
-    if (refreshed.refreshToken) {
-      console.log('[QuickBooks Refresh] 🔄 CRITICAL: Saving new refresh_token from QuickBooks (old one is now invalid)');
-      user.quickbooksRefreshToken = refreshed.refreshToken; // MUST overwrite - old token is invalid
-    } else {
-      // QuickBooks should always return refresh_token, but if not, log warning
-      console.warn('[QuickBooks Refresh] ⚠️ WARNING: QuickBooks did not return new refresh_token in response');
-      console.warn('[QuickBooks Refresh] ⚠️ This may cause issues if token rotated. Keeping existing refresh_token.');
-    }
-    
-    // Update expiry timestamp: now + expires_in * 1000 (expires_in is in seconds)
-    user.quickbooksTokenExpiry = tokenExpiry;
-    
-    // Store refresh token expiry if provided (x_refresh_token_expires_in in seconds)
-    if (refreshed.refreshTokenExpiresIn) {
-      const refreshTokenExpiry = new Date();
-      refreshTokenExpiry.setSeconds(refreshTokenExpiry.getSeconds() + refreshed.refreshTokenExpiresIn);
-      user.quickbooksRefreshTokenExpiry = refreshTokenExpiry;
-      console.log('[QuickBooks Refresh] Refresh token expires in', Math.floor(refreshed.refreshTokenExpiresIn / 86400), 'days');
-    }
-    
-    await user.save();
-
-    console.log('[QuickBooks Refresh] ✅ Token refreshed successfully. New expiry:', tokenExpiry.toISOString());
+    console.log('[QuickBooks Refresh] ✅ Token refreshed successfully. New expiry:', user.quickbooksTokenExpiry?.toISOString());
     console.log('[QuickBooks Refresh] Token will expire in', expiresInSeconds, 'seconds (', Math.floor(expiresInSeconds / 60), 'minutes)');
 
     res.json({ 
       message: 'Token refreshed successfully',
-      expiresAt: tokenExpiry,
+      expiresAt: user.quickbooksTokenExpiry,
     });
   } catch (error) {
     console.error('[QuickBooks Refresh] ❌ Error refreshing token:', error);
+    
+    // Only mark as disconnected if it's a permanent OAuth error
+    if (isPermanentOAuthError(error)) {
+      user.quickbooksConnected = false;
+      await user.save().catch(err => console.error('[QuickBooks Refresh] Failed to update connection status:', err));
+      return res.status(401).json({ error: 'QuickBooks token refresh failed. Please reconnect your QuickBooks account.' });
+    }
+    
     res.status(500).json({ error: error.message || 'Failed to refresh token' });
   }
 });
