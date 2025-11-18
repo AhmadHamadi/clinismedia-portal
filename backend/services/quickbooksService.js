@@ -27,34 +27,23 @@ class QuickBooksService {
       throw new Error('QuickBooks CLIENT_ID and CLIENT_SECRET must be set in environment variables');
     }
     
-    // Use QUICKBOOKS_REDIRECT_URI if set, otherwise construct from backend URL
-    // For Railway: Use RAILWAY_PUBLIC_DOMAIN or BACKEND_URL
-    // For local dev: Use localhost (only if NODE_ENV is development)
-    this.redirectUri = process.env.QUICKBOOKS_REDIRECT_URI;
-    
-    if (!this.redirectUri) {
-      if (process.env.NODE_ENV === 'development') {
-        this.redirectUri = 'http://localhost:5000/api/quickbooks/callback';
-        console.log('[QuickBooksService] Using development redirect URI (localhost)');
-      } else {
-        // Production: Use Railway domain or BACKEND_URL
-        const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
-          ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-          : (process.env.BACKEND_URL || 'https://api.clinimediaportal.ca');
-        this.redirectUri = `${backendUrl}/api/quickbooks/callback`;
-        console.log('[QuickBooksService] Using production redirect URI:', this.redirectUri);
-      }
+    // Hardcoded redirect URI for production
+    // Development: Use localhost (only if NODE_ENV is development)
+    // Production: Always use https://api.clinimediaportal.ca/api/quickbooks/callback
+    if (process.env.NODE_ENV === 'development') {
+      this.redirectUri = 'http://localhost:5000/api/quickbooks/callback';
+      console.log('[QuickBooksService] Using development redirect URI (localhost)');
     } else {
-      console.log('[QuickBooksService] Using QUICKBOOKS_REDIRECT_URI from environment:', this.redirectUri);
+      // Production: Hardcoded to production API URL
+      this.redirectUri = 'https://api.clinimediaportal.ca/api/quickbooks/callback';
+      console.log('[QuickBooksService] Using production redirect URI (hardcoded):', this.redirectUri);
     }
     
     // Validate redirect URI is set
     if (!this.redirectUri || this.redirectUri === 'undefined') {
       console.error('[QuickBooksService] ❌ Redirect URI is undefined or invalid!');
       console.error('[QuickBooksService] NODE_ENV:', process.env.NODE_ENV);
-      console.error('[QuickBooksService] RAILWAY_PUBLIC_DOMAIN:', process.env.RAILWAY_PUBLIC_DOMAIN || 'NOT SET');
-      console.error('[QuickBooksService] BACKEND_URL:', process.env.BACKEND_URL || 'NOT SET');
-      throw new Error('QuickBooks redirect URI is undefined. Please set QUICKBOOKS_REDIRECT_URI or ensure RAILWAY_PUBLIC_DOMAIN/BACKEND_URL is set.');
+      throw new Error('QuickBooks redirect URI is undefined. This should not happen - redirect URI is hardcoded.');
     }
     
     // OAuth endpoints (same for both sandbox and production)

@@ -35,23 +35,17 @@ for (const [key, value] of Object.entries(optionalVars)) {
   console.log(`  ${key}: ${value || 'NOT SET'}`);
 }
 
-// Calculate redirect URI
+// Calculate redirect URI (matches quickbooksService.js logic)
 console.log('\n🔗 Redirect URI Calculation:');
-let redirectUri = process.env.QUICKBOOKS_REDIRECT_URI;
+let redirectUri;
 
-if (!redirectUri) {
-  if (process.env.NODE_ENV === 'development') {
-    redirectUri = 'http://localhost:5000/api/quickbooks/callback';
-    console.log('  Using development mode: http://localhost:5000/api/quickbooks/callback');
-  } else {
-    const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
-      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-      : (process.env.BACKEND_URL || 'https://api.clinimediaportal.ca');
-    redirectUri = `${backendUrl}/api/quickbooks/callback`;
-    console.log(`  Using production mode: ${redirectUri}`);
-  }
+if (process.env.NODE_ENV === 'development') {
+  redirectUri = 'http://localhost:5000/api/quickbooks/callback';
+  console.log('  Using development mode (hardcoded): http://localhost:5000/api/quickbooks/callback');
 } else {
-  console.log(`  Using QUICKBOOKS_REDIRECT_URI: ${redirectUri}`);
+  // Production: Hardcoded to production API URL
+  redirectUri = 'https://api.clinimediaportal.ca/api/quickbooks/callback';
+  console.log('  Using production mode (hardcoded): https://api.clinimediaportal.ca/api/quickbooks/callback');
 }
 
 console.log(`\n✅ Final Redirect URI: ${redirectUri}`);
@@ -65,7 +59,7 @@ if (!allSet) {
 
 if (!redirectUri || redirectUri === 'undefined') {
   console.log('  ❌ Redirect URI is undefined!');
-  console.log('  💡 Set QUICKBOOKS_REDIRECT_URI or ensure RAILWAY_PUBLIC_DOMAIN/BACKEND_URL is set');
+  console.log('  💡 This should not happen - redirect URI is hardcoded in the service');
   process.exit(1);
 }
 
