@@ -51,43 +51,68 @@ function isPermanentOAuthError(error) {
  * Helper: Centralized function to save tokens for a user
  * Ensures consistent token saving logic across all refresh paths
  */
-async function saveTokensForUser(user, refreshed) {
-  // Validate expiresIn is a number (should be in seconds)
-  const expiresInSeconds = parseInt(refreshed.expiresIn, 10);
+/**
+ * Helper: Centralized function to save tokens for a user
+ * Ensures consistent token saving logic across all refresh paths
+ * CRITICAL: Always saves refresh_token (QuickBooks rotates these)
+ * CRITICAL: Always saves expiry as Date object (not string)
+ */
+async function saveTokensForUser(user, tokens) {
+  // Validate expiresIn is a number (should be in seconds, typically 3600)
+  const expiresInSeconds = parseInt(tokens.expiresIn, 10);
   if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
     console.warn('[QuickBooks] Invalid expiresIn from refresh, using default 3600 seconds');
-    refreshed.expiresIn = 3600;
+    tokens.expiresIn = 3600;
   }
   
-  // Calculate new expiry time (QuickBooks access tokens expire in 1 hour = 3600 seconds)
+  // CRITICAL: Calculate expiry as Date object (not string)
+  // ChatGPT requirement: "user.quickbooksTokenExpiry = new Date(Date.now() + expiresInSeconds * 1000);"
   const tokenExpiry = new Date(Date.now() + expiresInSeconds * 1000);
   
-  // CRITICAL: QuickBooks refresh tokens rotate every ~24 hours
+  // CRITICAL: Always save access token
+  if (tokens.accessToken) {
+    user.quickbooksAccessToken = tokens.accessToken;
+  }
+  
+  // CRITICAL: Always save refresh token (QuickBooks rotates these every ~24 hours)
+  // ChatGPT requirement: "if (tokens.refreshToken) { user.quickbooksRefreshToken = tokens.refreshToken; }"
   // According to Intuit docs: "Always store the latest refresh_token value from the most recent API server response"
   // "When you get a new refresh token, the previous refresh token value automatically expires"
-  user.quickbooksAccessToken = refreshed.accessToken;
-  
-  // ALWAYS overwrite refresh_token - QuickBooks rotates these and old ones become invalid
-  if (refreshed.refreshToken) {
+  if (tokens.refreshToken) {
     console.log('[QuickBooks] 🔄 CRITICAL: Saving new refresh_token from QuickBooks (old one is now invalid)');
-    user.quickbooksRefreshToken = refreshed.refreshToken; // MUST overwrite - old token is invalid
+    user.quickbooksRefreshToken = tokens.refreshToken; // MUST overwrite - old token is invalid
   } else {
     // QuickBooks should always return refresh_token, but if not, log warning
     console.warn('[QuickBooks] ⚠️ WARNING: QuickBooks did not return new refresh_token in response');
     console.warn('[QuickBooks] ⚠️ This may cause issues if token rotated. Keeping existing refresh_token.');
   }
   
-  // Update expiry timestamp: now + expires_in * 1000 (expires_in is in seconds)
+  // CRITICAL: Save expiry as Date object (ChatGPT requirement)
+  // ChatGPT requirement: "user.quickbooksTokenExpiry = new Date(Date.now() + tokens.expiresIn * 1000);"
   user.quickbooksTokenExpiry = tokenExpiry;
+  console.log('[QuickBooks] Setting tokenExpiry to:', tokenExpiry.toISOString());
+  console.log('[QuickBooks] tokenExpiry type:', typeof tokenExpiry, 'instanceof Date:', tokenExpiry instanceof Date);
   
   // Store refresh token expiry if provided (x_refresh_token_expires_in in seconds)
-  if (refreshed.refreshTokenExpiresIn) {
-    const refreshTokenExpiry = new Date(Date.now() + refreshed.refreshTokenExpiresIn * 1000);
+  if (tokens.refreshTokenExpiresIn) {
+    const refreshTokenExpiry = new Date(Date.now() + tokens.refreshTokenExpiresIn * 1000);
     user.quickbooksRefreshTokenExpiry = refreshTokenExpiry;
-    console.log('[QuickBooks] Refresh token expires in', Math.floor(refreshed.refreshTokenExpiresIn / 86400), 'days');
+    console.log('[QuickBooks] Refresh token expires in', Math.floor(tokens.refreshTokenExpiresIn / 86400), 'days');
   }
   
+  console.log('[QuickBooks] Saving tokens to database...');
   await user.save();
+  console.log('[QuickBooks] ✅ Tokens saved to database successfully');
+  
+  // Verify what was saved (for debugging)
+  const savedUser = await User.findById(user._id);
+  if (savedUser) {
+    console.log('[QuickBooks] ✅ Verification - Saved tokenExpiry:', savedUser.quickbooksTokenExpiry ? savedUser.quickbooksTokenExpiry.toISOString() : 'NOT SET');
+    console.log('[QuickBooks] ✅ Verification - Saved tokenExpiry type:', typeof savedUser.quickbooksTokenExpiry);
+    console.log('[QuickBooks] ✅ Verification - Saved tokenExpiry instanceof Date:', savedUser.quickbooksTokenExpiry instanceof Date);
+    console.log('[QuickBooks] ✅ Verification - Has refreshToken:', !!savedUser.quickbooksRefreshToken);
+    console.log('[QuickBooks] ✅ Verification - quickbooksConnected:', savedUser.quickbooksConnected);
+  }
   
   console.log('[QuickBooks] ✅ Tokens saved successfully. New expiry:', tokenExpiry.toISOString());
   console.log('[QuickBooks] Token will expire in', expiresInSeconds, 'seconds (', Math.floor(expiresInSeconds / 60), 'minutes)');
@@ -151,11 +176,11 @@ async function getValidAccessToken() {
     throw new Error('QuickBooks not connected');
   }
 
-  // Check if token is expired (with 2 minute buffer for proactive refresh)
-  // QuickBooks access tokens expire in 1 hour - refresh 2 minutes before expiry
+  // Check if token is expired (with 5 minute buffer for proactive refresh)
+  // QuickBooks access tokens expire in 1 hour - refresh 5 minutes before expiry
   const now = new Date();
   const expiryTime = owner.quickbooksTokenExpiry ? new Date(owner.quickbooksTokenExpiry) : null;
-  const bufferTime = 2 * 60 * 1000; // 2 minutes in milliseconds (proactive refresh)
+  const bufferTime = 5 * 60 * 1000; // 5 minutes in milliseconds (proactive refresh)
   
   // Log current token status for debugging
   if (expiryTime) {
@@ -230,8 +255,16 @@ router.get('/connect', authenticateToken, authorizeRole(['admin']), async (req, 
     // Get authorization URL - this will throw if redirect URI is invalid
     const authUrl = QuickBooksService.getAuthorizationUrl(state);
     
-    console.log('[QuickBooks Connect] Generated auth URL successfully');
-    console.log('[QuickBooks Connect] Redirect URI being used:', QuickBooksService.redirectUri);
+    console.log('[QuickBooks Connect] ========================================');
+    console.log('[QuickBooks Connect] OAuth Authorization URL Generated');
+    console.log('[QuickBooks Connect]   Client ID:', QuickBooksService.clientId);
+    console.log('[QuickBooks Connect]   Redirect URI:', QuickBooksService.redirectUri);
+    console.log('[QuickBooks Connect]   State:', state);
+    console.log('[QuickBooks Connect]   Full Auth URL:', authUrl);
+    console.log('[QuickBooks Connect] ⚠️  CRITICAL: Redirect URI must match EXACTLY in Intuit Developer Portal');
+    console.log('[QuickBooks Connect] ⚠️  Portal: https://developer.intuit.com/app/developer/dashboard');
+    console.log('[QuickBooks Connect] ⚠️  Must add:', QuickBooksService.redirectUri);
+    console.log('[QuickBooks Connect] ========================================');
     
     res.json({ authUrl, state });
   } catch (error) {
@@ -250,18 +283,36 @@ router.get('/connect', authenticateToken, authorizeRole(['admin']), async (req, 
  * Note: This endpoint does NOT require authentication as it's called by QuickBooks
  */
 router.get('/callback', async (req, res) => {
-  // Determine frontend URL based on environment (declare once at top)
-  // Use FRONTEND_URL if set, otherwise use environment-based fallback
+  // Determine frontend URL based on environment
+  // Priority: FRONTEND_URL > ngrok detection (localhost) > NODE_ENV development > Production fallback
   let frontendUrl = process.env.FRONTEND_URL;
   
   if (!frontendUrl) {
-    if (process.env.NODE_ENV === 'development') {
+    // If using ngrok (BACKEND_URL contains ngrok), assume localhost frontend
+    const backendUrl = process.env.BACKEND_URL || process.env.QUICKBOOKS_REDIRECT_URI || '';
+    if (backendUrl.includes('ngrok') || backendUrl.includes('ngrok-free.dev')) {
       frontendUrl = 'http://localhost:5173';
+      console.log('[QuickBooks Callback] Detected ngrok, using localhost frontend:', frontendUrl);
+    } else if (process.env.NODE_ENV === 'development') {
+      frontendUrl = 'http://localhost:5173';
+      console.log('[QuickBooks Callback] Using development fallback (localhost)');
     } else {
       // Production: Default to production frontend URL
       frontendUrl = 'https://www.clinimediaportal.ca';
+      console.log('[QuickBooks Callback] Using production fallback');
     }
+  } else {
+    console.log('[QuickBooks Callback] Using FRONTEND_URL from environment:', frontendUrl);
   }
+
+  console.log('[QuickBooks Callback] ========================================');
+  console.log('[QuickBooks Callback] OAuth callback received');
+  console.log('[QuickBooks Callback]   Frontend URL:', frontendUrl);
+  console.log('[QuickBooks Callback]   Redirect URI used:', QuickBooksService.redirectUri);
+  console.log('[QuickBooks Callback]   Request origin:', req.headers.origin || 'NOT SET');
+  console.log('[QuickBooks Callback]   Request referer:', req.headers.referer || 'NOT SET');
+  console.log('[QuickBooks Callback]   Query params:', req.query);
+  console.log('[QuickBooks Callback] ========================================');
 
   try {
     const { code, state, realmId, error } = req.query;
@@ -370,6 +421,49 @@ router.get('/refresh', authenticateToken, authorizeRole(['admin']), async (req, 
     }
     
     res.status(500).json({ error: error.message || 'Failed to refresh token' });
+  }
+});
+
+/**
+ * GET /api/quickbooks/token-refresh-status
+ * Get token refresh service status and next refresh time (admin only)
+ */
+router.get('/token-refresh-status', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const owner = await getQuickBooksConnectionOwner();
+    
+    if (!owner.quickbooksConnected) {
+      return res.json({ 
+        connected: false,
+        message: 'QuickBooks not connected',
+        tokenRefreshService: 'Service is running (will activate when connected)'
+      });
+    }
+
+    const now = new Date();
+    const expiryTime = owner.quickbooksTokenExpiry ? new Date(owner.quickbooksTokenExpiry) : null;
+    const timeUntilExpiry = expiryTime ? expiryTime.getTime() - now.getTime() : 0;
+    const minutesUntilExpiry = expiryTime ? Math.floor(timeUntilExpiry / 60000) : null;
+    const bufferTime = 30 * 60 * 1000; // 30 minutes
+    const needsRefresh = !expiryTime || timeUntilExpiry <= 0 || timeUntilExpiry <= bufferTime;
+
+    res.json({
+      connected: true,
+      tokenExpiry: expiryTime ? expiryTime.toISOString() : null,
+      minutesUntilExpiry: minutesUntilExpiry,
+      needsRefresh: needsRefresh,
+      refreshReason: !expiryTime ? 'No expiry set' : timeUntilExpiry <= 0 ? 'Token expired' : timeUntilExpiry <= bufferTime ? 'Expiring within 30 minutes' : 'Token still valid',
+      tokenRefreshService: {
+        status: 'Running',
+        interval: 'Every 15 minutes',
+        bufferTime: '30 minutes before expiry',
+        nextCheck: 'Within 15 minutes',
+        automatic: true
+      }
+    });
+  } catch (error) {
+    console.error('Error getting token refresh status:', error);
+    res.status(500).json({ error: 'Failed to get token refresh status' });
   }
 });
 

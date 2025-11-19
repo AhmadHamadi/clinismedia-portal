@@ -39,13 +39,31 @@ for (const [key, value] of Object.entries(optionalVars)) {
 console.log('\n🔗 Redirect URI Calculation:');
 let redirectUri;
 
-if (process.env.NODE_ENV === 'development') {
-  redirectUri = 'http://localhost:5000/api/quickbooks/callback';
-  console.log('  Using development mode (hardcoded): http://localhost:5000/api/quickbooks/callback');
+// Priority: QUICKBOOKS_REDIRECT_URI > RAILWAY_PUBLIC_DOMAIN > BACKEND_URL > Production fallback
+if (process.env.QUICKBOOKS_REDIRECT_URI) {
+  // Highest priority: Use explicitly set redirect URI (e.g., ngrok URL)
+  redirectUri = process.env.QUICKBOOKS_REDIRECT_URI;
+  console.log('  ✅ Using QUICKBOOKS_REDIRECT_URI from environment');
 } else {
-  // Production: Hardcoded to production API URL
-  redirectUri = 'https://api.clinimediaportal.ca/api/quickbooks/callback';
-  console.log('  Using production mode (hardcoded): https://api.clinimediaportal.ca/api/quickbooks/callback');
+  // Construct redirect URI from backend URL
+  let backendUrl;
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    backendUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    console.log('  ✅ Using RAILWAY_PUBLIC_DOMAIN to construct redirect URI');
+  } else if (process.env.BACKEND_URL) {
+    backendUrl = process.env.BACKEND_URL;
+    console.log('  ✅ Using BACKEND_URL to construct redirect URI');
+  } else if (process.env.NODE_ENV === 'development') {
+    // Use localhost only in development
+    const backendPort = process.env.PORT || 5000;
+    backendUrl = `http://localhost:${backendPort}`;
+    console.log('  ✅ Using localhost (development mode)');
+  } else {
+    // Production fallback
+    backendUrl = 'https://api.clinimediaportal.ca';
+    console.log('  ✅ Using production fallback');
+  }
+  redirectUri = `${backendUrl}/api/quickbooks/callback`;
 }
 
 console.log(`\n✅ Final Redirect URI: ${redirectUri}`);
@@ -59,7 +77,7 @@ if (!allSet) {
 
 if (!redirectUri || redirectUri === 'undefined') {
   console.log('  ❌ Redirect URI is undefined!');
-  console.log('  💡 This should not happen - redirect URI is hardcoded in the service');
+  console.log('  💡 Please set QUICKBOOKS_REDIRECT_URI, BACKEND_URL, or RAILWAY_PUBLIC_DOMAIN');
   process.exit(1);
 }
 

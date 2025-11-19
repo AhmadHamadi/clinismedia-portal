@@ -27,23 +27,39 @@ class QuickBooksService {
       throw new Error('QuickBooks CLIENT_ID and CLIENT_SECRET must be set in environment variables');
     }
     
-    // Hardcoded redirect URI for production
-    // Development: Use localhost (only if NODE_ENV is development)
-    // Production: Always use https://api.clinimediaportal.ca/api/quickbooks/callback
-    if (process.env.NODE_ENV === 'development') {
-      this.redirectUri = 'http://localhost:5000/api/quickbooks/callback';
-      console.log('[QuickBooksService] Using development redirect URI (localhost)');
+    // Redirect URI configuration
+    // Priority: QUICKBOOKS_REDIRECT_URI > RAILWAY_PUBLIC_DOMAIN > BACKEND_URL > Production fallback
+    if (process.env.QUICKBOOKS_REDIRECT_URI) {
+      // Highest priority: Use explicitly set redirect URI (e.g., ngrok URL)
+      this.redirectUri = process.env.QUICKBOOKS_REDIRECT_URI;
+      console.log('[QuickBooksService] Using QUICKBOOKS_REDIRECT_URI from environment:', this.redirectUri);
     } else {
-      // Production: Hardcoded to production API URL
-      this.redirectUri = 'https://api.clinimediaportal.ca/api/quickbooks/callback';
-      console.log('[QuickBooksService] Using production redirect URI (hardcoded):', this.redirectUri);
+      // Construct redirect URI from backend URL
+      let backendUrl;
+      if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        backendUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+      } else if (process.env.BACKEND_URL) {
+        backendUrl = process.env.BACKEND_URL;
+      } else if (process.env.NODE_ENV === 'development') {
+        // Use localhost only in development
+        const backendPort = process.env.PORT || 5000;
+        backendUrl = `http://localhost:${backendPort}`;
+      } else {
+        // Production fallback
+        backendUrl = 'https://api.clinimediaportal.ca';
+      }
+      this.redirectUri = `${backendUrl}/api/quickbooks/callback`;
+      console.log('[QuickBooksService] Constructed redirect URI from backend URL:', this.redirectUri);
     }
     
     // Validate redirect URI is set
     if (!this.redirectUri || this.redirectUri === 'undefined') {
       console.error('[QuickBooksService] ❌ Redirect URI is undefined or invalid!');
       console.error('[QuickBooksService] NODE_ENV:', process.env.NODE_ENV);
-      throw new Error('QuickBooks redirect URI is undefined. This should not happen - redirect URI is hardcoded.');
+      console.error('[QuickBooksService] QUICKBOOKS_REDIRECT_URI:', process.env.QUICKBOOKS_REDIRECT_URI || 'NOT SET');
+      console.error('[QuickBooksService] BACKEND_URL:', process.env.BACKEND_URL || 'NOT SET');
+      console.error('[QuickBooksService] RAILWAY_PUBLIC_DOMAIN:', process.env.RAILWAY_PUBLIC_DOMAIN || 'NOT SET');
+      throw new Error('QuickBooks redirect URI is undefined. Please set QUICKBOOKS_REDIRECT_URI, BACKEND_URL, or RAILWAY_PUBLIC_DOMAIN.');
     }
     
     // OAuth endpoints (same for both sandbox and production)
@@ -58,6 +74,13 @@ class QuickBooksService {
     console.log('[QuickBooksService] ✅ Using base URL =', this.baseUrl);
     console.log('[QuickBooksService] ✅ Client ID:', this.clientId ? 'SET' : 'NOT SET');
     console.log('[QuickBooksService] ✅ Redirect URI:', this.redirectUri);
+    console.log('[QuickBooksService] 🔧 Configuration:', {
+      hasClientId: !!this.clientId,
+      hasClientSecret: !!this.clientSecret,
+      redirectUri: this.redirectUri,
+      backendUrl: process.env.BACKEND_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'NOT SET',
+      explicitRedirectUri: process.env.QUICKBOOKS_REDIRECT_URI || 'NOT SET'
+    });
   }
 
   /**
@@ -82,7 +105,12 @@ class QuickBooksService {
     });
 
     const authUrl = `${this.authUrl}?${params.toString()}`;
-    console.log('[QuickBooksService] Generated authorization URL with redirect_uri:', this.redirectUri);
+    console.log('[QuickBooksService] ========================================');
+    console.log('[QuickBooksService] Generated authorization URL');
+    console.log('[QuickBooksService]   redirect_uri:', this.redirectUri);
+    console.log('[QuickBooksService]   client_id:', this.clientId);
+    console.log('[QuickBooksService]   Full URL:', authUrl);
+    console.log('[QuickBooksService] ========================================');
     return authUrl;
   }
 
@@ -91,15 +119,31 @@ class QuickBooksService {
    */
   async exchangeCodeForTokens(code) {
     try {
+      console.log('[QuickBooksService] ========================================');
+      console.log('[QuickBooksService] Exchanging code for tokens');
+      console.log('[QuickBooksService]   redirect_uri:', this.redirectUri);
+      console.log('[QuickBooksService]   token_url:', this.tokenUrl);
+      console.log('[QuickBooksService]   client_id:', this.clientId ? 'SET' : 'NOT SET');
+      console.log('[QuickBooksService]   client_secret:', this.clientSecret ? 'SET' : 'NOT SET');
+      console.log('[QuickBooksService] ========================================');
+      
       const basicAuth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+      
+      const tokenParams = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: this.redirectUri, // MUST match exactly what was used in authorization URL
+      });
+      
+      console.log('[QuickBooksService] Token request params:', {
+        grant_type: 'authorization_code',
+        code: code ? 'SET' : 'NOT SET',
+        redirect_uri: this.redirectUri,
+      });
       
       const response = await axios.post(
         this.tokenUrl,
-        new URLSearchParams({
-          grant_type: 'authorization_code',
-          code: code,
-          redirect_uri: this.redirectUri,
-        }),
+        tokenParams,
         {
           headers: {
             'Authorization': `Basic ${basicAuth}`,
@@ -141,7 +185,15 @@ class QuickBooksService {
         refreshTokenExpiresIn: response.data.x_refresh_token_expires_in ? parseInt(response.data.x_refresh_token_expires_in, 10) : undefined,
       };
     } catch (error) {
-      console.error('Error exchanging code for tokens:', error.response?.data || error.message);
+      console.error('[QuickBooksService] ========================================');
+      console.error('[QuickBooksService] ❌ Token exchange failed');
+      console.error('[QuickBooksService]   Error:', error.message);
+      console.error('[QuickBooksService]   Status:', error.response?.status);
+      console.error('[QuickBooksService]   Response data:', error.response?.data);
+      console.error('[QuickBooksService]   redirect_uri used:', this.redirectUri);
+      console.error('[QuickBooksService]   ⚠️  CRITICAL: redirect_uri must match EXACTLY what was used in authorization URL');
+      console.error('[QuickBooksService]   ⚠️  CRITICAL: redirect_uri must match EXACTLY what is registered in Intuit Developer Portal');
+      console.error('[QuickBooksService] ========================================');
       throw new Error(`Failed to exchange code for tokens: ${error.response?.data?.error_description || error.message}`);
     }
   }

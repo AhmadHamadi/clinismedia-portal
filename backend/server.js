@@ -153,7 +153,16 @@ app.listen(PORT, () => {
   const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL) || 5;
   metaLeadsEmailService.startMonitoring(leadsCheckInterval);
   
-  // Start QuickBooks token refresh service (runs every 10 minutes - FULLY AUTOMATIC)
+  // Start QuickBooks token refresh service (runs every 30 seconds - FULLY AUTOMATIC)
   // This ensures tokens are always fresh without any manual intervention
-  QuickBooksTokenRefreshService.start();
+  // Tokens are refreshed proactively 30 minutes before expiry (very proactive)
+  // Service runs very frequently (30 seconds) to catch tokens immediately when they need refresh
+  console.log('[Server] Starting QuickBooks token refresh service...');
+  try {
+    QuickBooksTokenRefreshService.start();
+    console.log('[Server] ✅ QuickBooks token refresh service started successfully');
+  } catch (error) {
+    console.error('[Server] ❌ Failed to start QuickBooks token refresh service:', error);
+    console.error('[Server] ❌ Token refresh will NOT work until this is fixed!');
+  }
 });
