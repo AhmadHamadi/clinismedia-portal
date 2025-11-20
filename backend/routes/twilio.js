@@ -241,6 +241,7 @@ const checkRateLimit = () => {
 
 // AI-powered appointment detection using OpenAI (PRIMARY METHOD)
 // This is the main detection method - AI can understand context much better than keyword matching
+// IMPROVED: Now queues requests if rate limit is reached (waits instead of falling back)
 const detectAppointmentBookedWithAI = async (summaryText) => {
   if (!summaryText || typeof summaryText !== 'string') {
     return false;
@@ -253,10 +254,38 @@ const detectAppointmentBookedWithAI = async (summaryText) => {
   }
   
   // Check rate limit before making request
-  const rateLimitCheck = checkRateLimit();
+  let rateLimitCheck = checkRateLimit();
+  
+  // If rate limit reached, wait for it to reset (queue the request)
   if (!rateLimitCheck.allowed) {
-    console.log(`⏱️ OpenAI rate limit: ${OPENAI_RATE_LIMIT_RPM} requests/minute reached. Please wait ${rateLimitCheck.waitTime}s or upgrade your OpenAI plan. Using keyword fallback.`);
-    return null; // Fall back to keyword matching
+    const waitTime = rateLimitCheck.waitTime;
+    console.log(`⏱️ OpenAI rate limit: ${OPENAI_RATE_LIMIT_RPM} requests/minute reached. Queueing request - waiting ${waitTime}s for rate limit to reset...`);
+    
+    // Wait for the rate limit to reset (add 1 second buffer for safety)
+    await new Promise(resolve => setTimeout(resolve, (waitTime + 1) * 1000));
+    
+    // Small delay to let other concurrent waiting requests settle
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Check again after waiting - CRITICAL: Verify rate limit is actually clear
+    rateLimitCheck = checkRateLimit();
+    let retryCount = 0;
+    while (!rateLimitCheck.allowed && retryCount < 3) {
+      // Still rate limited - wait a bit more (could be multiple requests waiting)
+      const additionalWait = rateLimitCheck.waitTime + 1;
+      console.warn(`⚠️ Still rate limited after waiting. Waiting additional ${additionalWait}s... (retry ${retryCount + 1}/3)`);
+      await new Promise(resolve => setTimeout(resolve, additionalWait * 1000));
+      rateLimitCheck = checkRateLimit();
+      retryCount++;
+    }
+    
+    if (!rateLimitCheck.allowed) {
+      // After 3 retries, still rate limited - fall back to keyword matching
+      console.error(`❌ Still rate limited after multiple retries. Falling back to keyword matching.`);
+      return null;
+    }
+    
+    console.log('✅ Rate limit reset - processing queued request with AI');
   }
   
   try {
