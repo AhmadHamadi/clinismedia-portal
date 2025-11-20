@@ -236,6 +236,17 @@ router.get('/connect', authenticateToken, authorizeRole(['admin']), async (req, 
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // CRITICAL: Log which user is initiating the connection
+    console.log('[QuickBooks Connect] ========================================');
+    console.log('[QuickBooks Connect] 🔍 USER AUTHENTICATION CHECK:');
+    console.log('[QuickBooks Connect]   Authenticated User ID:', userId);
+    console.log('[QuickBooks Connect]   Authenticated User Email:', user.email);
+    console.log('[QuickBooks Connect]   Authenticated User Name:', user.name);
+    console.log('[QuickBooks Connect]   Authenticated User Role:', user.role);
+    console.log('[QuickBooks Connect] ⚠️  CRITICAL: Tokens will be saved to THIS user account!');
+    console.log('[QuickBooks Connect] ⚠️  If this is wrong, log out and log in with the correct account');
+    console.log('[QuickBooks Connect] ========================================');
+
     // Log environment info for debugging
     console.log('[QuickBooks Connect] Environment check:');
     console.log('  NODE_ENV:', process.env.NODE_ENV);
@@ -251,6 +262,8 @@ router.get('/connect', authenticateToken, authorizeRole(['admin']), async (req, 
     // Store state in user record temporarily
     user.quickbooksOAuthState = state;
     await user.save();
+    
+    console.log('[QuickBooks Connect] State generated with User ID:', userId);
 
     // Get authorization URL - this will throw if redirect URI is invalid
     const authUrl = QuickBooksService.getAuthorizationUrl(state);
@@ -342,6 +355,15 @@ router.get('/callback', async (req, res) => {
       return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent('User not found')}`);
     }
 
+    // CRITICAL: Log which user will receive the tokens
+    console.log('[QuickBooks Callback] ========================================');
+    console.log('[QuickBooks Callback] 🔍 TOKEN RECIPIENT CHECK:');
+    console.log('[QuickBooks Callback]   User ID from state:', userId);
+    console.log('[QuickBooks Callback]   User Email:', user.email);
+    console.log('[QuickBooks Callback]   User Name:', user.name);
+    console.log('[QuickBooks Callback] ⚠️  CRITICAL: Tokens will be saved to THIS user account!');
+    console.log('[QuickBooks Callback] ========================================');
+
     // Verify state matches stored state
     if (user.quickbooksOAuthState && user.quickbooksOAuthState !== state) {
       return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent('Invalid state parameter - possible CSRF attack')}`);
@@ -361,14 +383,21 @@ router.get('/callback', async (req, res) => {
     console.log('  expiresIn (seconds):', expiresInSeconds);
     console.log('  expiresIn (minutes):', Math.floor(expiresInSeconds / 60));
 
-    // Save tokens using centralized helper
+    // Set additional QuickBooks connection fields FIRST
+    user.quickbooksRealmId = realmId || tokens.realmId;
+    user.quickbooksConnected = true; // CRITICAL: Set to true BEFORE saving tokens
+    user.quickbooksOAuthState = null; // Clear state
+    
+    // Save tokens using centralized helper (this will also save the connection status)
     await saveTokensForUser(user, tokens);
     
-    // Set additional QuickBooks connection fields
-    user.quickbooksRealmId = realmId || tokens.realmId;
-    user.quickbooksConnected = true;
-    user.quickbooksOAuthState = null; // Clear state
-    await user.save();
+    // Verify connection status is saved
+    const savedUser = await User.findById(user._id);
+    if (!savedUser.quickbooksConnected) {
+      console.error('[QuickBooks Callback] ❌ ERROR: quickbooksConnected was not saved! Setting it now...');
+      savedUser.quickbooksConnected = true;
+      await savedUser.save();
+    }
 
     console.log(`✅ QuickBooks connected for user ${user.name} (${user.email})`);
     console.log(`✅ Token will expire in ${expiresInSeconds} seconds (${Math.floor(expiresInSeconds / 60)} minutes)`);
@@ -449,15 +478,20 @@ router.get('/token-refresh-status', authenticateToken, authorizeRole(['admin']),
 
     res.json({
       connected: true,
+      connectedUser: {
+        email: owner.email,
+        name: owner.name,
+        id: owner._id
+      },
       tokenExpiry: expiryTime ? expiryTime.toISOString() : null,
       minutesUntilExpiry: minutesUntilExpiry,
       needsRefresh: needsRefresh,
       refreshReason: !expiryTime ? 'No expiry set' : timeUntilExpiry <= 0 ? 'Token expired' : timeUntilExpiry <= bufferTime ? 'Expiring within 30 minutes' : 'Token still valid',
       tokenRefreshService: {
         status: 'Running',
-        interval: 'Every 15 minutes',
+        interval: 'Every 30 seconds',
         bufferTime: '30 minutes before expiry',
-        nextCheck: 'Within 15 minutes',
+        nextCheck: 'Within 30 seconds',
         automatic: true
       }
     });

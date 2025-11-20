@@ -4,7 +4,7 @@
  * Background service that proactively refreshes QuickBooks access tokens
  * before they expire. This ensures tokens are always valid without manual intervention.
  * 
- * Runs every 30 minutes to check and refresh tokens that are expiring soon.
+ * Runs every 30 seconds to check and refresh tokens that are expiring soon.
  */
 
 const User = require('../models/User');
@@ -34,6 +34,27 @@ function isPermanentOAuthError(error) {
   // MongoDB connection errors are temporary - don't disconnect
   if (errorName.includes('MongoServerSelectionError') || errorName.includes('MongoNetworkError')) {
     return false;
+  }
+  
+  const errorDescription = error?.response?.data?.error_description?.toLowerCase() || '';
+  
+  // Check error code first (most reliable)
+  if (errorCode && permanentErrors.some(permError => errorString.includes(permError))) {
+    return true;
+  }
+  
+  // Check error description for common phrases
+  if (errorDescription.includes('incorrect or invalid refresh token') ||
+      errorDescription.includes('invalid refresh token') ||
+      errorDescription.includes('refresh token expired')) {
+    return true;
+  }
+  
+  // Check error message for permanent error indicators
+  if (errorMessage.includes('invalid refresh token') ||
+      errorMessage.includes('incorrect or invalid refresh token') ||
+      (errorMessage.includes('invalid') && errorMessage.includes('token') && errorMessage.includes('refresh'))) {
+    return true;
   }
   
   return permanentErrors.some(permError => 
@@ -275,8 +296,28 @@ class QuickBooksTokenRefreshService {
               });
             }
           } else {
-            console.warn(`[QuickBooksTokenRefresh] ⚠️ Temporary error (will retry on next check in 30 seconds):`, error.message);
-            console.warn(`[QuickBooksTokenRefresh] ⚠️ Connection remains active - will retry automatically`);
+            // Double-check: If error message contains "invalid" or "expired", it's likely permanent
+            const errorMsg = error.message?.toLowerCase() || '';
+            const errorData = error.response?.data || {};
+            const errorCode = errorData.error || error.error || '';
+            
+            // Check if error code or message indicates permanent failure
+            if (errorCode === 'invalid_grant' || 
+                errorMsg.includes('invalid refresh token') || 
+                errorMsg.includes('incorrect or invalid refresh token') ||
+                (errorMsg.includes('invalid') && errorMsg.includes('token'))) {
+              console.error(`[QuickBooksTokenRefresh] ⚠️ Detected permanent OAuth error (invalid_grant/invalid token) - marking as disconnected`);
+              const freshUser = await User.findById(user._id);
+              if (freshUser) {
+                freshUser.quickbooksConnected = false;
+                await freshUser.save().catch(err => {
+                  console.error(`[QuickBooksTokenRefresh] Failed to update connection status for user ${freshUser._id}:`, err);
+                });
+              }
+            } else {
+              console.warn(`[QuickBooksTokenRefresh] ⚠️ Temporary error (will retry on next check in 30 seconds):`, error.message);
+              console.warn(`[QuickBooksTokenRefresh] ⚠️ Connection remains active - will retry automatically`);
+            }
           }
           
           errorCount++;
@@ -292,7 +333,7 @@ class QuickBooksTokenRefreshService {
   
   /**
    * Start the background token refresh service
-   * Runs every 15 minutes to check and refresh tokens that are expiring soon
+   * Runs every 30 seconds to check and refresh tokens that are expiring soon
    * This ensures tokens are always fresh and never expire during use
    * NO MANUAL INTERVENTION NEEDED - fully automatic
    */

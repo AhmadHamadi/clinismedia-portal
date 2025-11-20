@@ -263,7 +263,13 @@ class QuickBooksService {
       };
     } catch (error) {
       console.error('Error refreshing token:', error.response?.data || error.message);
-      throw new Error(`Failed to refresh token: ${error.response?.data?.error_description || error.message}`);
+      // Preserve original error structure so isPermanentOAuthError can detect it
+      const errorData = error.response?.data || {};
+      const newError = new Error(`Failed to refresh token: ${errorData.error_description || error.message}`);
+      // Attach original error data for error detection
+      newError.response = { data: errorData };
+      newError.error = errorData.error;
+      throw newError;
     }
   }
 
