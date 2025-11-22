@@ -160,7 +160,7 @@ const MetaLeadsManagementPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <FaSpinner className="animate-spin text-4xl text-[#98c6d5] mx-auto mb-4" />
           <p className="text-gray-600">Loading Meta Leads management...</p>

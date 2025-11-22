@@ -266,7 +266,7 @@ const AdminGalleryPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 font-sans p-6">
+    <div className="min-h-screen bg-gray-50 font-sans p-6">
       <div className="max-w-6xl mx-auto">
         {/* Email Notification Section - At Top */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">

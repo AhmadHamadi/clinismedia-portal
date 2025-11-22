@@ -45,7 +45,7 @@ const CustomerManagementPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-100 font-sans w-full">
+    <div className="min-h-screen flex bg-gray-50 font-sans w-full">
       <div className="flex-1 p-6 max-w-full">
         <div className="max-w-6xl mx-auto bg-white rounded-lg p-6 shadow-lg">
           <div className="flex justify-between items-center mb-6">

@@ -211,7 +211,7 @@ const OnboardingTasks: React.FC = () => {
   const getAssignmentStatus = (a: any) => a.status || 'not_started';
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100 font-sans gap-6 p-6">
+    <div className="flex flex-col min-h-screen bg-gray-50 font-sans gap-6 p-6">
       {/* Email Notification Section - At Top */}
       <div className="w-full bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center justify-between mb-4">

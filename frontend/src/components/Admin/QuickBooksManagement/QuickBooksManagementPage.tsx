@@ -758,7 +758,7 @@ const QuickBooksManagementPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <FaSpinner className="animate-spin text-4xl text-[#98c6d5] mx-auto mb-4" />
           <p className="text-gray-600">Loading QuickBooks...</p>
@@ -768,7 +768,7 @@ const QuickBooksManagementPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -855,8 +855,20 @@ const QuickBooksManagementPage: React.FC = () => {
               <div className="text-sm text-gray-600">
                 <p>Company ID: {status.realmId || 'N/A'}</p>
                 {status.lastSynced && <p>Last Synced: {formatDate(status.lastSynced)}</p>}
-                {status.tokenExpiry && <p>Token Expires: {formatDate(status.tokenExpiry)}</p>}
-                <p className="text-xs text-gray-500 mt-1">✓ Tokens refresh automatically every 10 minutes</p>
+                {status.tokenExpiry && (
+                  <p>
+                    Token Expires: {formatDate(status.tokenExpiry)}
+                    {(() => {
+                      const expiryDate = new Date(status.tokenExpiry);
+                      const now = new Date();
+                      if (expiryDate < now) {
+                        return <span className="ml-2 text-red-600 font-semibold">(EXPIRED - Reconnecting...)</span>;
+                      }
+                      return null;
+                    })()}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">✓ Tokens refresh automatically every 30 seconds</p>
               </div>
             </div>
           ) : (

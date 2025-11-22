@@ -60,9 +60,9 @@ const AdminDash = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8 font-sans">
+    <div className="min-h-screen bg-gray-50 p-8 font-sans">
       {/* Header with logo left, title centered */}
-      <div className="relative flex items-center justify-between mb-10 bg-gray-100 p-4 rounded">
+      <div className="relative flex items-center justify-between mb-10 bg-gray-50 p-4 rounded">
         {/* Logo */}
         <div className="flex-shrink-0">
           <img
