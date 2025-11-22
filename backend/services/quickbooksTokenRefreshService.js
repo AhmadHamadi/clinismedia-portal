@@ -69,57 +69,46 @@ function isPermanentOAuthError(error) {
  */
 /**
  * Helper: Centralized function to save tokens for a user
+ * CRITICAL: Supports BOTH camelCase (from service) and snake_case (from QuickBooks API)
  * Ensures consistent token saving logic across all refresh paths
- * CRITICAL: Always saves refresh_token (QuickBooks rotates these)
- * CRITICAL: Always saves expiry as Date object (not string)
- * 
- * This function matches the one in routes/quickbooks.js exactly
  */
 async function saveTokensForUser(user, tokens) {
-  // Validate expiresIn is a number (should be in seconds, typically 3600)
-  const expiresInSeconds = parseInt(tokens.expiresIn, 10);
-  if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
-    console.warn('[QuickBooksTokenRefresh] Invalid expiresIn from refresh, using default 3600 seconds');
-    tokens.expiresIn = 3600;
+  // CRITICAL: Support BOTH camelCase (from service) and snake_case (from QuickBooks API)
+  const expiresIn = parseInt(tokens.expires_in || tokens.expiresIn, 10) || 3600;
+  const tokenExpiry = new Date(Date.now() + expiresIn * 1000);
+  
+  // CRITICAL: Support both formats - QuickBooks API returns snake_case
+  const accessToken = tokens.access_token || tokens.accessToken;
+  const refreshToken = tokens.refresh_token || tokens.refreshToken;
+  
+  if (!accessToken) {
+    throw new Error('No access_token in response');
   }
   
-  // CRITICAL: Calculate expiry as Date object (not string)
-  // ChatGPT requirement: "user.quickbooksTokenExpiry = new Date(Date.now() + expiresInSeconds * 1000);"
-  const tokenExpiry = new Date(Date.now() + expiresInSeconds * 1000);
+  user.quickbooksAccessToken = accessToken;
   
-  // CRITICAL: Always save access token
-  if (tokens.accessToken) {
-    user.quickbooksAccessToken = tokens.accessToken;
-  }
-  
-  // CRITICAL: Always save refresh token (QuickBooks rotates these every ~24 hours)
-  // ChatGPT requirement: "if (tokens.refreshToken) { user.quickbooksRefreshToken = tokens.refreshToken; }"
-  // According to Intuit docs: "Always store the latest refresh_token value from the most recent API server response"
-  // "When you get a new refresh token, the previous refresh token value automatically expires"
-  if (tokens.refreshToken) {
-    console.log(`[QuickBooksTokenRefresh] 🔄 CRITICAL: Saving new refresh_token for user ${user.email || user.name || user._id} (old one is now invalid)`);
-    user.quickbooksRefreshToken = tokens.refreshToken; // MUST overwrite - old token is invalid
+  // CRITICAL: Always save refresh token if provided (QuickBooks rotates these)
+  if (refreshToken) {
+    console.log(`[QuickBooksTokenRefresh] 🔄 Saving new refresh_token for user ${user.email || user._id}`);
+    user.quickbooksRefreshToken = refreshToken;
   } else {
-    // QuickBooks should always return refresh_token, but if not, log warning
-    console.warn(`[QuickBooksTokenRefresh] ⚠️ WARNING: QuickBooks did not return new refresh_token for user ${user.email || user.name || user._id}`);
-    console.warn(`[QuickBooksTokenRefresh] ⚠️ This may cause issues if token rotated. Keeping existing refresh_token.`);
+    console.warn(`[QuickBooksTokenRefresh] ⚠️ No refresh_token in response for ${user.email || user._id}`);
   }
   
-  // CRITICAL: Save expiry as Date object (ChatGPT requirement)
-  // ChatGPT requirement: "user.quickbooksTokenExpiry = new Date(Date.now() + tokens.expiresIn * 1000);"
+  // Save expiry as Date object
   user.quickbooksTokenExpiry = tokenExpiry;
   
-  // Store refresh token expiry if provided (x_refresh_token_expires_in in seconds)
-  if (tokens.refreshTokenExpiresIn) {
-    const refreshTokenExpiry = new Date(Date.now() + tokens.refreshTokenExpiresIn * 1000);
-    user.quickbooksRefreshTokenExpiry = refreshTokenExpiry;
+  // Save refresh token expiry if provided
+  const refreshTokenExpiresIn = tokens.x_refresh_token_expires_in || tokens.refreshTokenExpiresIn;
+  if (refreshTokenExpiresIn) {
+    user.quickbooksRefreshTokenExpiry = new Date(Date.now() + parseInt(refreshTokenExpiresIn, 10) * 1000);
   }
   
   await user.save();
   
-  const minutesUntilExpiry = Math.floor(expiresInSeconds / 60);
-  console.log(`[QuickBooksTokenRefresh] ✅ Token refreshed for user: ${user.email || user.name || user._id}`);
-  console.log(`[QuickBooksTokenRefresh]    New token expires in ${minutesUntilExpiry} minutes (${tokenExpiry.toISOString()})`);
+  const minutesUntilExpiry = Math.floor(expiresIn / 60);
+  console.log(`[QuickBooksTokenRefresh] ✅ Tokens saved for ${user.email || user._id}`);
+  console.log(`[QuickBooksTokenRefresh]    Expires in ${minutesUntilExpiry} minutes (${tokenExpiry.toISOString()})`);
 }
 
 class QuickBooksTokenRefreshService {

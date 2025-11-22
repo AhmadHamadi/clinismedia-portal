@@ -213,24 +213,33 @@ class QuickBooksService {
         console.log('[QuickBooksService] ✅ CRITICAL: Received new refresh_token from QuickBooks - MUST save this (old one is now invalid)');
       }
 
+      // Log what QuickBooks returns for debugging
+      console.log('[QuickBooksService] 🔍 Raw token response keys:', Object.keys(response.data));
+      console.log('[QuickBooksService] 🔍 Has access_token:', !!response.data.access_token);
+      console.log('[QuickBooksService] 🔍 Has refresh_token:', !!response.data.refresh_token);
+      
       // Validate expires_in is a number (should be in seconds, typically 3600 for access tokens)
       const expiresIn = parseInt(response.data.expires_in, 10);
       if (isNaN(expiresIn) || expiresIn <= 0) {
         console.warn('[QuickBooksService] Invalid expires_in value:', response.data.expires_in, 'Defaulting to 3600 seconds (1 hour)');
         // Default to 1 hour if invalid
         return {
-          accessToken: response.data.access_token,
-          refreshToken: newRefreshToken || refreshToken, // ALWAYS prefer new refresh token
-          expiresIn: 3600, // Default to 1 hour
-          refreshTokenExpiresIn: response.data.x_refresh_token_expires_in ? parseInt(response.data.x_refresh_token_expires_in, 10) : undefined,
+          access_token: response.data.access_token,      // snake_case
+          refresh_token: newRefreshToken || refreshToken, // snake_case - ALWAYS prefer new refresh token
+          expires_in: 3600, // Default to 1 hour
+          x_refresh_token_expires_in: response.data.x_refresh_token_expires_in 
+            ? parseInt(response.data.x_refresh_token_expires_in, 10) 
+            : undefined
         };
       }
 
       return {
-        accessToken: response.data.access_token,
-        refreshToken: newRefreshToken || refreshToken, // ALWAYS prefer new refresh token (QuickBooks rotates these)
-        expiresIn: expiresIn, // Use validated number
-        refreshTokenExpiresIn: response.data.x_refresh_token_expires_in ? parseInt(response.data.x_refresh_token_expires_in, 10) : undefined,
+        access_token: response.data.access_token,      // snake_case
+        refresh_token: newRefreshToken || refreshToken, // snake_case - ALWAYS prefer new refresh token
+        expires_in: expiresIn, // Use validated number
+        x_refresh_token_expires_in: response.data.x_refresh_token_expires_in 
+          ? parseInt(response.data.x_refresh_token_expires_in, 10) 
+          : undefined
       };
     } catch (error) {
       console.error('Error refreshing token:', error.response?.data || error.message);

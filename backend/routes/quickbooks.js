@@ -215,7 +215,8 @@ async function getValidAccessToken() {
       // Save tokens using centralized helper
       await saveTokensForUser(owner, refreshed);
       
-      return refreshed.accessToken;
+      // CRITICAL: Return the access_token (support both formats)
+      return refreshed.access_token || refreshed.accessToken;
     } catch (error) {
       console.error('[QuickBooks] ❌ Failed to refresh token:', error);
       
@@ -425,7 +426,8 @@ router.get('/refresh', authenticateToken, authorizeRole(['admin']), async (req, 
 
     // Reload user to get updated expiry
     await user.populate();
-    const expiresInSeconds = parseInt(refreshed.expiresIn, 10);
+    // Support both formats
+    const expiresInSeconds = parseInt(refreshed.expires_in || refreshed.expiresIn, 10);
     console.log('[QuickBooks Refresh] ✅ Token refreshed successfully. New expiry:', user.quickbooksTokenExpiry?.toISOString());
     console.log('[QuickBooks Refresh] Token will expire in', expiresInSeconds, 'seconds (', Math.floor(expiresInSeconds / 60), 'minutes)');
 
