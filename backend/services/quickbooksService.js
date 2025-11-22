@@ -15,72 +15,31 @@ console.log('[QuickBooksService] Base URL =', QUICKBOOKS_BASE_URL);
  */
 class QuickBooksService {
   constructor() {
-    // OAuth configuration
-    this.clientId = process.env.QUICKBOOKS_CLIENT_ID;
-    this.clientSecret = process.env.QUICKBOOKS_CLIENT_SECRET;
-    
-    // Validate required credentials
-    if (!this.clientId || !this.clientSecret) {
-      console.error('[QuickBooksService] ❌ Missing QuickBooks credentials!');
-      console.error('[QuickBooksService] Client ID:', this.clientId ? 'SET' : 'NOT SET');
-      console.error('[QuickBooksService] Client Secret:', this.clientSecret ? 'SET' : 'NOT SET');
-      throw new Error('QuickBooks CLIENT_ID and CLIENT_SECRET must be set in environment variables');
-    }
-    
-    // Redirect URI configuration
-    // Priority: QUICKBOOKS_REDIRECT_URI > RAILWAY_PUBLIC_DOMAIN > BACKEND_URL > Production fallback
-    if (process.env.QUICKBOOKS_REDIRECT_URI) {
-      // Highest priority: Use explicitly set redirect URI (e.g., ngrok URL)
-      this.redirectUri = process.env.QUICKBOOKS_REDIRECT_URI;
-      console.log('[QuickBooksService] Using QUICKBOOKS_REDIRECT_URI from environment:', this.redirectUri);
-    } else {
-      // Construct redirect URI from backend URL
-      let backendUrl;
-      if (process.env.RAILWAY_PUBLIC_DOMAIN) {
-        backendUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
-      } else if (process.env.BACKEND_URL) {
-        backendUrl = process.env.BACKEND_URL;
-      } else if (process.env.NODE_ENV === 'development') {
-        // Use localhost only in development
-        const backendPort = process.env.PORT || 5000;
-        backendUrl = `http://localhost:${backendPort}`;
-      } else {
-        // Production fallback
-        backendUrl = 'https://api.clinimediaportal.ca';
-      }
-      this.redirectUri = `${backendUrl}/api/quickbooks/callback`;
-      console.log('[QuickBooksService] Constructed redirect URI from backend URL:', this.redirectUri);
-    }
-    
-    // Validate redirect URI is set
-    if (!this.redirectUri || this.redirectUri === 'undefined') {
-      console.error('[QuickBooksService] ❌ Redirect URI is undefined or invalid!');
-      console.error('[QuickBooksService] NODE_ENV:', process.env.NODE_ENV);
-      console.error('[QuickBooksService] QUICKBOOKS_REDIRECT_URI:', process.env.QUICKBOOKS_REDIRECT_URI || 'NOT SET');
-      console.error('[QuickBooksService] BACKEND_URL:', process.env.BACKEND_URL || 'NOT SET');
-      console.error('[QuickBooksService] RAILWAY_PUBLIC_DOMAIN:', process.env.RAILWAY_PUBLIC_DOMAIN || 'NOT SET');
-      throw new Error('QuickBooks redirect URI is undefined. Please set QUICKBOOKS_REDIRECT_URI, BACKEND_URL, or RAILWAY_PUBLIC_DOMAIN.');
-    }
-    
-    // OAuth endpoints (same for both sandbox and production)
+    // HARDCODED for Production testing
+    this.clientId = 'AB5aFDZt28KcY7GzgJrtjzodAiFPLf8q9XR4wIChmIl7OjLHmc';
+    this.clientSecret = 'sRxrlEXfaMCGkirJ0BMq0aKGmXhFgK2aEGBEEyqJ';
+    this.redirectUri = 'https://api.clinimediaportal.ca/api/quickbooks/callback';
+    this.environment = 'production';
+
+    console.log('[QuickBooksService] 🔧 HARDCODED CONFIGURATION (TESTING):');
+    console.log('[QuickBooksService]   Client ID:', this.clientId);
+    console.log('[QuickBooksService]   Client Secret:', this.clientSecret.substring(0, 10) + '...');
+    console.log('[QuickBooksService]   Redirect URI:', this.redirectUri);
+    console.log('[QuickBooksService]   Environment:', this.environment);
+
+    // OAuth endpoints
     this.authUrl = 'https://appcenter.intuit.com/connect/oauth2';
     this.tokenUrl = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
+    this.apiBaseUrl = 'https://quickbooks.api.intuit.com';
+
+    this.authHeader = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
     
     // API configuration - ALWAYS PRODUCTION
     this.env = qbEnv;
     this.baseUrl = QUICKBOOKS_BASE_URL;
     
-    console.log('[QuickBooksService] ✅ Initialised env =', this.env);
+    console.log('[QuickBooksService] ✅ Service initialized with hardcoded credentials');
     console.log('[QuickBooksService] ✅ Using base URL =', this.baseUrl);
-    console.log('[QuickBooksService] ✅ Client ID:', this.clientId ? 'SET' : 'NOT SET');
-    console.log('[QuickBooksService] ✅ Redirect URI:', this.redirectUri);
-    console.log('[QuickBooksService] 🔧 Configuration:', {
-      hasClientId: !!this.clientId,
-      hasClientSecret: !!this.clientSecret,
-      redirectUri: this.redirectUri,
-      backendUrl: process.env.BACKEND_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'NOT SET',
-      explicitRedirectUri: process.env.QUICKBOOKS_REDIRECT_URI || 'NOT SET'
-    });
   }
 
   /**

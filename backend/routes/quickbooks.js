@@ -9,6 +9,28 @@ const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 const crypto = require('crypto');
 
+// DEBUG ROUTES (add at the top, before other routes)
+router.get('/debug', (req, res) => {
+  res.json({
+    message: '✅ QuickBooks routes are accessible',
+    redirectUri: 'https://api.clinimediaportal.ca/api/quickbooks/callback',
+    timestamp: new Date().toISOString(),
+    environment: 'production'
+  });
+});
+
+router.get('/callback-test', (req, res) => {
+  res.json({
+    message: '✅ Callback route pattern is accessible',
+    query: req.query,
+    headers: {
+      host: req.headers.host,
+      'user-agent': req.headers['user-agent']
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 /**
  * Helper: Get the QuickBooks connection owner (admin user with QuickBooks connected)
  */
@@ -296,6 +318,18 @@ router.get('/connect', authenticateToken, authorizeRole(['admin']), async (req, 
  * Note: This endpoint does NOT require authentication as it's called by QuickBooks
  */
 router.get('/callback', async (req, res) => {
+  console.log('[QuickBooks Callback] 📥 OAUTH CALLBACK RECEIVED');
+  console.log('[QuickBooks Callback]   Request host:', req.headers.host);
+  console.log('[QuickBooks Callback]   Request URL:', req.url);
+  console.log('[QuickBooks Callback]   Full URL:', `${req.protocol}://${req.get('host')}${req.originalUrl}`);
+  console.log('[QuickBooks Callback]   Query params:', JSON.stringify(req.query, null, 2));
+  console.log('[QuickBooks Callback]   Headers:', JSON.stringify({
+    host: req.headers.host,
+    'user-agent': req.headers['user-agent'],
+    origin: req.headers.origin,
+    referer: req.headers.referer
+  }, null, 2));
+
   // Determine frontend URL based on environment
   // Priority: FRONTEND_URL > ngrok detection (localhost) > NODE_ENV development > Production fallback
   let frontendUrl = process.env.FRONTEND_URL;
@@ -318,27 +352,31 @@ router.get('/callback', async (req, res) => {
     console.log('[QuickBooks Callback] Using FRONTEND_URL from environment:', frontendUrl);
   }
 
-  console.log('[QuickBooks Callback] ========================================');
-  console.log('[QuickBooks Callback] 📥 OAUTH CALLBACK RECEIVED');
-  console.log('[QuickBooks Callback]   Frontend URL:', frontendUrl);
   console.log('[QuickBooks Callback]   Redirect URI (from service):', QuickBooksService.redirectUri);
   console.log('[QuickBooks Callback]   ⚠️  CRITICAL: Verify this redirect URI matches Intuit Portal');
-  console.log('[QuickBooks Callback]   Request origin:', req.headers.origin || 'NOT SET');
-  console.log('[QuickBooks Callback]   Request referer:', req.headers.referer || 'NOT SET');
-  console.log('[QuickBooks Callback]   Request host:', req.headers.host || 'NOT SET');
-  console.log('[QuickBooks Callback]   Request URL:', req.url);
-  console.log('[QuickBooks Callback]   Query params:', req.query);
-  console.log('[QuickBooks Callback] ========================================');
 
   try {
     const { code, state, realmId, error } = req.query;
 
+    // If OAuth error from QuickBooks
     if (error) {
+      console.error('[QuickBooks Callback] ❌ OAuth error from QuickBooks:', error);
       return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent(error)}`);
     }
 
-    if (!code || !realmId) {
-      return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent('Missing authorization code or realm ID')}`);
+    // If no code, return JSON error (not redirect) - helps debug
+    if (!code) {
+      console.error('[QuickBooks Callback] ❌ No authorization code received');
+      return res.status(400).json({ 
+        error: 'No authorization code',
+        query: req.query,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (!realmId) {
+      console.error('[QuickBooks Callback] ❌ No realm ID received');
+      return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent('Missing realm ID')}`);
     }
 
     if (!state) {
@@ -379,9 +417,11 @@ router.get('/callback', async (req, res) => {
     console.log('[QuickBooks Callback] ✅ State verified');
 
     // Exchange code for tokens
-    console.log('[QuickBooks Callback] 🔵 Exchanging authorization code for tokens...');
+    console.log('[QuickBooks Callback] 🔵 Processing authorization code...');
     console.log('[QuickBooks Callback]   Code received:', code ? 'YES' : 'NO');
     console.log('[QuickBooks Callback]   Realm ID:', realmId);
+    console.log('[QuickBooks Callback]   State:', state);
+    
     const tokens = await QuickBooksService.exchangeCodeForTokens(code);
     console.log('[QuickBooks Callback] ✅ Token exchange successful');
 

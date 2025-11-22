@@ -98,6 +98,7 @@ app.use('/api/google-business', googleBusinessRoutes);
 app.use('/api/twilio', twilioRoutes);
 app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/api/quickbooks', quickbooksRoutes);
+
 app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
 app.use('/uploads/invoices', express.static(__dirname + '/uploads/invoices'));
 app.use('/uploads/customer-logos', express.static(__dirname + '/uploads/customer-logos'));
