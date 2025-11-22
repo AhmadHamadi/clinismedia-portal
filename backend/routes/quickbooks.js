@@ -319,11 +319,14 @@ router.get('/callback', async (req, res) => {
   }
 
   console.log('[QuickBooks Callback] ========================================');
-  console.log('[QuickBooks Callback] OAuth callback received');
+  console.log('[QuickBooks Callback] 📥 OAUTH CALLBACK RECEIVED');
   console.log('[QuickBooks Callback]   Frontend URL:', frontendUrl);
-  console.log('[QuickBooks Callback]   Redirect URI used:', QuickBooksService.redirectUri);
+  console.log('[QuickBooks Callback]   Redirect URI (from service):', QuickBooksService.redirectUri);
+  console.log('[QuickBooks Callback]   ⚠️  CRITICAL: Verify this redirect URI matches Intuit Portal');
   console.log('[QuickBooks Callback]   Request origin:', req.headers.origin || 'NOT SET');
   console.log('[QuickBooks Callback]   Request referer:', req.headers.referer || 'NOT SET');
+  console.log('[QuickBooks Callback]   Request host:', req.headers.host || 'NOT SET');
+  console.log('[QuickBooks Callback]   Request URL:', req.url);
   console.log('[QuickBooks Callback]   Query params:', req.query);
   console.log('[QuickBooks Callback] ========================================');
 
@@ -365,12 +368,22 @@ router.get('/callback', async (req, res) => {
     console.log('[QuickBooks Callback] ========================================');
 
     // Verify state matches stored state
+    console.log('[QuickBooks Callback] 🔍 Verifying OAuth state...');
+    console.log('[QuickBooks Callback]   Stored state:', user.quickbooksOAuthState);
+    console.log('[QuickBooks Callback]   Received state:', state);
+    
     if (user.quickbooksOAuthState && user.quickbooksOAuthState !== state) {
+      console.error('[QuickBooks Callback] ❌ State mismatch - possible CSRF attack');
       return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent('Invalid state parameter - possible CSRF attack')}`);
     }
+    console.log('[QuickBooks Callback] ✅ State verified');
 
     // Exchange code for tokens
+    console.log('[QuickBooks Callback] 🔵 Exchanging authorization code for tokens...');
+    console.log('[QuickBooks Callback]   Code received:', code ? 'YES' : 'NO');
+    console.log('[QuickBooks Callback]   Realm ID:', realmId);
     const tokens = await QuickBooksService.exchangeCodeForTokens(code);
+    console.log('[QuickBooks Callback] ✅ Token exchange successful');
 
     // Validate expiresIn is a number (should be in seconds, typically 3600 for access tokens)
     const expiresInSeconds = parseInt(tokens.expiresIn, 10);

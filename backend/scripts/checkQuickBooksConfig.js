@@ -58,11 +58,11 @@ if (process.env.QUICKBOOKS_REDIRECT_URI) {
     const backendPort = process.env.PORT || 5000;
     backendUrl = `http://localhost:${backendPort}`;
     console.log('  ✅ Using localhost (development mode)');
-  } else {
-    // Production fallback
-    backendUrl = 'https://api.clinimediaportal.ca';
-    console.log('  ✅ Using production fallback');
-  }
+        } else {
+          // Production fallback
+          backendUrl = 'https://api.clinimediaportal.ca';
+          console.log('  ✅ Using production fallback');
+        }
   redirectUri = `${backendUrl}/api/quickbooks/callback`;
 }
 

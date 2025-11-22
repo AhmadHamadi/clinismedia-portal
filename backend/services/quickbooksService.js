@@ -106,9 +106,13 @@ class QuickBooksService {
 
     const authUrl = `${this.authUrl}?${params.toString()}`;
     console.log('[QuickBooksService] ========================================');
-    console.log('[QuickBooksService] Generated authorization URL');
+    console.log('[QuickBooksService] 🔵 GENERATING AUTHORIZATION URL');
     console.log('[QuickBooksService]   redirect_uri:', this.redirectUri);
+    console.log('[QuickBooksService]   ⚠️  CRITICAL: This redirect_uri MUST match EXACTLY in Intuit Developer Portal');
+    console.log('[QuickBooksService]   ⚠️  CRITICAL: Check Production environment if using production domain');
+    console.log('[QuickBooksService]   ⚠️  CRITICAL: Check Development environment if using ngrok/localhost');
     console.log('[QuickBooksService]   client_id:', this.clientId);
+    console.log('[QuickBooksService]   state:', state);
     console.log('[QuickBooksService]   Full URL:', authUrl);
     console.log('[QuickBooksService] ========================================');
     return authUrl;
@@ -120,8 +124,10 @@ class QuickBooksService {
   async exchangeCodeForTokens(code) {
     try {
       console.log('[QuickBooksService] ========================================');
-      console.log('[QuickBooksService] Exchanging code for tokens');
+      console.log('[QuickBooksService] 🔵 EXCHANGING CODE FOR TOKENS');
       console.log('[QuickBooksService]   redirect_uri:', this.redirectUri);
+      console.log('[QuickBooksService]   ⚠️  CRITICAL: redirect_uri MUST match EXACTLY what was used in authorization URL');
+      console.log('[QuickBooksService]   ⚠️  CRITICAL: redirect_uri MUST match EXACTLY what is in Intuit Developer Portal');
       console.log('[QuickBooksService]   token_url:', this.tokenUrl);
       console.log('[QuickBooksService]   client_id:', this.clientId ? 'SET' : 'NOT SET');
       console.log('[QuickBooksService]   client_secret:', this.clientSecret ? 'SET' : 'NOT SET');
