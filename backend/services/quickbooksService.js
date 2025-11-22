@@ -64,16 +64,22 @@ class QuickBooksService {
     });
 
     const authUrl = `${this.authUrl}?${params.toString()}`;
+    
     console.log('[QuickBooksService] ========================================');
     console.log('[QuickBooksService] 🔵 GENERATING AUTHORIZATION URL');
-    console.log('[QuickBooksService]   redirect_uri:', this.redirectUri);
-    console.log('[QuickBooksService]   ⚠️  CRITICAL: This redirect_uri MUST match EXACTLY in Intuit Developer Portal');
-    console.log('[QuickBooksService]   ⚠️  CRITICAL: Check Production environment if using production domain');
-    console.log('[QuickBooksService]   ⚠️  CRITICAL: Check Development environment if using ngrok/localhost');
-    console.log('[QuickBooksService]   client_id:', this.clientId);
-    console.log('[QuickBooksService]   state:', state);
-    console.log('[QuickBooksService]   Full URL:', authUrl);
+    console.log('[QuickBooksService] 🔍 redirectUri (raw):', this.redirectUri);
+    console.log('[QuickBooksService] 🔍 redirectUri (decoded):', decodeURIComponent(this.redirectUri));
+    console.log('[QuickBooksService] 🔍 clientId:', this.clientId);
+    console.log('[QuickBooksService] 🔍 state:', state);
+    console.log('[QuickBooksService] 🔍 FULL AUTH URL:');
+    console.log(authUrl);
+    console.log('[QuickBooksService] 🔍 DECODED redirect_uri in URL:');
+    console.log(decodeURIComponent(this.redirectUri));
+    console.log('[QuickBooksService] ⚠️  CRITICAL: This redirect_uri MUST match EXACTLY in Intuit Developer Portal');
+    console.log('[QuickBooksService] ⚠️  CRITICAL: Check Production environment if using production domain');
+    console.log('[QuickBooksService] ⚠️  CRITICAL: Check Development environment if using ngrok/localhost');
     console.log('[QuickBooksService] ========================================');
+    
     return authUrl;
   }
 

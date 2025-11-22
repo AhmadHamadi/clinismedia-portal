@@ -336,14 +336,29 @@ router.get('/callback', async (req, res) => {
     return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent(error)}`);
   }
   
+  // CRITICAL FIX: If no parameters at all, return 200 OK (Intuit pre-flight check)
+  if (!code && !state && !realmId && !error) {
+    console.log('[QuickBooks Callback] ℹ️  Empty request (likely Intuit pre-flight check)');
+    return res.status(200).send('QuickBooks OAuth callback endpoint ready');
+  }
+  
+  // If missing required parameters, return error
   if (!code) {
     console.error('[QuickBooks Callback] ❌ No authorization code');
-    return res.status(400).json({ error: 'No authorization code received' });
+    return res.status(400).json({ 
+      error: 'No authorization code received',
+      query: req.query,
+      timestamp: new Date().toISOString()
+    });
   }
   
   if (!state || !realmId) {
     console.error('[QuickBooks Callback] ❌ Missing state or realmId');
-    return res.status(400).json({ error: 'Missing required parameters' });
+    return res.status(400).json({ 
+      error: 'Missing required parameters',
+      query: req.query,
+      timestamp: new Date().toISOString()
+    });
   }
   
   try {
