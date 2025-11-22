@@ -11,6 +11,7 @@ const crypto = require('crypto');
 
 // DEBUG ROUTES (add at the top, before other routes)
 router.get('/debug', (req, res) => {
+  console.log('[QuickBooks Router] 🔍 DEBUG route hit!');
   res.json({
     message: '✅ QuickBooks routes are accessible',
     redirectUri: 'https://api.clinimediaportal.ca/api/quickbooks/callback',
@@ -20,6 +21,7 @@ router.get('/debug', (req, res) => {
 });
 
 router.get('/callback-test', (req, res) => {
+  console.log('[QuickBooks Router] 🔍 CALLBACK-TEST route hit!');
   res.json({
     message: '✅ Callback route pattern is accessible',
     query: req.query,
@@ -27,6 +29,31 @@ router.get('/callback-test', (req, res) => {
       host: req.headers.host,
       'user-agent': req.headers['user-agent']
     },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 🔍 DEBUG: Test if router is working (ChatGPT suggestion)
+router.get('/test-router', (req, res) => {
+  console.log('[QuickBooks Router] 🔍 TEST-ROUTER route hit!');
+  res.json({ 
+    message: '✅ QuickBooks router is working!',
+    timestamp: new Date().toISOString(),
+    path: req.path,
+    originalUrl: req.originalUrl,
+    baseUrl: req.baseUrl
+  });
+});
+
+// 🔍 DEBUG: Test callback route pattern (ChatGPT suggestion)
+router.get('/callback-debug', (req, res) => {
+  console.log('[QuickBooks Router] 🔍 CALLBACK-DEBUG route hit!');
+  res.json({ 
+    message: '✅ Callback route pattern works!',
+    query: req.query,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    baseUrl: req.baseUrl,
     timestamp: new Date().toISOString()
   });
 });
@@ -79,65 +106,28 @@ function isPermanentOAuthError(error) {
  * CRITICAL: Always saves refresh_token (QuickBooks rotates these)
  * CRITICAL: Always saves expiry as Date object (not string)
  */
-async function saveTokensForUser(user, tokens) {
-  // Validate expiresIn is a number (should be in seconds, typically 3600)
-  const expiresInSeconds = parseInt(tokens.expiresIn, 10);
-  if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
-    console.warn('[QuickBooks] Invalid expiresIn from refresh, using default 3600 seconds');
-    tokens.expiresIn = 3600;
-  }
+async function saveTokensForUser(user, tokens, realmId) {
+  // Support both camelCase (from service) and snake_case (from direct API)
+  const expiresIn = parseInt(tokens.expires_in || tokens.expiresIn, 10) || 3600;
+  const tokenExpiry = new Date(Date.now() + expiresIn * 1000);
   
-  // CRITICAL: Calculate expiry as Date object (not string)
-  // ChatGPT requirement: "user.quickbooksTokenExpiry = new Date(Date.now() + expiresInSeconds * 1000);"
-  const tokenExpiry = new Date(Date.now() + expiresInSeconds * 1000);
-  
-  // CRITICAL: Always save access token
-  if (tokens.accessToken) {
-    user.quickbooksAccessToken = tokens.accessToken;
-  }
-  
-  // CRITICAL: Always save refresh token (QuickBooks rotates these every ~24 hours)
-  // ChatGPT requirement: "if (tokens.refreshToken) { user.quickbooksRefreshToken = tokens.refreshToken; }"
-  // According to Intuit docs: "Always store the latest refresh_token value from the most recent API server response"
-  // "When you get a new refresh token, the previous refresh token value automatically expires"
-  if (tokens.refreshToken) {
-    console.log('[QuickBooks] 🔄 CRITICAL: Saving new refresh_token from QuickBooks (old one is now invalid)');
-    user.quickbooksRefreshToken = tokens.refreshToken; // MUST overwrite - old token is invalid
-  } else {
-    // QuickBooks should always return refresh_token, but if not, log warning
-    console.warn('[QuickBooks] ⚠️ WARNING: QuickBooks did not return new refresh_token in response');
-    console.warn('[QuickBooks] ⚠️ This may cause issues if token rotated. Keeping existing refresh_token.');
-  }
-  
-  // CRITICAL: Save expiry as Date object (ChatGPT requirement)
-  // ChatGPT requirement: "user.quickbooksTokenExpiry = new Date(Date.now() + tokens.expiresIn * 1000);"
+  // Support both formats
+  user.quickbooksAccessToken = tokens.access_token || tokens.accessToken;
+  user.quickbooksRefreshToken = tokens.refresh_token || tokens.refreshToken; // Always save new refresh token
   user.quickbooksTokenExpiry = tokenExpiry;
-  console.log('[QuickBooks] Setting tokenExpiry to:', tokenExpiry.toISOString());
-  console.log('[QuickBooks] tokenExpiry type:', typeof tokenExpiry, 'instanceof Date:', tokenExpiry instanceof Date);
   
-  // Store refresh token expiry if provided (x_refresh_token_expires_in in seconds)
-  if (tokens.refreshTokenExpiresIn) {
-    const refreshTokenExpiry = new Date(Date.now() + tokens.refreshTokenExpiresIn * 1000);
-    user.quickbooksRefreshTokenExpiry = refreshTokenExpiry;
-    console.log('[QuickBooks] Refresh token expires in', Math.floor(tokens.refreshTokenExpiresIn / 86400), 'days');
+  if (realmId) {
+    user.quickbooksRealmId = realmId;
   }
   
-  console.log('[QuickBooks] Saving tokens to database...');
+  // Support both formats for refresh token expiry
+  const refreshTokenExpiresIn = tokens.x_refresh_token_expires_in || tokens.refreshTokenExpiresIn;
+  if (refreshTokenExpiresIn) {
+    user.quickbooksRefreshTokenExpiry = new Date(Date.now() + refreshTokenExpiresIn * 1000);
+  }
+  
   await user.save();
-  console.log('[QuickBooks] ✅ Tokens saved to database successfully');
-  
-  // Verify what was saved (for debugging)
-  const savedUser = await User.findById(user._id);
-  if (savedUser) {
-    console.log('[QuickBooks] ✅ Verification - Saved tokenExpiry:', savedUser.quickbooksTokenExpiry ? savedUser.quickbooksTokenExpiry.toISOString() : 'NOT SET');
-    console.log('[QuickBooks] ✅ Verification - Saved tokenExpiry type:', typeof savedUser.quickbooksTokenExpiry);
-    console.log('[QuickBooks] ✅ Verification - Saved tokenExpiry instanceof Date:', savedUser.quickbooksTokenExpiry instanceof Date);
-    console.log('[QuickBooks] ✅ Verification - Has refreshToken:', !!savedUser.quickbooksRefreshToken);
-    console.log('[QuickBooks] ✅ Verification - quickbooksConnected:', savedUser.quickbooksConnected);
-  }
-  
-  console.log('[QuickBooks] ✅ Tokens saved successfully. New expiry:', tokenExpiry.toISOString());
-  console.log('[QuickBooks] Token will expire in', expiresInSeconds, 'seconds (', Math.floor(expiresInSeconds / 60), 'minutes)');
+  console.log('[QuickBooks] ✅ Tokens saved. Expiry:', tokenExpiry.toISOString());
 }
 
 /**
@@ -278,11 +268,11 @@ router.get('/connect', authenticateToken, authorizeRole(['admin']), async (req, 
     console.log('  QUICKBOOKS_CLIENT_ID:', process.env.QUICKBOOKS_CLIENT_ID ? 'SET' : 'NOT SET');
 
     // Generate state for OAuth security - include user ID
-    const randomState = crypto.randomBytes(16).toString('hex');
-    const state = `${userId}:${randomState}`;
+    const stateToken = crypto.randomBytes(32).toString('hex');
+    const state = `${userId}:${stateToken}`;
     
-    // Store state in user record temporarily
-    user.quickbooksOAuthState = state;
+    // Store state token in user record temporarily (just the random part, not the full state)
+    user.quickbooksOAuthState = stateToken;
     await user.save();
     
     console.log('[QuickBooks Connect] State generated with User ID:', userId);
@@ -318,146 +308,82 @@ router.get('/connect', authenticateToken, authorizeRole(['admin']), async (req, 
  * Note: This endpoint does NOT require authentication as it's called by QuickBooks
  */
 router.get('/callback', async (req, res) => {
+  console.log('[QuickBooks Callback] ========================================');
   console.log('[QuickBooks Callback] 📥 OAUTH CALLBACK RECEIVED');
-  console.log('[QuickBooks Callback]   Request host:', req.headers.host);
-  console.log('[QuickBooks Callback]   Request URL:', req.url);
-  console.log('[QuickBooks Callback]   Full URL:', `${req.protocol}://${req.get('host')}${req.originalUrl}`);
-  console.log('[QuickBooks Callback]   Query params:', JSON.stringify(req.query, null, 2));
-  console.log('[QuickBooks Callback]   Headers:', JSON.stringify({
-    host: req.headers.host,
-    'user-agent': req.headers['user-agent'],
-    origin: req.headers.origin,
-    referer: req.headers.referer
-  }, null, 2));
-
-  // Determine frontend URL based on environment
-  // Priority: FRONTEND_URL > ngrok detection (localhost) > NODE_ENV development > Production fallback
-  let frontendUrl = process.env.FRONTEND_URL;
+  console.log('[QuickBooks Callback]   Host:', req.headers.host);
+  console.log('[QuickBooks Callback]   URL:', req.url);
+  console.log('[QuickBooks Callback]   Query:', JSON.stringify(req.query, null, 2));
+  console.log('[QuickBooks Callback] ========================================');
   
+  const { code, state, realmId, error } = req.query;
+  
+  // Determine frontend URL
+  let frontendUrl = process.env.FRONTEND_URL;
   if (!frontendUrl) {
-    // If using ngrok (BACKEND_URL contains ngrok), assume localhost frontend
     const backendUrl = process.env.BACKEND_URL || process.env.QUICKBOOKS_REDIRECT_URI || '';
     if (backendUrl.includes('ngrok') || backendUrl.includes('ngrok-free.dev')) {
       frontendUrl = 'http://localhost:5173';
-      console.log('[QuickBooks Callback] Detected ngrok, using localhost frontend:', frontendUrl);
     } else if (process.env.NODE_ENV === 'development') {
       frontendUrl = 'http://localhost:5173';
-      console.log('[QuickBooks Callback] Using development fallback (localhost)');
     } else {
-      // Production: Default to production frontend URL
       frontendUrl = 'https://www.clinimediaportal.ca';
-      console.log('[QuickBooks Callback] Using production fallback');
     }
-  } else {
-    console.log('[QuickBooks Callback] Using FRONTEND_URL from environment:', frontendUrl);
   }
-
-  console.log('[QuickBooks Callback]   Redirect URI (from service):', QuickBooksService.redirectUri);
-  console.log('[QuickBooks Callback]   ⚠️  CRITICAL: Verify this redirect URI matches Intuit Portal');
-
+  
+  // Check for OAuth error from QuickBooks
+  if (error) {
+    console.error('[QuickBooks Callback] ❌ OAuth error:', error);
+    return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent(error)}`);
+  }
+  
+  if (!code) {
+    console.error('[QuickBooks Callback] ❌ No authorization code');
+    return res.status(400).json({ error: 'No authorization code received' });
+  }
+  
+  if (!state || !realmId) {
+    console.error('[QuickBooks Callback] ❌ Missing state or realmId');
+    return res.status(400).json({ error: 'Missing required parameters' });
+  }
+  
   try {
-    const { code, state, realmId, error } = req.query;
-
-    // If OAuth error from QuickBooks
-    if (error) {
-      console.error('[QuickBooks Callback] ❌ OAuth error from QuickBooks:', error);
-      return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent(error)}`);
-    }
-
-    // If no code, return JSON error (not redirect) - helps debug
-    if (!code) {
-      console.error('[QuickBooks Callback] ❌ No authorization code received');
-      return res.status(400).json({ 
-        error: 'No authorization code',
-        query: req.query,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    if (!realmId) {
-      console.error('[QuickBooks Callback] ❌ No realm ID received');
-      return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent('Missing realm ID')}`);
-    }
-
-    if (!state) {
-      return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent('Missing state parameter')}`);
-    }
-
-    // Extract user ID from state (format: userId:randomState)
-    const [userId, randomState] = state.split(':');
+    // Parse state to get userId
+    const [userId, stateToken] = state.split(':');
+    console.log('[QuickBooks Callback] 🔵 User ID:', userId);
     
-    if (!userId) {
-      return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent('Invalid state parameter')}`);
-    }
-
+    // Find user
     const user = await User.findById(userId);
-
     if (!user) {
-      return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent('User not found')}`);
+      throw new Error('User not found');
     }
-
-    // CRITICAL: Log which user will receive the tokens
-    console.log('[QuickBooks Callback] ========================================');
-    console.log('[QuickBooks Callback] 🔍 TOKEN RECIPIENT CHECK:');
-    console.log('[QuickBooks Callback]   User ID from state:', userId);
-    console.log('[QuickBooks Callback]   User Email:', user.email);
-    console.log('[QuickBooks Callback]   User Name:', user.name);
-    console.log('[QuickBooks Callback] ⚠️  CRITICAL: Tokens will be saved to THIS user account!');
-    console.log('[QuickBooks Callback] ========================================');
-
-    // Verify state matches stored state
-    console.log('[QuickBooks Callback] 🔍 Verifying OAuth state...');
-    console.log('[QuickBooks Callback]   Stored state:', user.quickbooksOAuthState);
-    console.log('[QuickBooks Callback]   Received state:', state);
     
-    if (user.quickbooksOAuthState && user.quickbooksOAuthState !== state) {
-      console.error('[QuickBooks Callback] ❌ State mismatch - possible CSRF attack');
-      return res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent('Invalid state parameter - possible CSRF attack')}`);
+    // Verify state token (CSRF protection)
+    if (user.quickbooksOAuthState !== stateToken) {
+      throw new Error('Invalid state token');
     }
-    console.log('[QuickBooks Callback] ✅ State verified');
-
+    
+    console.log('[QuickBooks Callback] 🔵 Exchanging code for tokens...');
+    
     // Exchange code for tokens
-    console.log('[QuickBooks Callback] 🔵 Processing authorization code...');
-    console.log('[QuickBooks Callback]   Code received:', code ? 'YES' : 'NO');
-    console.log('[QuickBooks Callback]   Realm ID:', realmId);
-    console.log('[QuickBooks Callback]   State:', state);
-    
     const tokens = await QuickBooksService.exchangeCodeForTokens(code);
-    console.log('[QuickBooks Callback] ✅ Token exchange successful');
-
-    // Validate expiresIn is a number (should be in seconds, typically 3600 for access tokens)
-    const expiresInSeconds = parseInt(tokens.expiresIn, 10);
-    if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
-      console.warn('[QuickBooks Callback] Invalid expiresIn value:', tokens.expiresIn, 'Defaulting to 3600 seconds (1 hour)');
-      tokens.expiresIn = 3600;
-    }
-
-    console.log('[QuickBooks Callback] Token details:');
-    console.log('  expiresIn (seconds):', expiresInSeconds);
-    console.log('  expiresIn (minutes):', Math.floor(expiresInSeconds / 60));
-
-    // Set additional QuickBooks connection fields FIRST
-    user.quickbooksRealmId = realmId || tokens.realmId;
-    user.quickbooksConnected = true; // CRITICAL: Set to true BEFORE saving tokens
-    user.quickbooksOAuthState = null; // Clear state
     
-    // Save tokens using centralized helper (this will also save the connection status)
-    await saveTokensForUser(user, tokens);
+    console.log('[QuickBooks Callback] ✅ Tokens received');
     
-    // Verify connection status is saved
-    const savedUser = await User.findById(user._id);
-    if (!savedUser.quickbooksConnected) {
-      console.error('[QuickBooks Callback] ❌ ERROR: quickbooksConnected was not saved! Setting it now...');
-      savedUser.quickbooksConnected = true;
-      await savedUser.save();
-    }
-
-    console.log(`✅ QuickBooks connected for user ${user.name} (${user.email})`);
-    console.log(`✅ Token will expire in ${expiresInSeconds} seconds (${Math.floor(expiresInSeconds / 60)} minutes)`);
-
+    // CRITICAL: Set quickbooksConnected BEFORE saving tokens
+    user.quickbooksConnected = true;
+    await saveTokensForUser(user, tokens, realmId);
+    
+    // Clear OAuth state
+    user.quickbooksOAuthState = null;
+    await user.save();
+    
+    console.log('[QuickBooks Callback] ✅ QuickBooks connected successfully');
+    
+    // Redirect to frontend success page
     res.redirect(`${frontendUrl}/admin/quickbooks?success=true`);
+    
   } catch (error) {
-    console.error('Error in QuickBooks callback:', error);
+    console.error('[QuickBooks Callback] ❌ Error:', error);
     res.redirect(`${frontendUrl}/admin/quickbooks?error=${encodeURIComponent(error.message)}`);
   }
 });
