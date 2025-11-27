@@ -15,7 +15,67 @@ const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-
+  // Check if user is already logged in and redirect them
+  useEffect(() => {
+    const returnUrl = searchParams.get('returnUrl');
+    const leadId = searchParams.get('leadId');
+    
+    // Check for customer token
+    const customerToken = localStorage.getItem('customerToken');
+    if (customerToken) {
+      // Validate token and redirect if valid
+      axios.get(`${import.meta.env.VITE_API_BASE_URL}/auth/validate`, {
+        headers: { Authorization: `Bearer ${customerToken}` }
+      }).then(() => {
+        // Token is valid, redirect based on parameters
+        if (leadId) {
+          navigate("/customer/meta-leads");
+        } else if (returnUrl) {
+          navigate(returnUrl);
+        } else {
+          navigate("/customer/dashboard");
+        }
+      }).catch(() => {
+        // Token invalid, clear it and show login form
+        localStorage.removeItem('customerToken');
+        localStorage.removeItem('customerData');
+      });
+    }
+    
+    // Check for admin token
+    const adminToken = localStorage.getItem('adminToken');
+    if (adminToken) {
+      axios.get(`${import.meta.env.VITE_API_BASE_URL}/auth/validate`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      }).then(() => {
+        if (returnUrl) {
+          navigate(returnUrl);
+        } else {
+          navigate("/admin");
+        }
+      }).catch(() => {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminData');
+      });
+    }
+    
+    // Check for employee token
+    const employeeToken = localStorage.getItem('employeeToken');
+    if (employeeToken) {
+      axios.get(`${import.meta.env.VITE_API_BASE_URL}/auth/validate`, {
+        headers: { Authorization: `Bearer ${employeeToken}` }
+      }).then(() => {
+        if (returnUrl) {
+          navigate(returnUrl);
+        } else {
+          navigate("/employee/dashboard");
+        }
+      }).catch(() => {
+        localStorage.removeItem('employeeToken');
+        localStorage.removeItem('employeeData');
+      });
+    }
+  }, [navigate, searchParams]);
 
   const togglePasswordView = () => setShowPassword(!showPassword);
 
