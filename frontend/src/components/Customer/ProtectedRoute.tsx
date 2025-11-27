@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
 interface ProtectedRouteProps {
@@ -11,6 +11,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
   const [isValidating, setIsValidating] = useState(true);
   const [isValid, setIsValid] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const location = useLocation();
 
   const getToken = () => {
     switch (requiredRole) {
@@ -103,14 +104,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
                 For security reasons, you need to login once per day. This resets at 9 AM daily.
               </p>
             </div>
-            <Navigate to="/login" replace />
+            <Navigate to={`/login?returnUrl=${encodeURIComponent(location.pathname)}`} replace />
           </div>
         </div>
       );
     }
     
-    // Redirect to login if no valid token found
-    return <Navigate to="/login" replace />;
+    // Redirect to login if no valid token found, preserving the destination
+    return <Navigate to={`/login?returnUrl=${encodeURIComponent(location.pathname)}`} replace />;
   }
 
   return <>{children}</>;
