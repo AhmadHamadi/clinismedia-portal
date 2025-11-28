@@ -7,23 +7,38 @@ const authorizeRole = require('../middleware/authorizeRole');
 
 // Utility functions
 const checkDateAvailability = async (date) => {
+  // Normalize date to start of day for comparison
+  const checkDate = new Date(date);
+  checkDate.setHours(0, 0, 0, 0);
+  
+  const dayEnd = new Date(checkDate);
+  dayEnd.setHours(23, 59, 59, 999);
+
   // Check if date is already booked
-  const existingBooking = await Booking.findOne({ date });
+  const existingBooking = await Booking.findOne({
+    date: { $gte: checkDate, $lte: dayEnd },
+    status: { $in: ['pending', 'accepted'] }
+  });
   if (existingBooking) {
     throw new Error('Cannot block date that is already booked');
   }
 
-  // Check if date is already blocked
-  const existingBlock = await BlockedDate.findOne({ date });
+  // Check if date is already blocked (for ALL customers)
+  const existingBlock = await BlockedDate.findOne({
+    date: { $gte: checkDate, $lte: dayEnd }
+  });
   if (existingBlock) {
     throw new Error('Date is already blocked');
   }
 };
 
-// Get all blocked dates (Admin and Customer) - only manual blocks
+// Get all blocked dates (Admin and Customer) - includes both manual and automatic blocks
+// Automatic blocks are created when bookings are accepted (one media day per day rule)
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const blockedDates = await BlockedDate.find({ isManualBlock: true })
+    // Get ALL blocked dates (both manual and automatic)
+    // Automatic blocks prevent double-booking across all customers
+    const blockedDates = await BlockedDate.find()
       .populate('bookingId', 'customer status')
       .sort({ date: 1 });
     res.json(blockedDates);

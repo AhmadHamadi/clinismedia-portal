@@ -513,9 +513,56 @@ const AdminGalleryPage: React.FC = () => {
               onChange={e => setNewItem({ ...newItem, name: e.target.value })}
               className="w-full p-2 border rounded mb-2 text-black"
             />
+            <div className="mb-2">
+              <label className="block text-sm font-medium mb-1 text-black">Upload Image or Enter URL:</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    try {
+                      const token = localStorage.getItem('adminToken');
+                      const formData = new FormData();
+                      formData.append('image', file);
+                      formData.append('name', newItem.name || file.name);
+                      
+                      // Upload image
+                      const uploadRes = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/gallery/upload`, formData, {
+                        headers: { 
+                          Authorization: `Bearer ${token}`,
+                          'Content-Type': 'multipart/form-data'
+                        },
+                      });
+                      
+                      // Assign to clinic if selected
+                      if (selectedClinicId) {
+                        await axios.post(`${import.meta.env.VITE_API_BASE_URL}/gallery/assign`, {
+                          clinicId: selectedClinicId,
+                          galleryItemIds: [uploadRes.data._id],
+                        }, {
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                      }
+                      
+                      setNewItem({ name: '', url: '' });
+                      setShowItemModal(false);
+                      setSelectedClinicId('');
+                      fetchGalleryItems();
+                      fetchClinicsAndAssignments();
+                      alert('✅ Image uploaded successfully!');
+                    } catch (error: any) {
+                      alert(`❌ Upload failed: ${error.response?.data?.error || error.message}`);
+                    }
+                  }
+                }}
+                className="w-full p-2 border rounded text-black"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mb-2 text-center">OR</p>
             <input
               type="url"
-              placeholder="Gallery URL"
+              placeholder="Gallery URL (if not uploading file)"
               value={newItem.url}
               onChange={e => setNewItem({ ...newItem, url: e.target.value })}
               className="w-full p-2 border rounded mb-4 text-black"
@@ -543,9 +590,9 @@ const AdminGalleryPage: React.FC = () => {
                   fetchClinicsAndAssignments();
                 }}
                 className="px-4 py-2 bg-[#98c6d5] text-white rounded hover:bg-[#7bb3c7]"
-                disabled={!selectedClinicId || clinics.length === 0}
+                disabled={!selectedClinicId || clinics.length === 0 || (!newItem.url.trim() && !newItem.name.trim())}
               >
-                Add
+                Add URL
               </button>
               <button
                 onClick={() => setShowItemModal(false)}

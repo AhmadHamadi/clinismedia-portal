@@ -186,9 +186,10 @@ export const useMediaDayBooking = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Only treat manual blocks as full-day blocks
-      const manualBlockedDates = response.data.filter((block: any) => block.isManualBlock);
-      setBlockedDates(manualBlockedDates.map((block: any) => block.date));
+      // Include ALL blocked dates (both manual and automatic)
+      // Automatic blocks are created when bookings are accepted (one media day per day rule)
+      const allBlockedDates = response.data.map((block: any) => block.date);
+      setBlockedDates(allBlockedDates);
     } catch (err) {
       // Silently fail for blocked dates as it's not critical
     }

@@ -172,12 +172,33 @@ const CustomerMediaDayBookingPage: React.FC = () => {
 
   // Date checking functions
   const isBlocked = (date: Date): boolean => {
-    return blockedDates.some(blocked => {
+    // Check if date is blocked
+    const isDateBlocked = blockedDates.some(blocked => {
       const blockedDate = new Date(blocked);
       return blockedDate.getFullYear() === date.getFullYear() &&
         blockedDate.getMonth() === date.getMonth() &&
         blockedDate.getDate() === date.getDate();
     });
+    
+    // If date is blocked, check if this customer has an accepted booking on this date
+    // If they do, allow them to see it (but still prevent new bookings)
+    if (isDateBlocked) {
+      const hasOwnAcceptedBooking = bookings.some(booking => {
+        if (booking.status !== 'accepted') return false;
+        const bookingDate = new Date(booking.date);
+        return bookingDate.getFullYear() === date.getFullYear() &&
+          bookingDate.getMonth() === date.getMonth() &&
+          bookingDate.getDate() === date.getDate();
+      });
+      
+      // If they have their own accepted booking, don't treat it as "blocked" for UI purposes
+      // (they can see it, but can't create a new one)
+      if (hasOwnAcceptedBooking) {
+        return false; // Allow them to see their booking
+      }
+    }
+    
+    return isDateBlocked;
   };
 
   const isDeclined = (date: Date): boolean => {
@@ -191,13 +212,20 @@ const CustomerMediaDayBookingPage: React.FC = () => {
   };
 
   const isAccepted = (date: Date): boolean => {
-    return bookings.some(booking => {
+    // Check if this customer has an accepted booking on this date
+    const customerAccepted = bookings.some(booking => {
       if (booking.status !== 'accepted') return false;
       const bookingDate = new Date(booking.date);
       return bookingDate.getFullYear() === date.getFullYear() &&
         bookingDate.getMonth() === date.getMonth() &&
         bookingDate.getDate() === date.getDate();
     });
+    
+    // Also check if ANY customer has an accepted booking (from acceptedBookingsForDate)
+    // This ensures we show the date as unavailable if another customer booked it
+    const anyAccepted = acceptedBookingsForDate.length > 0;
+    
+    return customerAccepted || anyAccepted;
   };
 
   const isDateUnavailable = (date: Date): boolean => {
@@ -206,8 +234,24 @@ const CustomerMediaDayBookingPage: React.FC = () => {
 
   // Event handlers
   const handleCalendarSelect = ({ start }: { start: Date }): void => {
+    // Check if this customer has their own accepted booking first
+    const hasOwnAccepted = bookings.some(booking => {
+      if (booking.status !== 'accepted') return false;
+      const bookingDate = new Date(booking.date);
+      return bookingDate.getFullYear() === start.getFullYear() &&
+        bookingDate.getMonth() === start.getMonth() &&
+        bookingDate.getDate() === start.getDate();
+    });
+    
+    // If they have their own accepted booking, show message but don't allow new booking
+    if (hasOwnAccepted) {
+      setTemporaryError('You already have an accepted booking on this date. Only one media day per day allowed.');
+      return;
+    }
+    
+    // Check if date is blocked (by another customer's booking)
     if (isBlocked(start)) {
-      setTemporaryError('This date is blocked and cannot be booked.');
+      setTemporaryError('This date is blocked and cannot be booked - already booked by another customer.');
       return;
     }
     if (isDeclined(start)) {

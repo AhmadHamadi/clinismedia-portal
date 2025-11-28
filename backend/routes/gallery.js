@@ -1,10 +1,46 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const GalleryItem = require('../models/GalleryItem');
 const AssignedGalleryItem = require('../models/AssignedGalleryItem');
 const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
+
+// Set up multer for gallery image uploads
+const galleryUploadsDir = path.join(__dirname, '../uploads/gallery');
+if (!fs.existsSync(galleryUploadsDir)) {
+  fs.mkdirSync(galleryUploadsDir, { recursive: true });
+  console.log('✅ Created uploads/gallery directory');
+}
+
+const galleryStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, galleryUploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+
+const uploadGalleryImage = multer({
+  storage: galleryStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'));
+    }
+  }
+});
 
 // Get all gallery items (admin only)
 router.get('/', authenticateToken, authorizeRole(['admin']), async (req, res) => {
@@ -16,10 +52,41 @@ router.get('/', authenticateToken, authorizeRole(['admin']), async (req, res) =>
   }
 });
 
-// Create a new gallery item (admin only)
+// Upload gallery image (admin only) - supports file upload
+router.post('/upload', authenticateToken, authorizeRole(['admin']), uploadGalleryImage.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file uploaded' });
+    }
+
+    const { name } = req.body;
+    if (!name) {
+      // Delete uploaded file if validation fails
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    const imageUrl = `/uploads/gallery/${req.file.filename}`;
+    const galleryItem = new GalleryItem({ name, url: imageUrl });
+    await galleryItem.save();
+    
+    res.status(201).json(galleryItem);
+  } catch (err) {
+    // Delete uploaded file if there's an error
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create a new gallery item (admin only) - supports URL or file upload
 router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
     const { name, url } = req.body;
+    if (!name || !url) {
+      return res.status(400).json({ error: 'Name and URL are required' });
+    }
     const galleryItem = new GalleryItem({ name, url });
     await galleryItem.save();
     res.status(201).json(galleryItem);

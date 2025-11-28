@@ -9,20 +9,29 @@ const User = require('../models/User');
 
 // Utility functions
 const checkDateAvailability = async (date) => {
-  // Check if date is blocked
-  const blockedDate = await BlockedDate.findOne({ date });
+  // Normalize date to start of day for comparison
+  const checkDate = new Date(date);
+  checkDate.setHours(0, 0, 0, 0);
+  
+  const dayEnd = new Date(checkDate);
+  dayEnd.setHours(23, 59, 59, 999);
+
+  // Check if date is blocked (for ALL customers)
+  const blockedDate = await BlockedDate.findOne({
+    date: { $gte: checkDate, $lte: dayEnd }
+  });
   if (blockedDate) {
-    throw new Error('This date is not available');
+    throw new Error('This date is not available - already booked by another customer');
   }
 
-  // Check if date is already booked
+  // Check if date is already booked (for ALL customers)
   const existingBooking = await Booking.findOne({
-    date,
+    date: { $gte: checkDate, $lte: dayEnd },
     status: { $in: ['pending', 'accepted'] }
   });
 
   if (existingBooking) {
-    throw new Error('This date is already booked');
+    throw new Error('This date is already booked - only one media day per day allowed');
   }
 };
 
@@ -221,6 +230,39 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
     const populatedBooking = await Booking.findById(savedBooking._id)
       .populate('customer', 'name email location');
     
+    // CRITICAL: Block the booked date for ALL customers (one media day per day rule)
+    // Admin-created bookings are automatically accepted, so we must block the date
+    try {
+      const bookingDay = new Date(date);
+      const dayStart = new Date(bookingDay);
+      dayStart.setHours(0, 0, 0, 0);
+
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      // Check if date is already blocked
+      const existingBlock = await BlockedDate.findOne({
+        date: { $gte: dayStart, $lte: dayEnd },
+      });
+
+      if (!existingBlock) {
+        // Create new block for this date - blocks for ALL customers
+        const automaticBlock = new BlockedDate({
+          date: dayStart,
+          bookingId: savedBooking._id,
+          isManualBlock: false,
+        });
+
+        await automaticBlock.save();
+        console.log(`🔒 Automatically blocked ${dayStart.toISOString().split('T')[0]} for ALL customers (admin-created booking ${savedBooking._id})`);
+      } else {
+        console.log(`⚠️ Date ${dayStart.toISOString().split('T')[0]} already blocked by booking ${existingBlock.bookingId}`);
+      }
+    } catch (blockError) {
+      console.error('❌ Error creating automatic blocked date for admin-created booking:', blockError);
+      // Don't fail the booking creation if blocking fails
+    }
+    
     // Create blocked dates for the next few months since this is an accepted booking
     try {
       const customer = await User.findById(customerId);
@@ -395,7 +437,8 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
     
     res.json(populatedBooking);
 
-    // Automatically block the booked date so it cannot be double-booked
+    // Automatically block the booked date so it cannot be double-booked by ANY customer
+    // CRITICAL: Only one media day per day allowed across ALL customers
     if (status === 'accepted') {
       try {
         const bookingDay = new Date(booking.date);
@@ -405,11 +448,13 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
         const dayEnd = new Date(dayStart);
         dayEnd.setHours(23, 59, 59, 999);
 
+        // Check if date is already blocked
         const existingBlock = await BlockedDate.findOne({
           date: { $gte: dayStart, $lte: dayEnd },
         });
 
         if (!existingBlock) {
+          // Create new block for this date - blocks for ALL customers
           const automaticBlock = new BlockedDate({
             date: dayStart,
             bookingId: booking._id,
@@ -417,12 +462,15 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
           });
 
           await automaticBlock.save();
-          console.log(`🔒 Automatically blocked ${dayStart.toISOString().split('T')[0]} for booking ${booking._id}`);
+          console.log(`🔒 Automatically blocked ${dayStart.toISOString().split('T')[0]} for ALL customers (booking ${booking._id})`);
         } else if (!existingBlock.bookingId) {
+          // Update existing block with booking ID
           existingBlock.bookingId = booking._id;
           existingBlock.isManualBlock = false;
           await existingBlock.save();
           console.log(`🔒 Updated existing block for ${existingBlock.date.toISOString().split('T')[0]} with booking ${booking._id}`);
+        } else {
+          console.log(`⚠️ Date ${dayStart.toISOString().split('T')[0]} already blocked by booking ${existingBlock.bookingId}`);
         }
       } catch (blockError) {
         console.error('❌ Error creating automatic blocked date:', blockError);
