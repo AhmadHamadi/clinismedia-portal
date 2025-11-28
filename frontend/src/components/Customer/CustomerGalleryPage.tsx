@@ -94,14 +94,22 @@ const CustomerGalleryPage: React.FC = () => {
                   Explore your latest media day highlights and share your favorite moments with your team. 
                   This media was assigned on {new Date(currentItem.assignedAt).toLocaleDateString()}.
                 </p>
-                <a
-                  href={currentItem.galleryItemId.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 px-8 py-3 bg-[#98c6d5] text-white rounded-xl font-bold text-lg shadow-lg hover:bg-[#1877f3] hover:scale-105 transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-[#98c6d5]/40"
-                >
-                  <span className="inline-block align-middle mr-2">🔗</span> View Current Media
-                </a>
+                {currentItem.galleryItemId.url.startsWith('/uploads/') ? (
+                  <img
+                    src={`${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${currentItem.galleryItemId.url}`}
+                    alt={currentItem.galleryItemId.name}
+                    className="mt-4 max-w-full h-auto rounded-lg shadow-lg"
+                  />
+                ) : (
+                  <a
+                    href={currentItem.galleryItemId.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 px-8 py-3 bg-[#98c6d5] text-white rounded-xl font-bold text-lg shadow-lg hover:bg-[#1877f3] hover:scale-105 transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-[#98c6d5]/40"
+                  >
+                    <span className="inline-block align-middle mr-2">🔗</span> View Current Media
+                  </a>
+                )}
               </>
             ) : (
               <>
@@ -136,14 +144,22 @@ const CustomerGalleryPage: React.FC = () => {
                   <p className="text-sm text-gray-600 mb-2">
                     Assigned: {new Date(item.assignedAt).toLocaleDateString()}
                   </p>
-                  <a
-                    href={item.galleryItemId.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                  >
-                    View Media →
-                  </a>
+                  {item.galleryItemId.url.startsWith('/uploads/') ? (
+                    <img
+                      src={`${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${item.galleryItemId.url}`}
+                      alt={item.galleryItemId.name}
+                      className="w-full h-auto rounded mt-2"
+                    />
+                  ) : (
+                    <a
+                      href={item.galleryItemId.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      View Media →
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
