@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 const User = require('../models/User');
 const GoogleBusinessInsights = require('../models/GoogleBusinessInsights');
+const GoogleBusinessDataRefreshService = require('../services/googleBusinessDataRefreshService');
 const { google } = require('googleapis');
 const axios = require('axios');
 
@@ -623,11 +625,14 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
     }
 
     // Check if we have stored data for this date range first
+    // ✅ NEW: Allow forcing fresh data fetch
+    const forceRefresh = req.query.forceRefresh === 'true';
+    
     let storedData = null;
-    if (days && !start && !end) {
+    if (!forceRefresh && days && !start && !end) {
       // For standard date ranges (7, 30, 90 days), check for stored data
       const today = new Date();
-      const bufferDays = 3;
+      const bufferDays = 2; // ✅ FIXED: Reduced from 3 to 2 days (Google data is typically 1-2 days behind)
       const daysNum = parseInt(days);
       const totalDays = daysNum + bufferDays;
       const calculatedStartDate = new Date(today.getTime() - totalDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -681,8 +686,27 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       }
 
       if (storedData) {
-        console.log(`📊 Using stored data for ${customer.name} (${days} days)`);
-        
+        // ✅ NEW: Check if stored data is fresh (less than 12 hours old)
+        // Safety check: ensure lastUpdated exists (should always exist due to model default)
+        if (!storedData.lastUpdated) {
+          console.log(`⚠️ Stored data missing lastUpdated timestamp - forcing fresh fetch`);
+          storedData = null; // Force fresh API call
+        } else {
+          const dataAge = Date.now() - new Date(storedData.lastUpdated).getTime();
+          const maxAge = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+          
+          if (dataAge > maxAge) {
+            const ageInHours = Math.round(dataAge / (60 * 60 * 1000));
+            console.log(`⚠️ Stored data is ${ageInHours} hours old - forcing fresh fetch`);
+            storedData = null; // Force fresh API call
+          } else {
+            const ageInHours = Math.round(dataAge / (60 * 60 * 1000));
+            console.log(`✅ Using cached data (${ageInHours} hours old) for ${customer.name} (${days} days)`);
+          }
+        }
+      }
+      
+      if (storedData) {
         // Return stored data with current timestamp
         const response = {
           businessProfileName: storedData.businessProfileName,
@@ -876,20 +900,20 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
 
     // Set date range with support for dynamic ranges and comparisons
     const today = new Date();
-    const bufferDays = 3; // Google Business Profile data delay
+    const bufferDays = 2; // ✅ FIXED: Reduced from 3 to 2 days (Google data is typically 1-2 days behind, not 3)
     
     let endDate, startDate, comparisonData = null;
     
     if (start && end) {
-      // Custom date range - apply 3-day buffer to end date to match Google's data freshness
+      // Custom date range - apply 2-day buffer to end date to match Google's data freshness
       const endDateObj = new Date(end + 'T00:00:00Z');
-      const bufferEndDate = new Date(endDateObj.getTime() - 3 * 24 * 60 * 60 * 1000);
+      const bufferEndDate = new Date(endDateObj.getTime() - 2 * 24 * 60 * 60 * 1000);
       
       startDate = start;
       endDate = bufferEndDate.toISOString().split('T')[0];
       
       console.log(`📅 Custom date range requested: ${start} to ${end}`);
-      console.log(`📅 Applied 3-day buffer: ${startDate} to ${endDate}`);
+      console.log(`📅 Applied 2-day buffer: ${startDate} to ${endDate}`);
     } else if (days) {
       // Dynamic range (7, 30, 90 days) - FIXED: Calculate start date first, then end date
       const daysNum = parseInt(days);
@@ -1333,10 +1357,12 @@ router.get('/group-insights', authenticateToken, authorizeRole(['admin']), async
       day: date.getUTCDate()
     });
 
-    // Calculate date range
+    // Calculate date range with buffer (Google data is 2 days behind)
+    const bufferDays = 2; // ✅ FIXED: Apply buffer to group-insights endpoint
     const endDate = new Date();
+    endDate.setUTCDate(endDate.getUTCDate() - bufferDays); // End date is 2 days ago
     const startDate = new Date();
-    startDate.setUTCDate(endDate.getUTCDate() - (parseInt(days) - 1));
+    startDate.setUTCDate(endDate.getUTCDate() - (parseInt(days) - 1)); // Start date is (days-1) before end date
 
     const timeRange = {
       startDate: toGoogleDate(startDate),
@@ -1514,6 +1540,66 @@ router.get('/group-insights', authenticateToken, authorizeRole(['admin']), async
     res.status(500).json({ 
       error: 'Failed to fetch group insights',
       details: error.message 
+    });
+  }
+});
+
+// ✅ NEW: Manual refresh endpoints for admin
+// POST /api/google-business/manual-refresh/:customerId - Refresh single customer
+router.post('/manual-refresh/:customerId', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const customerId = req.params.customerId;
+    
+    console.log(`🔄 Manual refresh triggered by admin for customer: ${customerId}`);
+    
+    // Delete ALL old stored data for this customer
+    const deleteResult = await GoogleBusinessInsights.deleteMany({ 
+      customerId: new mongoose.Types.ObjectId(customerId)
+    });
+    console.log(`🗑️ Deleted ${deleteResult.deletedCount} old records`);
+    
+    // Trigger immediate refresh for this specific customer
+    const customer = await User.findById(customerId);
+    if (!customer || !customer.googleBusinessProfileId) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Customer not found or no Google Business Profile connected' 
+      });
+    }
+    
+    // Run refresh for this customer only
+    await GoogleBusinessDataRefreshService.refreshSingleCustomer(customer);
+    
+    res.json({ 
+      success: true, 
+      message: `Data refresh completed for ${customer.name || customer.email}`,
+      deletedRecords: deleteResult.deletedCount
+    });
+  } catch (error) {
+    console.error('❌ Manual refresh error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// POST /api/google-business/manual-refresh-all - Refresh all customers
+router.post('/manual-refresh-all', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    console.log(`🔄 Manual refresh triggered by admin for ALL customers`);
+    
+    await GoogleBusinessDataRefreshService.refreshAllBusinessProfiles();
+    
+    res.json({ 
+      success: true, 
+      message: 'Data refresh triggered for all customers'
+    });
+  } catch (error) {
+    console.error('❌ Manual refresh all error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
     });
   }
 });
