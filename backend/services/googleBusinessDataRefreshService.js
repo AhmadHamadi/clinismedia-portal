@@ -53,6 +53,110 @@ async function refreshGoogleBusinessToken(refreshToken) {
 }
 
 class GoogleBusinessDataRefreshService {
+  // ✅ NEW: Refresh single customer (for manual refresh endpoint)
+  static async refreshSingleCustomer(customer) {
+    try {
+      const today = new Date();
+      const bufferDays = 2;
+      const totalDays = 90 + bufferDays;
+      const startDate = new Date(today.getTime() - totalDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const endDate = new Date(today.getTime() - bufferDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      console.log(`🔄 Refreshing data for ${customer.name} (${customer.googleBusinessProfileName})`);
+      console.log(`📅 Date range: ${startDate} to ${endDate}`);
+
+      // Validate that refresh token exists
+      if (!customer.googleBusinessRefreshToken) {
+        console.error(`⚠️ No refresh token found for ${customer.name}. Marking as needing re-authentication.`);
+        await User.findByIdAndUpdate(customer._id, {
+          googleBusinessNeedsReauth: true
+        });
+        throw new Error('No refresh token available');
+      }
+
+      // Set up OAuth client for this customer
+      oauth2Client.setCredentials({
+        access_token: customer.googleBusinessAccessToken,
+        refresh_token: customer.googleBusinessRefreshToken
+      });
+
+      // Check if token needs refresh
+      const now = Date.now();
+      const expiresAt = customer.googleBusinessTokenExpiry ? new Date(customer.googleBusinessTokenExpiry).getTime() : 0;
+      const refreshThreshold = 60 * 1000; // 60 seconds before expiry
+
+      if (now > (expiresAt - refreshThreshold)) {
+        console.log(`🔄 Refreshing token for ${customer.name}...`);
+        try {
+          const refreshedTokens = await refreshGoogleBusinessToken(customer.googleBusinessRefreshToken);
+          
+          let newExpiry = null;
+          if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in))) {
+            newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
+          }
+          
+          const updateData = {
+            googleBusinessAccessToken: refreshedTokens.access_token,
+            googleBusinessTokenExpiry: newExpiry
+          };
+          
+          if (refreshedTokens.refresh_token) {
+            updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
+          }
+          
+          await User.findByIdAndUpdate(customer._id, updateData);
+          
+          oauth2Client.setCredentials({
+            access_token: refreshedTokens.access_token,
+            refresh_token: refreshedTokens.refresh_token || customer.googleBusinessRefreshToken
+          });
+          
+          console.log(`✅ Token refreshed for ${customer.name}`);
+        } catch (refreshError) {
+          console.error(`❌ Token refresh failed for ${customer.name}:`, refreshError.message);
+          if (refreshError.response?.data?.error === 'invalid_grant' || 
+              refreshError.message?.includes('invalid_grant')) {
+            await User.findByIdAndUpdate(customer._id, {
+              googleBusinessNeedsReauth: true
+            });
+          }
+          throw refreshError;
+        }
+      }
+
+      // Fetch fresh insights data
+      const insightsData = await this.fetchBusinessInsightsData(
+        oauth2Client,
+        customer.googleBusinessProfileId,
+        startDate,
+        endDate,
+        oauth2Client.credentials.access_token
+      );
+
+      if (insightsData) {
+        const processedData = await this.processAndSaveInsights(
+          customer,
+          insightsData,
+          startDate,
+          endDate,
+          90
+        );
+
+        if (processedData) {
+          console.log(`✅ Successfully refreshed and saved data for ${customer.name}`);
+          return processedData;
+        } else {
+          throw new Error('Failed to save data');
+        }
+      } else {
+        throw new Error('No data returned from API');
+      }
+    } catch (error) {
+      console.error(`❌ Failed to refresh data for ${customer.name}:`, error.message);
+      throw error;
+    }
+  }
+
   static async refreshAllBusinessProfiles() {
     try {
       console.log('🔄 Starting daily Google Business Profile data refresh...');
@@ -74,22 +178,34 @@ class GoogleBusinessDataRefreshService {
       }
 
       const today = new Date();
-      const bufferDays = 3; // Google Business Profile data delay
+      const bufferDays = 2; // ✅ FIXED: Reduced from 3 to 2 days (Google data is typically 1-2 days behind, not 3)
       
       // Calculate date range for last 90 days (to match maximum display range)
       const totalDays = 90 + bufferDays;
       const startDate = new Date(today.getTime() - totalDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const endDate = new Date(today.getTime() - bufferDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+      // ✅ NEW: Comprehensive logging
+      console.log('🔄 ===== GOOGLE BUSINESS DATA REFRESH STARTED =====');
+      console.log(`📅 Today: ${today.toISOString()}`);
+      console.log(`📅 Start Date: ${startDate} (should be ~90 days ago)`);
+      console.log(`📅 End Date: ${endDate} (should be ${bufferDays} days ago)`);
+      console.log(`📅 Buffer Days: ${bufferDays}`);
       console.log(`📅 Refreshing data for period: ${startDate} to ${endDate} (90 days)`);
+      console.log(`📊 Customers to process: ${customers.length}`);
 
       // Process each customer
       let successCount = 0;
       let errorCount = 0;
 
-      for (const customer of customers) {
+      for (let i = 0; i < customers.length; i++) {
+        const customer = customers[i];
         try {
-          console.log(`🔄 Refreshing data for ${customer.name} (${customer.googleBusinessProfileName})`);
+          // ✅ NEW: Enhanced logging
+          console.log(`\n🔄 Processing: ${customer.name} (${i + 1}/${customers.length})`);
+          console.log(`📍 Location ID: ${customer.googleBusinessProfileId}`);
+          console.log(`📍 Location Name: ${customer.googleBusinessProfileName}`);
+          console.log(`📧 Email: ${customer.email}`);
           
           // Validate that refresh token exists
           if (!customer.googleBusinessRefreshToken) {
@@ -175,6 +291,11 @@ class GoogleBusinessDataRefreshService {
           );
 
           if (insightsData) {
+            // ✅ NEW: Log API response details
+            console.log(`✅ API response received for ${customer.name}`);
+            const rawDataPreview = JSON.stringify(insightsData).substring(0, 200);
+            console.log(`📊 Raw data structure preview: ${rawDataPreview}...`);
+            
             // Process and save the data (90 days for maximum retention)
             const processedData = await this.processAndSaveInsights(
               customer,
@@ -186,6 +307,7 @@ class GoogleBusinessDataRefreshService {
 
             if (processedData) {
               console.log(`✅ Successfully refreshed and saved data for ${customer.name}`);
+              console.log(`📅 Data covers: ${startDate} to ${endDate}`);
               successCount++;
             } else {
               console.log(`⚠️ Failed to save data for ${customer.name}`);
@@ -205,6 +327,11 @@ class GoogleBusinessDataRefreshService {
         }
       }
 
+      // ✅ NEW: Comprehensive completion logging
+      console.log('\n🔄 ===== REFRESH COMPLETE =====');
+      console.log(`✅ Successful: ${successCount}`);
+      console.log(`❌ Errors: ${errorCount}`);
+      console.log(`📅 Next refresh: Tomorrow at 8:00 AM`);
       console.log(`📊 Daily refresh complete: ${successCount} successful, ${errorCount} errors`);
       
     } catch (error) {
@@ -349,31 +476,40 @@ class GoogleBusinessDataRefreshService {
         lastUpdated: new Date()
       };
 
-      // Always update the most recent 90-day record to keep rolling 90 days of data
+      // ✅ FIXED: Always update the most recent 90-day record to keep rolling 90 days of data
       // Find the most recent 90-day record for this customer (regardless of when it was saved)
       const existingRecord = await GoogleBusinessInsights.findOne({
         customerId: customer._id,
         'period.days': 90
       }).sort({ lastUpdated: -1 });
 
-      // If we have an existing record, update it with new data
-      // Otherwise, create a new one
-      const savedRecord = await GoogleBusinessInsights.findOneAndUpdate(
-        existingRecord ? { _id: existingRecord._id } : {
-          customerId: customer._id,
-          'period.start': startDate,
-          'period.end': endDate,
-          'period.days': 90
-        },
-        insightsRecord,
-        { 
-          upsert: true, 
-          new: true,
-          setDefaultsOnInsert: true
-        }
-      );
+      // ✅ IMPROVED: Explicit update or create logic
+      let savedRecord;
+      if (existingRecord) {
+        // Update existing record
+        existingRecord.metrics = insightsRecord.metrics;
+        existingRecord.dailyData = insightsRecord.dailyData;
+        existingRecord.period = insightsRecord.period;
+        existingRecord.rawApiData = insightsRecord.rawApiData;
+        existingRecord.lastUpdated = new Date();
+        existingRecord.date = new Date(); // Update fetch date
+        await existingRecord.save();
+        savedRecord = existingRecord;
+        console.log(`✅ Updated existing record for ${customer.name}`);
+      } else {
+        // Create new record
+        savedRecord = await GoogleBusinessInsights.create(insightsRecord);
+        console.log(`✅ Created new record for ${customer.name}`);
+      }
 
+      // ✅ NEW: Enhanced logging
       console.log(`💾 Saved insights data for ${customer.name}: ${dailyData.length} days of data`);
+      if (dailyData.length > 0) {
+        console.log(`📅 First date: ${dailyData[0]?.date}`);
+        console.log(`📅 Last date: ${dailyData[dailyData.length - 1]?.date}`);
+        const totalViews = dailyData.reduce((sum, day) => sum + (day.views || 0), 0);
+        console.log(`📊 Total views in period: ${totalViews}`);
+      }
       return savedRecord;
 
     } catch (error) {
