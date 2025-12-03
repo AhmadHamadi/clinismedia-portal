@@ -113,38 +113,93 @@ async function fetchBusinessInsightsDataSingle(oauth2Client, locationName, start
 }
 
 // Helper function to merge batch results
-function mergeBatchResults(batchResults) {
-  // Create aggregated response structure
+// ✅ FIX 2: Properly handle nested multiDailyMetricTimeSeries structure with location groups and deduplication
+function mergeBatchResults(batches) {
+  if (!batches || batches.length === 0) {
+    return { multiDailyMetricTimeSeries: [] };
+  }
+  
+  if (batches.length === 1) {
+    return batches[0];
+  }
+  
+  // Initialize merged result with the structure from first batch
   const merged = {
     multiDailyMetricTimeSeries: []
   };
   
-  // Group metrics by type
-  const metricsMap = {};
+  // Collect all location groups across batches
+  const locationGroups = new Map();
   
-  batchResults.forEach(batch => {
-    if (batch?.multiDailyMetricTimeSeries) {
-      batch.multiDailyMetricTimeSeries.forEach(group => {
-        const metric = group.dailyMetric;
-        if (!metricsMap[metric]) {
-          metricsMap[metric] = [];
-        }
-        metricsMap[metric].push(...(group.timeSeries?.datedValues || []));
-      });
-    }
-  });
-  
-  // Reconstruct the merged structure
-  Object.keys(metricsMap).forEach(metric => {
-    merged.multiDailyMetricTimeSeries.push({
-      dailyMetric: metric,
-      timeSeries: {
-        datedValues: metricsMap[metric]
+  batches.forEach(batch => {
+    if (!batch?.multiDailyMetricTimeSeries) return;
+    
+    batch.multiDailyMetricTimeSeries.forEach((locationGroup, index) => {
+      if (!locationGroups.has(index)) {
+        locationGroups.set(index, {
+          dailyMetricTimeSeries: []
+        });
+      }
+      
+      const targetGroup = locationGroups.get(index);
+      
+      // Merge dailyMetricTimeSeries for this location
+      if (locationGroup?.dailyMetricTimeSeries) {
+        locationGroup.dailyMetricTimeSeries.forEach(metricSeries => {
+          // Find existing metric series or create new one
+          let existingMetric = targetGroup.dailyMetricTimeSeries.find(
+            m => m.dailyMetric === metricSeries.dailyMetric
+          );
+          
+          if (!existingMetric) {
+            existingMetric = {
+              dailyMetric: metricSeries.dailyMetric,
+              timeSeries: {
+                datedValues: []
+              }
+            };
+            targetGroup.dailyMetricTimeSeries.push(existingMetric);
+          }
+          
+          // Merge datedValues
+          if (metricSeries?.timeSeries?.datedValues) {
+            existingMetric.timeSeries.datedValues.push(
+              ...metricSeries.timeSeries.datedValues
+            );
+          }
+        });
       }
     });
   });
   
-  console.log(`📊 Merged ${batchResults.length} batches into single response`);
+  // Convert Map back to array
+  merged.multiDailyMetricTimeSeries = Array.from(locationGroups.values());
+  
+  // Sort all datedValues by date and remove duplicates
+  merged.multiDailyMetricTimeSeries.forEach(locationGroup => {
+    locationGroup.dailyMetricTimeSeries?.forEach(metricSeries => {
+      if (metricSeries?.timeSeries?.datedValues) {
+        // Sort by date
+        metricSeries.timeSeries.datedValues.sort((a, b) => {
+          const dateA = new Date(a.date.year, a.date.month - 1, a.date.day);
+          const dateB = new Date(b.date.year, b.date.month - 1, b.date.day);
+          return dateA - dateB;
+        });
+        
+        // Remove duplicate dates (keep first occurrence)
+        const seenDates = new Set();
+        metricSeries.timeSeries.datedValues = metricSeries.timeSeries.datedValues.filter(v => {
+          const dateKey = `${v.date.year}-${v.date.month}-${v.date.day}`;
+          if (seenDates.has(dateKey)) return false;
+          seenDates.add(dateKey);
+          return true;
+        });
+      }
+    });
+  });
+  
+  console.log(`📊 Merged ${batches.length} batches into single response`);
+  console.log(`📊 Location groups: ${merged.multiDailyMetricTimeSeries.length}`);
   return merged;
 }
 
@@ -638,72 +693,90 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       const calculatedStartDate = new Date(today.getTime() - totalDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const calculatedEndDate = new Date(today.getTime() - bufferDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-      // First, try to find stored data matching the exact date range and days
-      storedData = await GoogleBusinessInsights.findOne({
-        customerId: customerId,
-        'period.start': calculatedStartDate,
-        'period.end': calculatedEndDate,
-        'period.days': daysNum
-      }).sort({ lastUpdated: -1 });
-
-      // If not found, try to find any stored data with 90 days (from refresh service) and filter it
-      if (!storedData) {
-        const stored90Days = await GoogleBusinessInsights.findOne({
+      // ✅ FIX 1: For 90-day requests, just find the most recent 90-day record
+      // Don't require exact date match since dates change daily
+      if (daysNum === 90) {
+        storedData = await GoogleBusinessInsights.findOne({
           customerId: customerId,
-          'period.days': 90
+          'period.days': daysNum
         }).sort({ lastUpdated: -1 });
-
-        if (stored90Days && stored90Days.dailyData) {
-          // Filter daily data to match the requested date range
-          const filteredDailyData = stored90Days.dailyData.filter(day => {
-            const dayDate = new Date(day.date);
-            const startDateObj = new Date(calculatedStartDate);
-            const endDateObj = new Date(calculatedEndDate);
-            return dayDate >= startDateObj && dayDate <= endDateObj;
-          });
-
-          // Recalculate summary from filtered daily data
-          const filteredSummary = {
-            totalViews: filteredDailyData.reduce((sum, day) => sum + (day.views || 0), 0),
-            totalSearches: filteredDailyData.reduce((sum, day) => sum + (day.searches || 0), 0),
-            totalCalls: filteredDailyData.reduce((sum, day) => sum + (day.calls || 0), 0),
-            totalDirections: filteredDailyData.reduce((sum, day) => sum + (day.directions || 0), 0),
-            totalWebsiteClicks: filteredDailyData.reduce((sum, day) => sum + (day.websiteClicks || 0), 0)
-          };
-
-          // Create a virtual stored data object with filtered data
-          storedData = {
-            ...stored90Days,
-            period: {
-              start: calculatedStartDate,
-              end: calculatedEndDate,
-              days: daysNum
-            },
-            metrics: filteredSummary,
-            dailyData: filteredDailyData
-          };
-        }
-      }
-
-      if (storedData) {
-        // ✅ NEW: Check if stored data is fresh (less than 12 hours old)
-        // Safety check: ensure lastUpdated exists (should always exist due to model default)
-        if (!storedData.lastUpdated) {
-          console.log(`⚠️ Stored data missing lastUpdated timestamp - forcing fresh fetch`);
-          storedData = null; // Force fresh API call
-        } else {
+        
+        // Check if the stored data is fresh (less than 24 hours old)
+        if (storedData) {
           const dataAge = Date.now() - new Date(storedData.lastUpdated).getTime();
-          const maxAge = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+          const maxAge = 24 * 60 * 60 * 1000; // 24 hours
           
           if (dataAge > maxAge) {
             const ageInHours = Math.round(dataAge / (60 * 60 * 1000));
-            console.log(`⚠️ Stored data is ${ageInHours} hours old - forcing fresh fetch`);
-            storedData = null; // Force fresh API call
+            console.log(`⚠️ Stored 90-day data is ${ageInHours} hours old - fetching fresh data`);
+            storedData = null; // Force fresh fetch
           } else {
             const ageInHours = Math.round(dataAge / (60 * 60 * 1000));
-            console.log(`✅ Using cached data (${ageInHours} hours old) for ${customer.name} (${days} days)`);
+            console.log(`✅ Using cached 90-day data (${ageInHours} hours old)`);
+            
+            // Filter daily data to match the requested date range if needed
+            if (storedData.dailyData && storedData.dailyData.length > 0) {
+              const filteredDailyData = storedData.dailyData.filter(day => {
+                const dayDateStr = typeof day.date === 'string' ? day.date : new Date(day.date).toISOString().split('T')[0];
+                return dayDateStr >= calculatedStartDate && dayDateStr <= calculatedEndDate;
+              });
+              
+              if (filteredDailyData.length > 0) {
+                // Recalculate summary from filtered daily data
+                storedData = {
+                  ...storedData,
+                  period: {
+                    start: calculatedStartDate,
+                    end: calculatedEndDate,
+                    days: daysNum
+                  },
+                  metrics: {
+                    totalViews: filteredDailyData.reduce((sum, day) => sum + (day.views || 0), 0),
+                    totalSearches: filteredDailyData.reduce((sum, day) => sum + (day.searches || 0), 0),
+                    totalCalls: filteredDailyData.reduce((sum, day) => sum + (day.calls || 0), 0),
+                    totalDirections: filteredDailyData.reduce((sum, day) => sum + (day.directions || 0), 0),
+                    totalWebsiteClicks: filteredDailyData.reduce((sum, day) => sum + (day.websiteClicks || 0), 0)
+                  },
+                  dailyData: filteredDailyData
+                };
+              }
+            }
           }
         }
+      } else {
+        // For 7 and 30 day requests, try exact date match first
+        storedData = await GoogleBusinessInsights.findOne({
+          customerId: customerId,
+          'period.start': calculatedStartDate,
+          'period.end': calculatedEndDate,
+          'period.days': daysNum
+        }).sort({ lastUpdated: -1 });
+      }
+
+      if (storedData) {
+        // ✅ NEW: Check if stored data is fresh
+        // For 90-day data, freshness check is already done above (24 hours)
+        // For 7/30 day data, check freshness here (12 hours)
+        if (daysNum !== 90) {
+          // Safety check: ensure lastUpdated exists (should always exist due to model default)
+          if (!storedData.lastUpdated) {
+            console.log(`⚠️ Stored data missing lastUpdated timestamp - forcing fresh fetch`);
+            storedData = null; // Force fresh API call
+          } else {
+            const dataAge = Date.now() - new Date(storedData.lastUpdated).getTime();
+            const maxAge = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+            
+            if (dataAge > maxAge) {
+              const ageInHours = Math.round(dataAge / (60 * 60 * 1000));
+              console.log(`⚠️ Stored data is ${ageInHours} hours old - forcing fresh fetch`);
+              storedData = null; // Force fresh API call
+            } else {
+              const ageInHours = Math.round(dataAge / (60 * 60 * 1000));
+              console.log(`✅ Using cached data (${ageInHours} hours old) for ${customer.name} (${days} days)`);
+            }
+          }
+        }
+        // For 90-day data, freshness check was already done above, so we skip this check
       }
       
       if (storedData) {

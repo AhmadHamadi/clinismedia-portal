@@ -190,9 +190,9 @@ const FacebookInsightsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
-          <FaSpinner className="animate-spin text-4xl text-[#98c6d5] mx-auto mb-4" />
+          <FaSpinner className="animate-spin text-4xl text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading Facebook insights...</p>
         </div>
       </div>
@@ -201,17 +201,33 @@ const FacebookInsightsPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto">
-          <FaExclamationTriangle className="text-4xl text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Unable to Load Insights</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-[#98c6d5] hover:bg-blue-700 text-white px-4 py-2 rounded"
-          >
-            Try Again
-          </button>
+      <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+            <FaFacebook className="mr-3 text-blue-600" />
+            Meta Insights
+          </h1>
+          <p className="text-gray-600">
+            View your Facebook page insights and analytics
+          </p>
+        </div>
+
+        {/* Error Card */}
+        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-center min-h-96">
+            <div className="text-center">
+              <FaExclamationTriangle className="text-4xl text-red-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Insights</h3>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -219,79 +235,87 @@ const FacebookInsightsPage: React.FC = () => {
 
   if (!insights) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">No insights data available.</p>
+      <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+        <div className="flex items-center justify-center min-h-96">
+          <div className="text-center">
+            <p className="text-gray-600">No insights data available.</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden">
-      {/* Facebook Insights */}
-        <div className="max-w-7xl xl:max-w-7xl 2xl:max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 sm:gap-8 md:gap-10 w-full">
-          {/* Sidebar: Month History */}
-          <div className="w-full lg:w-1/4 mb-8 lg:mb-0">
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Report History</h3>
-              <div className="flex flex-col gap-2">
-                {monthRanges.map((range) => (
-                  <button
-                    key={range.label}
-                    className={`text-left px-4 py-2 rounded-lg font-medium border transition-all ${selectedRange?.label === range.label ? 'bg-blue-100 border-blue-400 text-blue-900' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-blue-50'}`}
-                    onClick={() => handleSelectRange(range)}
-                    disabled={loading}
-                  >
-                    {range.label} {selectedRange?.label === range.label && <span className="ml-2 text-xs">(Selected)</span>}
-                  </button>
-                ))}
-              </div>
+    <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+          <FaFacebook className="mr-3 text-blue-600" />
+          Meta Insights
+        </h1>
+        <p className="text-gray-600">
+          View your Facebook page insights and analytics for {insights?.pageInfo.name}
+        </p>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 md:gap-10 w-full">
+        {/* Sidebar: Month History */}
+        <div className="w-full lg:w-1/4 mb-8 lg:mb-0">
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Report History</h3>
+            <div className="flex flex-col gap-2">
+              {monthRanges.map((range) => (
+                <button
+                  key={range.label}
+                  className={`text-left px-4 py-2 rounded-lg font-medium border transition-all ${selectedRange?.label === range.label ? 'bg-blue-100 border-blue-400 text-blue-900' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-blue-50'}`}
+                  onClick={() => handleSelectRange(range)}
+                  disabled={loading}
+                >
+                  {range.label} {selectedRange?.label === range.label && <span className="ml-2 text-xs">(Selected)</span>}
+                </button>
+              ))}
             </div>
+            <button
+              className="mt-4 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+              onClick={() => handleSelectRange(thisMonth)}
+              disabled={loading || selectedRange?.label === thisMonth.label}
+            >
+              View This Month
+            </button>
           </div>
-          {/* Main Content */}
-          <div className="flex-1">
-            {/* Header */}
-            <div className="mb-8 flex items-center justify-between">
-              <div className="flex items-center mb-4">
-                <FaFacebook className="text-4xl text-[#1877f3] mr-3" />
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Facebook Insights</h1>
-                  <p className="text-gray-600">
-                    Analytics for {insights?.pageInfo.name} • {insights?.period.start} to {insights?.period.end}
-                  </p>
-                  {isFutureMonth && (
-                    <p className="text-yellow-600 text-sm mt-1">Selected month is in the future. Facebook will not return data for future dates.</p>
-                  )}
+        </div>
+        {/* Main Content */}
+        <div className="flex-1">
+            {/* Period Info */}
+            <div className="mb-6">
+              <p className="text-gray-600">
+                Period: {insights?.period.start} to {insights?.period.end}
+              </p>
+              {isFutureMonth && (
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-yellow-800 text-sm">Selected month is in the future. Facebook will not return data for future dates.</p>
                 </div>
-              </div>
-              <button
-                className="bg-[#1877f3] text-white px-4 py-2 rounded-lg font-semibold hover:bg-[#145db2]"
-                onClick={() => handleSelectRange(thisMonth)}
-                disabled={loading || selectedRange?.label === thisMonth.label}
-              >
-                View This Month's Report
-              </button>
+              )}
             </div>
             {/* Zero data warning */}
             {allZero && !isFutureMonth && (
-              <div className="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded">
-                No data found for this period. This may be because the Facebook Page has no activity, or the app does not have the required permissions. Try another month or check with your admin.
+              <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-yellow-800">No data found for this period. This may be because the Facebook Page has no activity, or the app does not have the required permissions. Try another month or check with your admin.</p>
               </div>
             )}
 
             {/* Summary Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
                 <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 rounded-lg">
+                  <div className="bg-blue-100 p-3 rounded-lg mr-3">
                     <FaEye className="text-xl text-blue-600" />
                   </div>
-                  <div className="ml-3 flex-1">
+                  <div className="flex-1">
                     <p className="text-xs font-medium text-gray-600">Total Impressions</p>
                     <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalImpressions)}</p>
                     {insights.comparisons && (
-                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.impressionsChange).bgColor} ${formatComparison(insights.comparisons.impressionsChange).color}`}>
+                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-1 ${formatComparison(insights.comparisons.impressionsChange).bgColor} ${formatComparison(insights.comparisons.impressionsChange).color}`}>
                         <span className="mr-1">{formatComparison(insights.comparisons.impressionsChange).icon}</span>
                         {formatComparison(insights.comparisons.impressionsChange).value}% vs last month
                       </div>
@@ -300,7 +324,7 @@ const FacebookInsightsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
                 <div className="flex items-center">
                   <div className="p-2 bg-green-100 rounded-lg">
                     <FaUsers className="text-xl text-green-600" />
@@ -318,7 +342,7 @@ const FacebookInsightsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
                 <div className="flex items-center">
                   <div className="p-2 bg-red-100 rounded-lg">
                     <FaHeart className="text-xl text-red-600" />
@@ -336,7 +360,7 @@ const FacebookInsightsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
                 <div className="flex items-center">
                   <div className="p-2 bg-purple-100 rounded-lg">
                     <FaChartLine className="text-xl text-purple-600" />
@@ -357,7 +381,7 @@ const FacebookInsightsPage: React.FC = () => {
 
             {/* Additional Metrics Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 mb-6">
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
                 <div className="flex items-center">
                   <div className="p-2 bg-indigo-100 rounded-lg">
                     <FaEye className="text-xl text-indigo-600" />
@@ -375,7 +399,7 @@ const FacebookInsightsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
                 <div className="flex items-center">
                   <div className="p-2 bg-orange-100 rounded-lg">
                     <FaComment className="text-xl text-orange-600" />
@@ -395,9 +419,9 @@ const FacebookInsightsPage: React.FC = () => {
             </div>
 
             {/* Metrics Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* Impressions Chart */}
-              <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Impressions</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={impressionsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -411,7 +435,7 @@ const FacebookInsightsPage: React.FC = () => {
                 </ResponsiveContainer>
               </div>
               {/* Reach Chart */}
-              <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Reach</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={reachData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -425,7 +449,7 @@ const FacebookInsightsPage: React.FC = () => {
                 </ResponsiveContainer>
               </div>
               {/* Engagements Chart */}
-              <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Engagements</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={engagementsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -439,7 +463,7 @@ const FacebookInsightsPage: React.FC = () => {
                 </ResponsiveContainer>
               </div>
               {/* Followers Chart */}
-              <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Followers</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={followersData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -453,7 +477,7 @@ const FacebookInsightsPage: React.FC = () => {
                 </ResponsiveContainer>
               </div>
               {/* Page Views Chart */}
-              <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Page Views</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={pageViewsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -467,7 +491,7 @@ const FacebookInsightsPage: React.FC = () => {
                 </ResponsiveContainer>
               </div>
               {/* Video Views Chart */}
-              <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Video Views</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={videoViewsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -483,7 +507,7 @@ const FacebookInsightsPage: React.FC = () => {
             </div>
 
             {/* Info Section */}
-            <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-blue-900 mb-3">About These Insights</h3>
               <div className="space-y-2 text-sm text-blue-800">
                 <p>• <strong>Impressions:</strong> Number of times your page was seen</p>

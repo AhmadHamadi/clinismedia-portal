@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaInstagram, FaSpinner, FaCalendarAlt } from 'react-icons/fa';
+import { FaInstagram, FaSpinner, FaCalendarAlt, FaExclamationTriangle } from 'react-icons/fa';
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
 
 interface InstagramInsightImage {
@@ -117,9 +117,9 @@ const InstagramInsightsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
-          <FaSpinner className="animate-spin text-4xl text-pink-600 mx-auto mb-4" />
+          <FaSpinner className="animate-spin text-4xl text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading Instagram insights...</p>
         </div>
       </div>
@@ -128,17 +128,32 @@ const InstagramInsightsPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-red-800 mb-2">Error</h2>
-            <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={fetchImages}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-            >
-              Try Again
-            </button>
+      <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+            <FaInstagram className="mr-3 text-blue-600" />
+            Instagram Insights
+          </h1>
+          <p className="text-gray-600">
+            View your Instagram insights reports from the past 3 months
+          </p>
+        </div>
+
+        {/* Error Card */}
+        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-center min-h-96">
+            <div className="text-center">
+              <FaExclamationTriangle className="text-4xl text-red-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Insights</h3>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <button
+                onClick={fetchImages}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Try Again
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -146,22 +161,21 @@ const InstagramInsightsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 md:p-8 overflow-x-hidden">
-      <div className="max-w-7xl xl:max-w-7xl 2xl:max-w-7xl mx-auto w-full">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <FaInstagram className="text-3xl text-pink-600" />
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Instagram Insights</h1>
-              <p className="text-gray-600 mt-1">View your Instagram insights reports from the past 3 months</p>
-            </div>
-          </div>
-        </div>
+    <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+          <FaInstagram className="mr-3 text-blue-600" />
+          Instagram Insights
+        </h1>
+        <p className="text-gray-600">
+          View your Instagram insights reports from the past 3 months
+        </p>
+      </div>
 
-        {/* Month Selector - Top Section */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Report History</h3>
+      {/* Month Selector - Top Section */}
+      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Report History</h3>
           <div className="flex flex-col gap-2">
             {monthRanges.map((range) => {
               const hasImage = images.some(img => img.month === range.month);
@@ -173,8 +187,8 @@ const InstagramInsightsPage: React.FC = () => {
                   key={range.month}
                   className={`text-left px-4 py-3 rounded-lg font-medium border transition-all ${
                     isSelected
-                      ? 'bg-pink-100 border-pink-400 text-pink-900'
-                      : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-pink-50'
+                      ? 'bg-blue-100 border-blue-400 text-blue-900'
+                      : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-blue-50'
                   } ${!hasImage ? 'opacity-60' : ''}`}
                   onClick={() => {
                     console.log('🔘 Month button clicked for:', range.month);
@@ -208,96 +222,112 @@ const InstagramInsightsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Main Content - Large Image Display */}
-        {images.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <FaInstagram className="text-6xl text-pink-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Instagram Insights Available</h3>
-            <p className="text-gray-600">
-              No Instagram insights images have been uploaded for the past 3 months. Check back later or contact your administrator.
-            </p>
+      {/* Main Content - Large Image Display */}
+      {images.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-center min-h-96">
+            <div className="text-center">
+              <FaInstagram className="text-6xl text-gray-400 mx-auto mb-6" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No Instagram Insights Available</h3>
+              <p className="text-gray-600 mb-6">
+                No Instagram insights images have been uploaded for the past 3 months. Check back later or contact your administrator.
+              </p>
+              <button
+                onClick={fetchImages}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
-        ) : (() => {
-          // Find image for selected month
-          const imageForSelectedMonth = selectedMonth ? images.find(img => img.month === selectedMonth) : null;
-          
-          if (imageForSelectedMonth) {
-            // Display the image
-            return (
-              <div className="bg-white rounded-lg shadow-md p-6 border border-gray-100 w-full">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
-                    <FaCalendarAlt className="mr-2 text-pink-600" />
-                    {formatMonth(selectedMonth!)}
-                  </h2>
-                  <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                    {formatMonth(selectedMonth!)}
-                  </span>
-                </div>
-                
-                <div className="w-full bg-gray-50 rounded-xl p-4 mb-4">
-                  <p className="text-sm text-gray-600">
-                    Uploaded: {formatDate(imageForSelectedMonth.uploadedAt)}
-                  </p>
-                </div>
-                
-                <div className="w-full bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 flex items-center justify-center">
-                  <div className="w-full max-w-4xl mx-auto overflow-x-auto">
-                    <img
-                      src={`${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${imageForSelectedMonth.imageUrl}`}
-                      alt={`Instagram Insights - ${formatMonth(selectedMonth!)}`}
-                      className="w-full h-auto rounded-lg shadow-2xl cursor-pointer hover:opacity-90 transition-opacity"
-                      style={{ 
-                        width: '100%', 
-                        height: 'auto',
-                        display: 'block',
-                        maxWidth: '100%',
-                        objectFit: 'contain'
-                      }}
-                      onClick={() => {
-                        const imageUrl = `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${imageForSelectedMonth.imageUrl}`;
-                        window.open(imageUrl, '_blank');
-                      }}
-                      onError={(e) => {
-                        console.error('Image failed to load:', imageForSelectedMonth.imageUrl);
-                        const fullUrl = `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${imageForSelectedMonth.imageUrl}`;
-                        console.error('Full URL:', fullUrl);
-                        console.error('VITE_BACKEND_BASE_URL:', import.meta.env.VITE_BACKEND_BASE_URL);
-                        console.error('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
-                      }}
-                      onLoad={() => {
-                        console.log('✅ Image loaded successfully:', imageForSelectedMonth.imageUrl);
-                      }}
-                    />
+        </div>
+      ) : (() => {
+        // Find image for selected month
+        const imageForSelectedMonth = selectedMonth ? images.find(img => img.month === selectedMonth) : null;
+        
+        if (imageForSelectedMonth) {
+          // Display the image
+          return (
+            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <div className="bg-blue-100 p-3 rounded-lg mr-4">
+                    <FaCalendarAlt className="text-2xl text-blue-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">{formatMonth(selectedMonth!)}</h2>
+                    <p className="text-sm text-gray-600">
+                      Uploaded: {formatDate(imageForSelectedMonth.uploadedAt)}
+                    </p>
                   </div>
                 </div>
+                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold border border-green-200">
+                  Available
+                </span>
               </div>
-            );
-          } else if (selectedMonth) {
-            // No image for selected month
-            return (
-              <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                <FaInstagram className="text-6xl text-pink-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No Report Available</h3>
-                <p className="text-gray-600">
-                  No insights report available for {formatMonth(selectedMonth)}
-                </p>
+              
+              <div className="mt-6 rounded-lg overflow-hidden border border-gray-200">
+                <img
+                  src={`${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${imageForSelectedMonth.imageUrl}`}
+                  alt={`Instagram Insights - ${formatMonth(selectedMonth!)}`}
+                  className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                  style={{ 
+                    width: '100%', 
+                    height: 'auto',
+                    display: 'block',
+                    maxWidth: '100%',
+                    objectFit: 'contain'
+                  }}
+                  onClick={() => {
+                    const imageUrl = `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${imageForSelectedMonth.imageUrl}`;
+                    window.open(imageUrl, '_blank');
+                  }}
+                  onError={(e) => {
+                    console.error('Image failed to load:', imageForSelectedMonth.imageUrl);
+                    const fullUrl = `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${imageForSelectedMonth.imageUrl}`;
+                    console.error('Full URL:', fullUrl);
+                    console.error('VITE_BACKEND_BASE_URL:', import.meta.env.VITE_BACKEND_BASE_URL);
+                    console.error('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Image loaded successfully:', imageForSelectedMonth.imageUrl);
+                  }}
+                />
               </div>
-            );
-          } else {
-            // No month selected
-            return (
-              <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                <FaInstagram className="text-6xl text-pink-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No Report Available</h3>
-                <p className="text-gray-600">
-                  Select a month from the report history above
-                </p>
+            </div>
+          );
+        } else if (selectedMonth) {
+          // No image for selected month
+          return (
+            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-center min-h-96">
+                <div className="text-center">
+                  <FaInstagram className="text-6xl text-gray-400 mx-auto mb-6" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Report Available</h3>
+                  <p className="text-gray-600">
+                    No insights report available for {formatMonth(selectedMonth)}
+                  </p>
+                </div>
               </div>
-            );
-          }
-        })()}
-      </div>
+            </div>
+          );
+        } else {
+          // No month selected
+          return (
+            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-center min-h-96">
+                <div className="text-center">
+                  <FaInstagram className="text-6xl text-gray-400 mx-auto mb-6" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Report Available</h3>
+                  <p className="text-gray-600">
+                    Select a month from the report history above
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+      })()}
 
       {/* Image Modal for Full View */}
       {selectedImage && (
