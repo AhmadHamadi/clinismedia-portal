@@ -107,11 +107,6 @@ const AdminDash = () => {
           onClick={() => navigate("/admin/employees")}
         />
         <DashboardBox
-          title="Manage Customer Invoices"
-          description="View and manage customer invoices"
-          onClick={() => navigate("/admin/invoices")}
-        />
-        <DashboardBox
           title="Manage Google Ads"
           description="Assign and manage Google Ads accounts"
           onClick={() => navigate("/admin/google-ads")}
@@ -135,6 +130,11 @@ const AdminDash = () => {
           title="Manage Instagram Insights"
           description="Upload and manage Instagram insight images"
           onClick={() => navigate("/admin/instagram-insights")}
+        />
+        <DashboardBox
+          title="Manage QuickBooks"
+          description="Connect and manage QuickBooks integration"
+          onClick={() => navigate("/admin/quickbooks")}
         />
         <DashboardBox
           title="Manage Gallery Edits"

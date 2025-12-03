@@ -82,7 +82,6 @@ const SidebarMenu = () => {
     { label: "Onboarding Tasks", path: "/admin/onboarding", icon: <FaTasks /> },
     { label: "Manage Customers", path: "/admin/customers", icon: <FaUsers /> },
     { label: "Manage Employees", path: "/admin/employees", icon: <FaUserTie /> },
-    { label: "Manage Customer Invoices", path: "/admin/invoices", icon: <FaFileInvoice /> },
   ];
 
   // INTEGRATIONS section items
@@ -92,7 +91,7 @@ const SidebarMenu = () => {
     { label: "Manage Facebook", path: "/admin/facebook", icon: <FaFacebook /> },
     { label: "Manage Twilio", path: "/admin/twilio", icon: <FaPhone /> },
     { label: "Manage Instagram Insights", path: "/admin/instagram-insights", icon: <FaImages /> },
-    { label: "QuickBooks", path: "/admin/quickbooks", icon: <FaDollarSign /> },
+    { label: "Manage QuickBooks", path: "/admin/quickbooks", icon: <FaDollarSign /> },
   ];
 
   // CONTENT section items

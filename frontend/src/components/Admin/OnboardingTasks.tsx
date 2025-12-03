@@ -1,7 +1,7 @@
 // src/components/Admin/OnboardingTasksPage.tsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes, FaEnvelope } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes, FaEnvelope, FaClipboardList, FaUsers } from 'react-icons/fa';
 
 interface OnboardingTask {
   _id: string;
@@ -211,22 +211,26 @@ const OnboardingTasks: React.FC = () => {
   const getAssignmentStatus = (a: any) => a.status || 'not_started';
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 font-sans gap-6 p-6">
+    <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
       {/* Email Notification Section - At Top */}
-      <div className="w-full bg-white rounded-lg shadow-md p-6">
+      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-[#303b45]">Email Notifications</h2>
+          <h2 className="text-xl font-bold text-gray-900 flex items-center">
+            <FaEnvelope className="mr-3 text-blue-600" />
+            Email Notifications
+          </h2>
           <button
             onClick={() => setShowEmailModal(true)}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center gap-2"
+            className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <FaEnvelope /> Send Email
+            <FaEnvelope className="mr-2" />
+            Send Email
           </button>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="border rounded-lg p-4 bg-gray-50">
-            <h3 className="font-semibold text-black mb-2">Quick Email</h3>
+          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <h3 className="font-semibold text-gray-900 mb-2">Quick Email</h3>
             <p className="text-sm text-gray-700 mb-2">Send custom emails to clinics</p>
             <div className="text-xs text-gray-600">
               <div>Subject: {emailSubject}</div>
@@ -237,9 +241,12 @@ const OnboardingTasks: React.FC = () => {
       </div>
 
       {/* Master Task List - Now Below Email Section */}
-      <div className="w-full bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-[#303b45] mb-4">Onboarding Tasks</h1>
-        <div className="bg-white rounded-lg shadow-md p-4">
+      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+          <FaClipboardList className="mr-3 text-blue-600" />
+          Onboarding Tasks
+        </h1>
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
           <table className="w-full">
             <thead>
               <tr className="text-left text-gray-600 border-b">
@@ -278,7 +285,7 @@ const OnboardingTasks: React.FC = () => {
             </tbody>
           </table>
           <button
-            className="mt-4 px-4 py-2 bg-[#98c6d5] text-white rounded hover:bg-[#7bb3c7] disabled:opacity-50"
+            className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={selectedTaskIds.length === 0}
             onClick={() => setShowAssignModal(true)}
           >
@@ -286,38 +293,47 @@ const OnboardingTasks: React.FC = () => {
           </button>
 
           {/* New Task Creation Form - moved here */}
-          <div className="mt-8">
-            <h2 className="text-lg font-bold mb-2 text-[#303b45]">Create New Task</h2>
-            <div className="flex flex-col md:flex-row gap-4 items-center">
-              <input
-                type="text"
-                placeholder="Task Title"
-                value={newTask.title}
-                onChange={e => setNewTask({ ...newTask, title: e.target.value })}
-                className="flex-1 p-2 border rounded text-black mb-2 md:mb-0"
-              />
-              <select
-                value={newTask.category}
-                onChange={e => setNewTask({ ...newTask, category: e.target.value })}
-                className="p-2 border rounded text-black mb-2 md:mb-0"
-              >
-                <option value="">-- Select Category --</option>
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-                <option value="__new__">+ New Category</option>
-              </select>
-              {newTask.category === "__new__" && (
+          <div className="mt-8 border-t border-gray-200 pt-6">
+            <h2 className="text-lg font-bold mb-4 text-gray-900">Create New Task</h2>
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Task Title</label>
                 <input
                   type="text"
-                  placeholder="New Category"
-                  value={newTask.description || ''}
-                  onChange={e => setNewTask({ ...newTask, category: e.target.value })}
-                  className="flex-1 p-2 border rounded text-black mb-2 md:mb-0"
+                  placeholder="Enter task title"
+                  value={newTask.title}
+                  onChange={e => setNewTask({ ...newTask, title: e.target.value })}
+                  className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
                 />
+              </div>
+              <div className="md:w-48">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <select
+                  value={newTask.category}
+                  onChange={e => setNewTask({ ...newTask, category: e.target.value })}
+                  className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                >
+                  <option value="">-- Select Category --</option>
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                  <option value="__new__">+ New Category</option>
+                </select>
+              </div>
+              {newTask.category === "__new__" && (
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Category Name</label>
+                  <input
+                    type="text"
+                    placeholder="Enter new category name"
+                    value={newTask.description || ''}
+                    onChange={e => setNewTask({ ...newTask, category: e.target.value })}
+                    className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
               )}
               <button
-                className="px-4 py-2 bg-[#98c6d5] text-white rounded hover:bg-[#7bb3c7]"
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleAddTask}
                 disabled={!newTask.title.trim() || (!newTask.category || newTask.category === "__new__")}
               >
@@ -329,12 +345,15 @@ const OnboardingTasks: React.FC = () => {
       </div>
 
       {/* Clinic Onboarding Tasks - Now Below */}
-      <div className="w-full bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold mb-4 text-[#303b45]">Clinic Onboarding Tasks</h2>
-        <div className="mb-4">
-          <label className="block mb-2 font-semibold">Select Clinic:</label>
+      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+        <h2 className="text-xl font-bold mb-4 text-gray-900 flex items-center">
+          <FaUsers className="mr-3 text-blue-600" />
+          Clinic Onboarding Tasks
+        </h2>
+        <div className="mb-6">
+          <label className="block mb-2 font-semibold text-gray-700">Select Clinic:</label>
           <select
-            className="w-full border p-2 rounded text-black"
+            className="w-full border border-gray-300 p-3 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
             value={selectedClinic ? selectedClinic._id : ''}
             onChange={e => {
               const clinic = clinics.find(c => c._id === e.target.value) || null;
@@ -349,7 +368,7 @@ const OnboardingTasks: React.FC = () => {
         </div>
         {selectedClinic && (
           <div>
-            <h3 className="font-semibold mb-2">Assigned Tasks</h3>
+            <h3 className="font-semibold mb-4 text-gray-900">Assigned Tasks</h3>
             <ul className="space-y-3">
               {clinicAssignments
                 .filter(a => (typeof a.clinicId === 'string' ? a.clinicId === selectedClinic._id : a.clinicId._id === selectedClinic._id))
@@ -367,13 +386,13 @@ const OnboardingTasks: React.FC = () => {
                     }
                   }
                   return (
-                    <li key={a._id} className="flex flex-col md:flex-row md:items-center gap-2 border-b pb-2">
+                    <li key={a._id} className="flex flex-col md:flex-row md:items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                       <div className="flex-1">
-                        <div className="font-medium text-black">{task.title}</div>
-                        <div className="text-xs text-[#98c6d5]">{task.category}</div>
+                        <div className="font-medium text-gray-900">{task.title}</div>
+                        <div className="text-xs text-gray-600 mt-1">{task.category}</div>
                       </div>
                       <select
-                        className="border p-1 rounded text-black"
+                        className="border border-gray-300 p-2 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
                         value={getAssignmentStatus(a)}
                         onChange={async e => {
                           const token = localStorage.getItem('adminToken');
@@ -391,9 +410,9 @@ const OnboardingTasks: React.FC = () => {
                         <option value="pending">Pending</option>
                         <option value="completed">Completed</option>
                       </select>
-                      {warning && <span className="text-xs text-orange-500 ml-2">{warning}</span>}
+                      {warning && <span className="text-xs text-orange-600 px-2 py-1 bg-orange-50 rounded">{warning}</span>}
                       <button
-                        className="ml-2 text-red-500 hover:text-red-700"
+                        className="px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                         title="Remove from clinic"
                         onClick={async () => {
                           const token = localStorage.getItem('adminToken');
@@ -406,7 +425,7 @@ const OnboardingTasks: React.FC = () => {
                           fetchClinicsAndAssignments();
                         }}
                       >
-                        🗑️
+                        <FaTrash />
                       </button>
                     </li>
                   );
@@ -498,7 +517,7 @@ const OnboardingTasks: React.FC = () => {
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">Assign Tasks to Clinic</h2>
             <select
-              className="w-full border p-2 rounded mb-4 text-black"
+              className="w-full border border-gray-300 p-3 rounded-lg mb-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
               value={selectedClinicId}
               onChange={e => setSelectedClinicId(e.target.value)}
             >
@@ -509,7 +528,7 @@ const OnboardingTasks: React.FC = () => {
             </select>
             <div className="flex justify-end gap-2">
               <button
-                className="px-4 py-2 bg-[#98c6d5] text-white rounded hover:bg-[#7bb3c7]"
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!selectedClinicId}
                 onClick={async () => {
                   if (!selectedClinicId) return;
@@ -533,7 +552,7 @@ const OnboardingTasks: React.FC = () => {
                 }}
               >Assign</button>
               <button
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                 onClick={() => setShowAssignModal(false)}
               >Cancel</button>
             </div>

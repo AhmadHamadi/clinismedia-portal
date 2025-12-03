@@ -221,33 +221,123 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
     };
     
     // Fetch Facebook insights for current period
+    // ✅ FIXED: page_impressions is deprecated, use page_impressions_unique instead
+    // ✅ FIXED: page_fans requires period=lifetime, not period=day
     const metrics = [
-      { key: 'impressions', metric: 'page_impressions' },
-      { key: 'reach', metric: 'page_impressions_unique' },
-      { key: 'engagements', metric: 'page_post_engagements' },
-      { key: 'followers', metric: 'page_fans' },
-      { key: 'pageViews', metric: 'page_views_total' },
-      { key: 'videoViews', metric: 'page_video_views' },
+      { key: 'impressions', metric: 'page_impressions_unique', period: 'day' },  // Use unique impressions (same as reach)
+      { key: 'reach', metric: 'page_impressions_unique', period: 'day' },
+      { key: 'engagements', metric: 'page_post_engagements', period: 'day' },
+      { key: 'followers', metric: 'page_follows', period: 'day' },  // ✅ FIXED: page_fans deprecated, use page_follows
+      { key: 'pageViews', metric: 'page_views_total', period: 'day' },
+      { key: 'videoViews', metric: 'page_video_views', period: 'day' },
     ];
+    
+    // Helper function to fetch followers using the new page_follows metric
+    const fetchFollowers = async (startDate, endDate) => {
+      try {
+        // ✅ FIXED: Use page_follows (page_fans is deprecated as of Nov 2025)
+        const res = await axios.get(
+          `https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=page_follows&period=day&since=${formatDate(startDate)}&until=${formatDate(endDate)}&access_token=${user.facebookAccessToken}`
+        );
+        
+        let values = [];
+        if (res.data.data && res.data.data.length > 0) {
+          values = res.data.data[0].values || [];
+        } else if (res.data.values) {
+          values = res.data.values || [];
+        }
+        
+        if (Array.isArray(values) && values.length > 0) {
+          console.log(`✅ page_follows (day period): ${values.length} items`);
+          return values;
+        } else {
+          console.warn(`⚠️ page_follows returned empty data`);
+          return [];
+        }
+      } catch (err) {
+        console.error(`❌ Failed to fetch page_follows:`, err.response?.data?.error || err.message);
+        return [];
+      }
+    };
     
     const [currentResults, previousResults] = await Promise.all([
       // Current period
-      Promise.all(metrics.map(async ({ key, metric }) => {
+      Promise.all(metrics.map(async ({ key, metric, period = 'day' }) => {
+        // Special handling for followers using page_follows metric
+        if (key === 'followers') {
+          const values = await fetchFollowers(startDate, endDate);
+          return { key, values };
+        }
+        
         try {
-          const res = await axios.get(`https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=${metric}&period=day&since=${formatDate(startDate)}&until=${formatDate(endDate)}&access_token=${user.facebookAccessToken}`);
-          return { key, values: res.data.data[0]?.values || [] };
+          const res = await axios.get(`https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=${metric}&period=${period}&since=${formatDate(startDate)}&until=${formatDate(endDate)}&access_token=${user.facebookAccessToken}`);
+          
+          // Log the API response structure for debugging
+          console.log(`📊 Facebook API Response for ${metric} (${key}, period=${period}):`, {
+            hasData: !!res.data.data,
+            dataLength: res.data.data?.length || 0,
+            firstItem: res.data.data?.[0] ? {
+              name: res.data.data[0].name,
+              period: res.data.data[0].period,
+              valuesCount: res.data.data[0].values?.length || 0,
+              sampleValue: res.data.data[0].values?.[0] || null
+            } : null
+          });
+          
+          // Extract values array - handle different possible response structures
+          let values = [];
+          if (res.data.data && res.data.data.length > 0) {
+            // Standard structure: res.data.data[0].values
+            values = res.data.data[0].values || [];
+          } else if (res.data.values) {
+            // Alternative structure: res.data.values
+            values = res.data.values || [];
+          }
+          
+          // Ensure values is an array and has the expected structure
+          if (!Array.isArray(values)) {
+            console.warn(`⚠️ Values for ${metric} is not an array:`, typeof values);
+            values = [];
+          }
+          
+          console.log(`✅ Extracted ${values.length} values for ${metric} (${key})`);
+          if (values.length > 0) {
+            console.log(`   Sample value:`, values[0]);
+          }
+          
+          return { key, values };
         } catch (err) {
-          console.error(`Failed to fetch metric ${metric}:`, err.response?.data || err.message);
+          console.error(`❌ Failed to fetch metric ${metric} (${key}, period=${period}):`, err.response?.data || err.message);
           return { key, values: [] };
         }
       })),
       // Previous period
-      Promise.all(metrics.map(async ({ key, metric }) => {
+      Promise.all(metrics.map(async ({ key, metric, period = 'day' }) => {
+        // Special handling for followers using page_follows metric
+        if (key === 'followers') {
+          const values = await fetchFollowers(prevStartDate, prevEndDate);
+          return { key, values };
+        }
+        
         try {
-          const res = await axios.get(`https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=${metric}&period=day&since=${formatDate(prevStartDate)}&until=${formatDate(prevEndDate)}&access_token=${user.facebookAccessToken}`);
-          return { key, values: res.data.data[0]?.values || [] };
+          const res = await axios.get(`https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=${metric}&period=${period}&since=${formatDate(prevStartDate)}&until=${formatDate(prevEndDate)}&access_token=${user.facebookAccessToken}`);
+          
+          // Extract values array - handle different possible response structures
+          let values = [];
+          if (res.data.data && res.data.data.length > 0) {
+            values = res.data.data[0].values || [];
+          } else if (res.data.values) {
+            values = res.data.values || [];
+          }
+          
+          // Ensure values is an array
+          if (!Array.isArray(values)) {
+            values = [];
+          }
+          
+          return { key, values };
         } catch (err) {
-          console.error(`Failed to fetch previous period metric ${metric}:`, err.response?.data || err.message);
+          console.error(`❌ Failed to fetch previous period metric ${metric} (${key}, period=${period}):`, err.response?.data || err.message);
           return { key, values: [] };
         }
       }))
@@ -255,6 +345,28 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
     
     const currentMetricsObj = Object.fromEntries(currentResults.map(r => [r.key, r.values]));
     const previousMetricsObj = Object.fromEntries(previousResults.map(r => [r.key, r.values]));
+    
+    // Log the processed metrics for debugging
+    console.log('📊 Processed Metrics Structure:');
+    console.log('   impressions:', currentMetricsObj.impressions?.length || 0, 'items');
+    console.log('   followers:', currentMetricsObj.followers?.length || 0, 'items');
+    console.log('   reach:', currentMetricsObj.reach?.length || 0, 'items');
+    console.log('   engagements:', currentMetricsObj.engagements?.length || 0, 'items');
+    console.log('   pageViews:', currentMetricsObj.pageViews?.length || 0, 'items');
+    console.log('   videoViews:', currentMetricsObj.videoViews?.length || 0, 'items');
+    
+    // Ensure all metrics are arrays (defensive programming)
+    Object.keys(currentMetricsObj).forEach(key => {
+      if (!Array.isArray(currentMetricsObj[key])) {
+        console.warn(`⚠️ ${key} is not an array, converting to empty array`);
+        currentMetricsObj[key] = [];
+      }
+    });
+    Object.keys(previousMetricsObj).forEach(key => {
+      if (!Array.isArray(previousMetricsObj[key])) {
+        previousMetricsObj[key] = [];
+      }
+    });
     
     // Helper function to calculate percentage change
     const calculatePercentageChange = (previous, current) => {
@@ -271,47 +383,54 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
         start: formatDate(startDate),
         end: formatDate(endDate),
       },
-      metrics: currentMetricsObj,
+      metrics: {
+        impressions: Array.isArray(currentMetricsObj.impressions) ? currentMetricsObj.impressions : [],
+        reach: Array.isArray(currentMetricsObj.reach) ? currentMetricsObj.reach : [],
+        engagements: Array.isArray(currentMetricsObj.engagements) ? currentMetricsObj.engagements : [],
+        followers: Array.isArray(currentMetricsObj.followers) ? currentMetricsObj.followers : [],
+        pageViews: Array.isArray(currentMetricsObj.pageViews) ? currentMetricsObj.pageViews : [],
+        videoViews: Array.isArray(currentMetricsObj.videoViews) ? currentMetricsObj.videoViews : [],
+      },
       summary: {
-        totalImpressions: currentMetricsObj.impressions.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        totalReach: currentMetricsObj.reach.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        totalEngagements: currentMetricsObj.engagements.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        currentFollowers: currentMetricsObj.followers[currentMetricsObj.followers.length - 1]?.value || 0,
-        totalPageViews: currentMetricsObj.pageViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        totalVideoViews: currentMetricsObj.videoViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+        totalImpressions: (Array.isArray(currentMetricsObj.impressions) ? currentMetricsObj.impressions : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+        totalReach: (Array.isArray(currentMetricsObj.reach) ? currentMetricsObj.reach : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+        totalEngagements: (Array.isArray(currentMetricsObj.engagements) ? currentMetricsObj.engagements : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+        currentFollowers: (Array.isArray(currentMetricsObj.followers) && currentMetricsObj.followers.length > 0) ? (currentMetricsObj.followers[currentMetricsObj.followers.length - 1]?.value || 0) : 0,
+        totalPageViews: (Array.isArray(currentMetricsObj.pageViews) ? currentMetricsObj.pageViews : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+        totalVideoViews: (Array.isArray(currentMetricsObj.videoViews) ? currentMetricsObj.videoViews : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
       },
       previousSummary: {
-        totalImpressions: previousMetricsObj.impressions.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        totalReach: previousMetricsObj.reach.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        totalEngagements: previousMetricsObj.engagements.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        currentFollowers: previousMetricsObj.followers[previousMetricsObj.followers.length - 1]?.value || 0,
-        totalPageViews: previousMetricsObj.pageViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-        totalVideoViews: previousMetricsObj.videoViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
+        totalImpressions: (Array.isArray(previousMetricsObj.impressions) ? previousMetricsObj.impressions : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+        totalReach: (Array.isArray(previousMetricsObj.reach) ? previousMetricsObj.reach : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+        totalEngagements: (Array.isArray(previousMetricsObj.engagements) ? previousMetricsObj.engagements : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+        currentFollowers: (Array.isArray(previousMetricsObj.followers) && previousMetricsObj.followers.length > 0) ? (previousMetricsObj.followers[previousMetricsObj.followers.length - 1]?.value || 0) : 0,
+        totalPageViews: (Array.isArray(previousMetricsObj.pageViews) ? previousMetricsObj.pageViews : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+        totalVideoViews: (Array.isArray(previousMetricsObj.videoViews) ? previousMetricsObj.videoViews : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
       },
       comparisons: {
         impressionsChange: calculatePercentageChange(
-          previousMetricsObj.impressions.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-          currentMetricsObj.impressions.reduce((sum, val) => sum + (val.value || 0), 0) || 0
+          (Array.isArray(previousMetricsObj.impressions) ? previousMetricsObj.impressions : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+          (Array.isArray(currentMetricsObj.impressions) ? currentMetricsObj.impressions : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0
         ),
         reachChange: calculatePercentageChange(
-          previousMetricsObj.reach.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-          currentMetricsObj.reach.reduce((sum, val) => sum + (val.value || 0), 0) || 0
+          (Array.isArray(previousMetricsObj.reach) ? previousMetricsObj.reach : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+          (Array.isArray(currentMetricsObj.reach) ? currentMetricsObj.reach : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0
         ),
         engagementsChange: calculatePercentageChange(
-          previousMetricsObj.engagements.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-          currentMetricsObj.engagements.reduce((sum, val) => sum + (val.value || 0), 0) || 0
+          (Array.isArray(previousMetricsObj.engagements) ? previousMetricsObj.engagements : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+          (Array.isArray(currentMetricsObj.engagements) ? currentMetricsObj.engagements : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0
         ),
         followersChange: calculatePercentageChange(
-          previousMetricsObj.followers[previousMetricsObj.followers.length - 1]?.value || 0,
-          currentMetricsObj.followers[currentMetricsObj.followers.length - 1]?.value || 0
+          (Array.isArray(previousMetricsObj.followers) && previousMetricsObj.followers.length > 0) ? (previousMetricsObj.followers[previousMetricsObj.followers.length - 1]?.value || 0) : 0,
+          (Array.isArray(currentMetricsObj.followers) && currentMetricsObj.followers.length > 0) ? (currentMetricsObj.followers[currentMetricsObj.followers.length - 1]?.value || 0) : 0
         ),
         pageViewsChange: calculatePercentageChange(
-          previousMetricsObj.pageViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-          currentMetricsObj.pageViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0
+          (Array.isArray(previousMetricsObj.pageViews) ? previousMetricsObj.pageViews : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+          (Array.isArray(currentMetricsObj.pageViews) ? currentMetricsObj.pageViews : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0
         ),
         videoViewsChange: calculatePercentageChange(
-          previousMetricsObj.videoViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0,
-          currentMetricsObj.videoViews?.reduce((sum, val) => sum + (val.value || 0), 0) || 0
+          (Array.isArray(previousMetricsObj.videoViews) ? previousMetricsObj.videoViews : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0,
+          (Array.isArray(currentMetricsObj.videoViews) ? currentMetricsObj.videoViews : []).reduce((sum, val) => sum + (val?.value || 0), 0) || 0
         ),
       }
     };

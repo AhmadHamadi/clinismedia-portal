@@ -78,6 +78,88 @@ const CalendarEventDot = ({ event }: { event: any }) => {
   );
 };
 
+// Booking Card Component
+const BookingCard: React.FC<{ booking: any; onCancel: (id: string) => void }> = ({ booking, onCancel }) => {
+  const formatDateTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+  };
+
+  // Status pill color/icon
+  let statusStyles = '';
+  let statusIcon = null;
+  if (booking.status === 'accepted') {
+    statusStyles = 'bg-green-100 text-green-800 border-green-200';
+    statusIcon = (
+      <svg className="w-5 h-5 mr-1.5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M5 13l4 4L19 7" />
+      </svg>
+    );
+  } else if (booking.status === 'pending') {
+    statusStyles = 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    statusIcon = (
+      <svg className="w-5 h-5 mr-1.5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    );
+  } else if (booking.status === 'declined') {
+    statusStyles = 'bg-red-100 text-red-800 border-red-200';
+    statusIcon = (
+      <svg className="w-5 h-5 mr-1.5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-5 hover:shadow-md transition-shadow">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {formatDateTime(booking.date)}
+          </h3>
+          {booking.notes && (
+            <p className="text-gray-600 mb-1">
+              <span className="font-medium text-gray-700">Notes:</span> {booking.notes}
+            </p>
+          )}
+          {booking.adminMessage && (
+            <p className="text-gray-600">
+              <span className="font-semibold text-blue-600">Clinimedia:</span> {booking.adminMessage}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className={`flex items-center px-4 py-2 rounded-full text-sm font-semibold border ${statusStyles}`}>
+            {statusIcon}
+            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+          </div>
+          {booking.status === 'pending' && (
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to cancel this booking request?')) {
+                  onCancel(booking._id);
+                }
+              }}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CustomerMediaDayBookingPage: React.FC = () => {
   const {
     selectedDate,
@@ -412,87 +494,116 @@ const CustomerMediaDayBookingPage: React.FC = () => {
         </div>
 
         {/* Booking Requests */}
-        <div className="bg-white border-8  rounded-xl shadow-xl p-8 mb-8">
-          <h2 className="text-2xl md:text-3xl font-extrabold mb-8 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow tracking-wide font-sans text-left">
-            Your Booking Requests
-          </h2>
+        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-8">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+              <svg className="w-6 h-6 mr-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              Your Booking Requests
+            </h2>
+            <p className="text-gray-600">
+              View and manage all your media day booking requests
+            </p>
+          </div>
           
           {isLoadingBookings ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#98c6d5] mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading your bookings...</p>
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading your bookings...</p>
+              </div>
             </div>
           ) : bookings.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-600">You haven't made any booking requests yet.</p>
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p className="text-gray-600 text-lg">You haven't made any booking requests yet.</p>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-6">
-              {[...bookings].sort((a, b) => {
-                const aTime = new Date(a.updatedAt || a.createdAt || a.date).getTime();
-                const bTime = new Date(b.updatedAt || b.createdAt || b.date).getTime();
-                return bTime - aTime;
-              }).map((booking) => {
-                // Status pill color/icon
-                let statusStyles = '';
-                let statusIcon = null;
-                if (booking.status === 'accepted') {
-                  statusStyles = 'bg-green-100 text-green-700';
-                  statusIcon = (
-                    <svg className="w-5 h-5 mr-1.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M5 13l4 4L19 7" /></svg>
-                  );
-                } else if (booking.status === 'pending') {
-                  statusStyles = 'bg-yellow-100 text-yellow-700';
-                  statusIcon = (
-                    <svg className="w-5 h-5 mr-1.5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M12 8v4l3 3" /><circle cx="12" cy="12" r="9" stroke="#fbbf24" strokeWidth="2.2" /></svg>
-                  );
-                } else if (booking.status === 'declined') {
-                  statusStyles = 'bg-red-100 text-red-700';
-                  statusIcon = (
-                    <svg className="w-5 h-5 mr-1.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M6 18L18 6M6 6l12 12" /></svg>
-                  );
-                }
-                return (
-                  <div
-                    key={booking._id}
-                    className="bg-gray-50 rounded-2xl shadow-lg px-8 py-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 transition-all duration-200 hover:shadow-2xl"
-                  >
-                    <div className="flex-1">
-                      <h3 className="text-base font-semibold text-[#303b45] mb-1 tracking-tight">
-                        {formatDateTime(booking.date)}
-                      </h3>
-                      {booking.notes && (
-                        <p className="mt-1 text-gray-600 text-base">Notes: {booking.notes}</p>
-                      )}
-                      {booking.adminMessage && (
-                        <p className="mt-1 text-gray-600 text-base">
-                          <span className="font-semibold text-[#38c6d5]">Clinimedia:</span> {booking.adminMessage}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className={`flex items-center px-4 py-2 rounded-full text-base font-semibold shadow-sm ${statusStyles}`}>
-                        {statusIcon}
-                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                      </div>
-                      {booking.status === 'pending' && (
-                        <button
-                          onClick={() => {
-                            if (window.confirm('Are you sure you want to cancel this booking request?')) {
-                              cancelBooking(booking._id);
-                            }
-                          }}
-                          className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      )}
+          ) : (() => {
+            // Sort bookings by most recent (using date as primary, then updatedAt/createdAt)
+            const sortedBookings = [...bookings].sort((a, b) => {
+              // First sort by date (most recent first)
+              const aDate = new Date(a.date).getTime();
+              const bDate = new Date(b.date).getTime();
+              if (bDate !== aDate) {
+                return bDate - aDate;
+              }
+              // If dates are equal, sort by updatedAt/createdAt
+              const aTime = new Date(a.updatedAt || a.createdAt || a.date).getTime();
+              const bTime = new Date(b.updatedAt || b.createdAt || b.date).getTime();
+              return bTime - aTime;
+            });
+
+            // Group bookings by status
+            const pendingBookings = sortedBookings.filter(b => b.status === 'pending');
+            const acceptedBookings = sortedBookings.filter(b => b.status === 'accepted');
+            const declinedBookings = sortedBookings.filter(b => b.status === 'declined');
+
+            return (
+              <div className="space-y-8">
+                {/* Pending Bookings */}
+                {pendingBookings.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <span className="bg-yellow-100 p-2 rounded-lg mr-3">
+                        <svg className="w-5 h-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </span>
+                      Pending Requests ({pendingBookings.length})
+                    </h3>
+                    <div className="space-y-4">
+                      {pendingBookings.map((booking) => (
+                        <BookingCard key={booking._id} booking={booking} onCancel={cancelBooking} />
+                      ))}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                )}
+
+                {/* Accepted Bookings */}
+                {acceptedBookings.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <span className="bg-green-100 p-2 rounded-lg mr-3">
+                        <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </span>
+                      Accepted Bookings ({acceptedBookings.length})
+                    </h3>
+                    <div className="space-y-4">
+                      {acceptedBookings.map((booking) => (
+                        <BookingCard key={booking._id} booking={booking} onCancel={cancelBooking} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Declined Bookings */}
+                {declinedBookings.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <span className="bg-red-100 p-2 rounded-lg mr-3">
+                        <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </span>
+                      Declined Requests ({declinedBookings.length})
+                    </h3>
+                    <div className="space-y-4">
+                      {declinedBookings.map((booking) => (
+                        <BookingCard key={booking._id} booking={booking} onCancel={cancelBooking} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Time Selection Modal */}
