@@ -863,9 +863,6 @@ const CallLogsPage: React.FC = () => {
                                   
                                   // Use voicemail endpoint for missed calls
                                   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-                                  if (!apiBaseUrl) {
-                                    throw new Error('API base URL is not configured');
-                                  }
                                   const voicemailApiUrl = `${apiBaseUrl}/twilio/voicemail/${log.callSid}`;
                                   
                                   // Fetch voicemail with credentials
@@ -930,9 +927,6 @@ const CallLogsPage: React.FC = () => {
                                   
                                   // Use the same API base URL as other requests
                                   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-                                  if (!apiBaseUrl) {
-                                    throw new Error('API base URL is not configured');
-                                  }
                                   const recordingApiUrl = `${apiBaseUrl}/twilio/recording/${log.recordingSid}`;
                                   
                                   // Fetch recording with credentials
@@ -1090,9 +1084,6 @@ const CallLogsPage: React.FC = () => {
                           return;
                         }
                         const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-                        if (!apiBaseUrl) {
-                          throw new Error('API base URL is not configured');
-                        }
                         
                         // Determine if this is voicemail or recording
                         const isVoicemail = selectedCall.dialCallStatus && 
