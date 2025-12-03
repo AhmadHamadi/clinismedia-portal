@@ -94,6 +94,8 @@ const CallLogsPage: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<string>('all'); // 'all', 'past7days', 'month', 'custom'
   const [summaryText, setSummaryText] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
   const [tempStartDate, setTempStartDate] = useState<Date | null>(null);
   const [tempEndDate, setTempEndDate] = useState<Date | null>(null);
 
@@ -214,9 +216,11 @@ const CallLogsPage: React.FC = () => {
     try {
       setLoadingSummary(true);
       setSummaryText(null);
+      setSummaryError(null); // Clear previous errors
       const token = localStorage.getItem('customerToken');
       
       if (!token) {
+        setSummaryError('Please log in to view summaries');
         setLoadingSummary(false);
         return;
       }
@@ -232,6 +236,10 @@ const CallLogsPage: React.FC = () => {
       
       if (response.data.summaryText) {
         setSummaryText(response.data.summaryText);
+      } else if (response.data.status === 'not_available') {
+        setSummaryError(response.data.message || 'Conversation summary is not available yet.');
+      } else {
+        setSummaryError('No summary available for this call.');
       }
       
       // Update the call log in the list if appointment status was determined
@@ -248,6 +256,8 @@ const CallLogsPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error fetching summary:', err);
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Failed to load conversation summary. Please try again.';
+      setSummaryError(errorMessage);
     } finally {
       setLoadingSummary(false);
     }
@@ -840,13 +850,14 @@ const CallLogsPage: React.FC = () => {
                               onClick={async () => {
                                 try {
                                   setLoadingRecording(true);
+                                  setRecordingError(null); // Clear previous errors
                                   setSelectedCall(log);
                                   setShowRecordingModal(true);
                                   
                                   const token = localStorage.getItem('customerToken');
                                   if (!token) {
-                                    alert('Please log in to access voicemail');
-                                    setShowRecordingModal(false);
+                                    setRecordingError('Please log in to access voicemail');
+                                    setLoadingRecording(false);
                                     return;
                                   }
                                   
@@ -863,18 +874,31 @@ const CallLogsPage: React.FC = () => {
                                     credentials: 'include' // Include credentials for CORS
                                   });
                                   
-                                  if (response.ok) {
-                                    const blob = await response.blob();
-                                    const blobUrl = URL.createObjectURL(blob);
-                                    setRecordingUrl(blobUrl);
-                                  } else {
-                                    alert('Failed to load voicemail. Please try again.');
-                                    setShowRecordingModal(false);
+                                  if (!response.ok) {
+                                    const errorData = await response.json().catch(() => ({}));
+                                    throw new Error(errorData.error || `Failed to load voicemail (${response.status})`);
                                   }
-                                } catch (error) {
+                                  
+                                  // Check if response is actually audio
+                                  const contentType = response.headers.get('content-type');
+                                  if (!contentType || !contentType.includes('audio')) {
+                                    throw new Error('Invalid response format. Expected audio file.');
+                                  }
+                                  
+                                  const blob = await response.blob();
+                                  
+                                  // Validate blob
+                                  if (!blob || blob.size === 0) {
+                                    throw new Error('Voicemail file is empty or corrupted.');
+                                  }
+                                  
+                                  const blobUrl = URL.createObjectURL(blob);
+                                  setRecordingUrl(blobUrl);
+                                } catch (error: any) {
                                   console.error('Error loading voicemail:', error);
-                                  alert('Failed to load voicemail');
-                                  setShowRecordingModal(false);
+                                  const errorMessage = error.message || 'Failed to load voicemail. Please try again.';
+                                  setRecordingError(errorMessage);
+                                  // Don't close modal - show error instead
                                 } finally {
                                   setLoadingRecording(false);
                                 }
@@ -890,13 +914,14 @@ const CallLogsPage: React.FC = () => {
                               onClick={async () => {
                                 try {
                                   setLoadingRecording(true);
+                                  setRecordingError(null); // Clear previous errors
                                   setSelectedCall(log);
                                   setShowRecordingModal(true);
                                   
                                   const token = localStorage.getItem('customerToken');
                                   if (!token) {
-                                    alert('Please log in to access recordings');
-                                    setShowRecordingModal(false);
+                                    setRecordingError('Please log in to access recordings');
+                                    setLoadingRecording(false);
                                     return;
                                   }
                                   
@@ -913,18 +938,31 @@ const CallLogsPage: React.FC = () => {
                                     credentials: 'include' // Include credentials for CORS
                                   });
                                   
-                                  if (response.ok) {
-                                    const blob = await response.blob();
-                                    const blobUrl = URL.createObjectURL(blob);
-                                    setRecordingUrl(blobUrl);
-                                  } else {
-                                    alert('Failed to load recording. Please try again.');
-                                    setShowRecordingModal(false);
+                                  if (!response.ok) {
+                                    const errorData = await response.json().catch(() => ({}));
+                                    throw new Error(errorData.error || `Failed to load recording (${response.status})`);
                                   }
-                                } catch (error) {
+                                  
+                                  // Check if response is actually audio
+                                  const contentType = response.headers.get('content-type');
+                                  if (!contentType || !contentType.includes('audio')) {
+                                    throw new Error('Invalid response format. Expected audio file.');
+                                  }
+                                  
+                                  const blob = await response.blob();
+                                  
+                                  // Validate blob
+                                  if (!blob || blob.size === 0) {
+                                    throw new Error('Recording file is empty or corrupted.');
+                                  }
+                                  
+                                  const blobUrl = URL.createObjectURL(blob);
+                                  setRecordingUrl(blobUrl);
+                                } catch (error: any) {
                                   console.error('Error loading recording:', error);
-                                  alert('Failed to load recording');
-                                  setShowRecordingModal(false);
+                                  const errorMessage = error.message || 'Failed to load recording. Please try again.';
+                                  setRecordingError(errorMessage);
+                                  // Don't close modal - show error instead
                                 } finally {
                                   setLoadingRecording(false);
                                 }
@@ -947,7 +985,12 @@ const CallLogsPage: React.FC = () => {
                             setSelectedCall(log);
                             setShowCallDetails(true);
                             setSummaryText(null);
-                            if (log.transcriptSid || config?.recordingEnabled) {
+                            setSummaryError(null);
+                            // Always try to fetch if transcriptSid exists, or if recording is enabled (might have transcript)
+                            if (log.transcriptSid) {
+                              fetchSummary(log.callSid);
+                            } else if (config?.recordingEnabled) {
+                              // Try anyway - backend will return appropriate message
                               fetchSummary(log.callSid);
                             }
                           }}
@@ -973,8 +1016,12 @@ const CallLogsPage: React.FC = () => {
           onClick={(e) => {
             // Close modal if clicking outside
             if (e.target === e.currentTarget) {
+              if (recordingUrl) {
+                URL.revokeObjectURL(recordingUrl);
+              }
               setShowRecordingModal(false);
               setRecordingUrl(null);
+              setRecordingError(null);
               setSelectedCall(null);
             }
           }}
@@ -991,8 +1038,12 @@ const CallLogsPage: React.FC = () => {
               </h2>
               <button
                 onClick={() => {
+                  if (recordingUrl) {
+                    URL.revokeObjectURL(recordingUrl);
+                  }
                   setShowRecordingModal(false);
                   setRecordingUrl(null);
+                  setRecordingError(null);
                   setSelectedCall(null);
                 }}
                 className="text-gray-400 hover:text-gray-600"
@@ -1017,6 +1068,69 @@ const CallLogsPage: React.FC = () => {
                   <FaSpinner className="animate-spin text-blue-500 text-2xl" />
                   <span className="ml-2 text-gray-600">Loading recording...</span>
                 </div>
+              ) : recordingError ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-red-800 text-sm">{recordingError}</p>
+                  <button
+                    onClick={async () => {
+                      if (!selectedCall) return;
+                      setRecordingError(null);
+                      setLoadingRecording(true);
+                      try {
+                        const token = localStorage.getItem('customerToken');
+                        if (!token) {
+                          setRecordingError('Please log in to access recordings');
+                          setLoadingRecording(false);
+                          return;
+                        }
+                        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+                        
+                        // Determine if this is voicemail or recording
+                        const isVoicemail = selectedCall.dialCallStatus && 
+                                          selectedCall.dialCallStatus !== 'answered' && 
+                                          selectedCall.voicemailUrl;
+                        
+                        const audioApiUrl = isVoicemail 
+                          ? `${apiBaseUrl}/twilio/voicemail/${selectedCall.callSid}`
+                          : selectedCall.recordingSid 
+                            ? `${apiBaseUrl}/twilio/recording/${selectedCall.recordingSid}`
+                            : null;
+                        
+                        if (!audioApiUrl) {
+                          throw new Error(isVoicemail ? 'Voicemail not available' : 'Recording not available');
+                        }
+                        
+                        const response = await fetch(audioApiUrl, {
+                          method: 'GET',
+                          headers: { 'Authorization': `Bearer ${token}` },
+                          credentials: 'include'
+                        });
+                        if (!response.ok) {
+                          const errorData = await response.json().catch(() => ({}));
+                          throw new Error(errorData.error || `Failed to load ${isVoicemail ? 'voicemail' : 'recording'} (${response.status})`);
+                        }
+                        const contentType = response.headers.get('content-type');
+                        if (!contentType || !contentType.includes('audio')) {
+                          throw new Error('Invalid response format. Expected audio file.');
+                        }
+                        const blob = await response.blob();
+                        if (!blob || blob.size === 0) {
+                          throw new Error(`${isVoicemail ? 'Voicemail' : 'Recording'} file is empty or corrupted.`);
+                        }
+                        const blobUrl = URL.createObjectURL(blob);
+                        setRecordingUrl(blobUrl);
+                      } catch (error: any) {
+                        console.error('Error loading audio:', error);
+                        setRecordingError(error.message || 'Failed to load audio. Please try again.');
+                      } finally {
+                        setLoadingRecording(false);
+                      }
+                    }}
+                    className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+                  >
+                    Try again
+                  </button>
+                </div>
               ) : recordingUrl ? (
                 <audio 
                   controls 
@@ -1025,6 +1139,10 @@ const CallLogsPage: React.FC = () => {
                   onEnded={() => {
                     // Clean up blob URL when playback ends
                     URL.revokeObjectURL(recordingUrl);
+                  }}
+                  onError={(e) => {
+                    console.error('Audio playback error:', e);
+                    setRecordingError('Failed to play audio. The file may be corrupted.');
                   }}
                 >
                   <source src={recordingUrl} type="audio/mpeg" />
@@ -1044,6 +1162,7 @@ const CallLogsPage: React.FC = () => {
                   }
                   setShowRecordingModal(false);
                   setRecordingUrl(null);
+                  setRecordingError(null);
                   setSelectedCall(null);
                 }}
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
@@ -1064,6 +1183,7 @@ const CallLogsPage: React.FC = () => {
               setShowCallDetails(false);
               setSelectedCall(null);
               setSummaryText(null);
+              setSummaryError(null);
             }
           }}
         >
@@ -1082,6 +1202,7 @@ const CallLogsPage: React.FC = () => {
                   setShowCallDetails(false);
                   setSelectedCall(null);
                   setSummaryText(null);
+                  setSummaryError(null);
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -1103,6 +1224,16 @@ const CallLogsPage: React.FC = () => {
                   <FaSpinner className="animate-spin text-blue-500 text-2xl" />
                   <span className="ml-2 text-gray-600">Loading conversation summary...</span>
                 </div>
+              ) : summaryError ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-red-800 text-sm">{summaryError}</p>
+                  <button
+                    onClick={() => fetchSummary(selectedCall.callSid)}
+                    className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+                  >
+                    Try again
+                  </button>
+                </div>
               ) : summaryText ? (
                 <div className="bg-gray-50 rounded-lg p-4">
                   <p className="text-gray-900 whitespace-pre-wrap leading-relaxed">{summaryText}</p>
@@ -1119,6 +1250,7 @@ const CallLogsPage: React.FC = () => {
                   setShowCallDetails(false);
                   setSelectedCall(null);
                   setSummaryText(null);
+                  setSummaryError(null);
                 }}
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
               >

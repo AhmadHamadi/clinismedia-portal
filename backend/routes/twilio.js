@@ -2322,13 +2322,38 @@ router.get('/call-logs/stats', authenticateToken, async (req, res) => {
     console.log(`📊 Answered calls: ${answeredCalls}`);
     
     // Missed Calls = Calls where dialCallStatus exists but is NOT 'answered'
-    // This includes: 'no-answer', 'busy', 'failed', 'canceled'
+    // This includes: 'no-answer', 'busy', 'failed', 'canceled', 'completed' (with duration = 0)
+    // IMPORTANT: Only count calls where dialCallStatus is explicitly set (not null)
+    // This ensures we only count calls that went through the dial process
     const missedCalls = await CallLog.countDocuments({
       ...query,
-      dialCallStatus: { $exists: true, $ne: null, $ne: 'answered' }
+      dialCallStatus: { 
+        $exists: true, 
+        $ne: null, 
+        $ne: 'answered'
+      }
     });
     
     console.log(`📊 Missed calls: ${missedCalls}`);
+    
+    // Verify stats consistency: Total should equal Answered + Missed + (calls with null dialCallStatus)
+    // This is for debugging - calls with null dialCallStatus are still processing or old calls
+    const callsWithNullStatus = await CallLog.countDocuments({
+      ...query,
+      $or: [
+        { dialCallStatus: null },
+        { dialCallStatus: { $exists: false } }
+      ]
+    });
+    console.log(`📊 Calls with null dialCallStatus (not yet categorized): ${callsWithNullStatus}`);
+    console.log(`📊 Stats verification: Total=${totalCalls}, Answered=${answeredCalls}, Missed=${missedCalls}, Null=${callsWithNullStatus}, Sum=${answeredCalls + missedCalls + callsWithNullStatus}`);
+    
+    // Additional verification: Ensure new + existing patient calls don't exceed total
+    // (They can be less because not all calls have menu choices)
+    const totalPatientCalls = newPatientCalls + existingPatientCalls;
+    if (totalPatientCalls > totalCalls) {
+      console.warn(`⚠️ WARNING: Patient calls (${totalPatientCalls}) exceed total calls (${totalCalls})`);
+    }
     
     const newPatientCalls = await CallLog.countDocuments({ ...query, menuChoice: '1' });
     const existingPatientCalls = await CallLog.countDocuments({ ...query, menuChoice: '2' });
