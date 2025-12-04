@@ -1013,12 +1013,8 @@ router.post('/voice/incoming', async (req, res) => {
         })}`);
       }
       // Get voice for error message - use clinic's voice if available, otherwise fallback
-      const errorVoice = clinic?.twilioVoice || process.env.TWILIO_VOICE || 'ai:alloy';
+      const errorVoice = clinic?.twilioVoice || process.env.TWILIO_VOICE || 'Google.en-US-Studio-O';
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
-        if (voiceSetting && voiceSetting.startsWith('ai:')) {
-          const aiVoiceName = voiceSetting.replace('ai:', '');
-          return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
-        }
         return `<Say voice="${voiceSetting}">${text}</Say>`;
       };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1062,12 +1058,8 @@ router.post('/voice/incoming', async (req, res) => {
         twilioForwardNumberExisting: clinic.twilioForwardNumberExisting
       })}`);
       // Get voice for error message - use default AI voice
-      const errorVoice = process.env.TWILIO_VOICE || 'ai:alloy';
+      const errorVoice = process.env.TWILIO_VOICE || 'Google.en-US-Studio-O';
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
-        if (voiceSetting && voiceSetting.startsWith('ai:')) {
-          const aiVoiceName = voiceSetting.replace('ai:', '');
-          return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
-        }
         return `<Say voice="${voiceSetting}">${text}</Say>`;
       };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1087,12 +1079,8 @@ router.post('/voice/incoming', async (req, res) => {
       console.error(`❌ Invalid forward number format: ${forwardNumber}`);
       console.error(`   Forward number must be in E.164 format: +1XXXXXXXXXX`);
       // Get voice for error message (before main voice declaration) - use clinic's voice if available
-      const errorVoice = clinic?.twilioVoice || process.env.TWILIO_VOICE || 'ai:alloy';
+      const errorVoice = clinic?.twilioVoice || process.env.TWILIO_VOICE || 'Google.en-US-Studio-O';
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
-        if (voiceSetting && voiceSetting.startsWith('ai:')) {
-          const aiVoiceName = voiceSetting.replace('ai:', '');
-          return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
-        }
         return `<Say voice="${voiceSetting}">${text}</Say>`;
       };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1106,16 +1094,14 @@ router.post('/voice/incoming', async (req, res) => {
     
     // Get voice setting - use clinic's custom voice, fallback to env var, then default
     // Default to AI voice (alloy) for best quality
-    const voice = clinic.twilioVoice || process.env.TWILIO_VOICE || 'ai:alloy';
+    const voice = clinic.twilioVoice || process.env.TWILIO_VOICE || 'Google.en-US-Studio-O';
     
     // Helper function to generate Say verb with proper voice attributes
     const generateSayVerb = (text, voiceSetting = voice) => {
-      // Check if it's an AI voice (format: ai:alloy, ai:shimmer, ai:verse)
-      if (voiceSetting && voiceSetting.startsWith('ai:')) {
-        const aiVoiceName = voiceSetting.replace('ai:', '');
-        return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
-      }
-      // Standard voice format
+      // All Twilio voices use standard format: voice="VoiceName"
+      // Google voices: Google.en-US-Studio-O, Google.en-US-Neural2-C, etc.
+      // Polly voices: Polly.Joanna-Generative, Polly.Joanna-Neural, etc.
+      // Basic voices: alice, man, woman
       return `<Say voice="${voiceSetting}">${text}</Say>`;
     };
     
@@ -1294,10 +1280,6 @@ router.post('/voice/incoming', async (req, res) => {
     // Try to get clinic for voice setting, but if error occurred before clinic lookup, use default
     const errorVoice = process.env.TWILIO_VOICE || 'ai:alloy';
     const generateSayVerb = (text, voiceSetting = errorVoice) => {
-      if (voiceSetting && voiceSetting.startsWith('ai:')) {
-        const aiVoiceName = voiceSetting.replace('ai:', '');
-        return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
-      }
       return `<Say voice="${voiceSetting}">${text}</Say>`;
     };
     const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1558,7 +1540,7 @@ router.get('/voice/voicemail', async (req, res) => {
     console.log(`📞 Call was NOT answered (DialCallStatus: ${DialCallStatus}) - prompting for voicemail`);
     
     // Get clinic's voice setting - look up clinic from CallSid
-    let voice = process.env.TWILIO_VOICE || 'ai:alloy';
+    let voice = process.env.TWILIO_VOICE || 'Google.en-US-Studio-O';
     if (CallSid) {
       try {
         const callLog = await CallLog.findOne({ callSid: CallSid });
@@ -1575,10 +1557,6 @@ router.get('/voice/voicemail', async (req, res) => {
     
     // Helper function to generate Say verb with proper voice attributes
     const generateSayVerb = (text, voiceSetting = voice) => {
-      if (voiceSetting && voiceSetting.startsWith('ai:')) {
-        const aiVoiceName = voiceSetting.replace('ai:', '');
-        return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
-      }
       return `<Say voice="${voiceSetting}">${text}</Say>`;
     };
     
