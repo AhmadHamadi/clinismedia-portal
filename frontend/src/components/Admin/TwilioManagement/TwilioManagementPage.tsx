@@ -93,7 +93,7 @@ const TwilioManagementPage: React.FC = () => {
         connection.forwardNumberNew || undefined,
         connection.forwardNumberExisting || undefined,
         connection.menuMessage || undefined,
-        connection.voice || undefined
+        connection.voice || TTS_VOICE  // ✅ Always send TTS_VOICE if not set
       );
       setSelectedConnections(prev => {
         const next = { ...prev };

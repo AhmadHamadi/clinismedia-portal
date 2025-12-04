@@ -1065,7 +1065,10 @@ router.post('/voice/incoming', async (req, res) => {
       const errorVoice = validateAndGetVoice(requestedErrorVoice);
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
         // Twilio requires language attribute for all voices (per official docs)
-        return `<Say voice="${voiceSetting}" language="en-US">${text}</Say>`;
+        // FORCE the voice to be our constant - never trust the parameter
+        const finalVoice = TTS_VOICE;
+        console.log(`[VOICE DEBUG] Error handler generateSayVerb: "${voiceSetting}" → using: "${finalVoice}"`);
+        return `<Say voice="${finalVoice}" language="en-US">${text}</Say>`;
       };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -1111,7 +1114,10 @@ router.post('/voice/incoming', async (req, res) => {
       const errorVoice = validateAndGetVoice(TTS_VOICE);
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
         // Twilio requires language attribute for all voices (per official docs)
-        return `<Say voice="${voiceSetting}" language="en-US">${text}</Say>`;
+        // FORCE the voice to be our constant - never trust the parameter
+        const finalVoice = TTS_VOICE;
+        console.log(`[VOICE DEBUG] Error handler generateSayVerb: "${voiceSetting}" → using: "${finalVoice}"`);
+        return `<Say voice="${finalVoice}" language="en-US">${text}</Say>`;
       };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -1134,7 +1140,10 @@ router.post('/voice/incoming', async (req, res) => {
       const errorVoice = validateAndGetVoice(requestedErrorVoice);
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
         // Twilio requires language attribute for all voices (per official docs)
-        return `<Say voice="${voiceSetting}" language="en-US">${text}</Say>`;
+        // FORCE the voice to be our constant - never trust the parameter
+        const finalVoice = TTS_VOICE;
+        console.log(`[VOICE DEBUG] Error handler generateSayVerb: "${voiceSetting}" → using: "${finalVoice}"`);
+        return `<Say voice="${finalVoice}" language="en-US">${text}</Say>`;
       };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -1152,11 +1161,15 @@ router.post('/voice/incoming', async (req, res) => {
     
     // Log the voice being used (for debugging - confirms code path is using correct voice)
     console.log(`[VOICE] Using Twilio TTS voice: ${voice} | Clinic: ${clinic.name || clinic._id}`);
+    console.log(`[VOICE DEBUG] Clinic.twilioVoice: ${clinic.twilioVoice || 'null'} | Requested: ${requestedVoice} | Validated: ${voice}`);
     
     // Helper function to generate Say verb with proper voice attributes
     const generateSayVerb = (text, voiceSetting = voice) => {
       // Twilio requires language attribute for all voices (per official docs)
-      return `<Say voice="${voiceSetting}" language="en-US">${text}</Say>`;
+      // FORCE the voice to be our constant - never trust the parameter
+      const finalVoice = TTS_VOICE;
+      console.log(`[VOICE DEBUG] generateSayVerb called with: "${voiceSetting}" → using: "${finalVoice}"`);
+      return `<Say voice="${finalVoice}" language="en-US">${text}</Say>`;
     };
     
     // Get custom menu message or use default with clinic name
@@ -1276,15 +1289,22 @@ router.post('/voice/incoming', async (req, res) => {
       console.log(`📋 Showing menu to caller`);
       console.log(`   Custom message: ${menuMessage}`);
       
+      // Generate TwiML with explicit voice logging
+      const menuTwiML = generateSayVerb(menuMessage);
+      const timeoutTwiML = generateSayVerb('We didn\'t receive your selection. Please call back and try again.');
+      console.log(`[VOICE DEBUG] Generated menu TwiML: ${menuTwiML.substring(0, 100)}...`);
+      
       // Show menu FIRST (no disclosure yet)
       twiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather action="${callbackUrl}" method="POST" numDigits="1" timeout="10">
-    ${generateSayVerb(menuMessage)}
+    ${menuTwiML}
   </Gather>
-  ${generateSayVerb('We didn\'t receive your selection. Please call back and try again.')}
+  ${timeoutTwiML}
   <Hangup/>
 </Response>`;
+      
+      console.log(`[VOICE DEBUG] Final TwiML (first 500 chars): ${twiML.substring(0, 500)}`);
     }
     // v1: Simple forward (default) - no menu
     else {
@@ -1335,7 +1355,10 @@ router.post('/voice/incoming', async (req, res) => {
     const errorVoice = validateAndGetVoice(TTS_VOICE);
     const generateSayVerb = (text, voiceSetting = errorVoice) => {
       // Twilio requires language attribute for all voices (per official docs)
-      return `<Say voice="${voiceSetting}" language="en-US">${text}</Say>`;
+      // FORCE the voice to be our constant - never trust the parameter
+      const finalVoice = TTS_VOICE;
+      console.log(`[VOICE DEBUG] Error handler generateSayVerb: "${voiceSetting}" → using: "${finalVoice}"`);
+      return `<Say voice="${finalVoice}" language="en-US">${text}</Say>`;
     };
     const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -1616,7 +1639,10 @@ router.get('/voice/voicemail', async (req, res) => {
     // Helper function to generate Say verb with proper voice attributes
     const generateSayVerb = (text, voiceSetting = voice) => {
       // Twilio requires language attribute for all voices (per official docs)
-      return `<Say voice="${voiceSetting}" language="en-US">${text}</Say>`;
+      // FORCE the voice to be our constant - never trust the parameter if it's wrong
+      const finalVoice = TTS_VOICE;
+      console.log(`[VOICE DEBUG] generateSayVerb called with: "${voiceSetting}" → using: "${finalVoice}"`);
+      return `<Say voice="${finalVoice}" language="en-US">${text}</Say>`;
     };
     
     // Get base URL for voicemail callbacks
