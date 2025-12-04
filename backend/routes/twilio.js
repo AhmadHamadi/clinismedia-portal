@@ -10,60 +10,39 @@ const authorizeRole = require('../middleware/authorizeRole');
 // Voice Validation - 100% Verified Twilio Voices
 // ============================================
 
-// Valid Twilio voice names (100% VERIFIED - From Twilio Console Text-to-Speech)
-// Format: <Provider>.<Voice> where Provider is "Polly" or "Google" and Voice is exact value from console
-// Rule: Provider from console (Amazon Polly → Polly, Google Text-to-Speech → Google)
-//       Voice from dropdown (e.g. "en-US-Chirp3-HD-Aoede", "Joanna-Generative")
-//       Combined: Google.en-US-Chirp3-HD-Aoede or Polly.Joanna-Generative
+// ============================================
+// Twilio TTS Voice Configuration
+// ============================================
+// SINGLE HARD-CODED VOICE FOR ALL CLINICS
+// Provider: Google Text-to-Speech
+// Voice from dropdown: en-US-Chirp3-HD-Aoede
+// Final format: Google.en-US-Chirp3-HD-Aoede
+// ============================================
+
+// ✅ Single, hard-coded voice constant - NEVER use env vars for this
+const TTS_VOICE = 'Google.en-US-Chirp3-HD-Aoede';
+
+// Valid Twilio voice names (only this one voice is allowed)
 const VALID_TWILIO_VOICES = [
-  // Amazon Polly Generative (Best Quality - Most Natural)
-  'Polly.Danielle-Generative',
-  'Polly.Joanna-Generative',
-  'Polly.Matthew-Generative',
-  'Polly.Ruth-Generative',
-  'Polly.Stephen-Generative',
-  
-  // Amazon Polly Neural (High Quality)
-  'Polly.Danielle-Neural',
-  'Polly.Gregory-Neural',
-  'Polly.Ivy-Neural',
-  'Polly.Joanna-Neural',
-  'Polly.Joey-Neural',
-  'Polly.Justin-Neural',
-  'Polly.Kendra-Neural',
-  'Polly.Kevin-Neural',
-  'Polly.Kimberly-Neural',
-  
-  // Amazon Polly Standard (Standard Quality)
-  'Polly.Joey',
-  'Polly.Justin',
-  'Polly.Kendra',
-  'Polly.Kevin',
-  'Polly.Kimberly',
-  'Polly.Matthew',
-  'Polly.Salli',
-  
-  // Google Text-to-Speech (Chirp3 HD - High Quality)
-  'Google.en-US-Chirp3-HD-Aoede',
-  
-  // Basic voices (Legacy)
-  'alice', 'woman', 'man'
+  TTS_VOICE
 ];
 
 // Voice validation function - ensures only valid voices are used
 const validateAndGetVoice = (requestedVoice) => {
   if (!requestedVoice) {
-    return 'Polly.Danielle-Generative'; // Default to most natural voice
+    console.log(`[VOICE] No voice requested, using default: ${TTS_VOICE}`);
+    return TTS_VOICE;
   }
   
   // Check if voice is valid
   if (VALID_TWILIO_VOICES.includes(requestedVoice)) {
+    console.log(`[VOICE] Valid voice requested: ${requestedVoice}`);
     return requestedVoice;
   }
   
   // Invalid voice - log warning and use default
-  console.warn(`[VOICE WARNING] Invalid voice "${requestedVoice}" requested. Using default: Polly.Danielle-Generative`);
-  return 'Polly.Danielle-Generative';
+  console.warn(`[VOICE WARNING] Invalid voice "${requestedVoice}" requested. Using default: ${TTS_VOICE}`);
+  return TTS_VOICE;
 };
 
 // OpenAI for AI-powered appointment detection (optional - falls back to keyword matching)
@@ -840,7 +819,7 @@ router.post('/connect', authenticateToken, authorizeRole(['admin']), async (req,
       } else {
         // Empty string or null clears custom voice (will use default)
         updateData.twilioVoice = null;
-        console.log(`[VOICE UPDATE] Clinic: ${clinicId} | Voice cleared, will use default: Polly.Danielle-Generative`);
+        console.log(`[VOICE UPDATE] Clinic: ${clinicId} | Voice cleared, will use default: ${TTS_VOICE}`);
       }
     }
     
@@ -1082,7 +1061,7 @@ router.post('/voice/incoming', async (req, res) => {
         })}`);
       }
       // Get voice for error message - use clinic's voice if available, otherwise default
-      const requestedErrorVoice = clinic?.twilioVoice || 'Polly.Danielle-Generative';
+      const requestedErrorVoice = clinic?.twilioVoice || TTS_VOICE;
       const errorVoice = validateAndGetVoice(requestedErrorVoice);
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
         // Twilio requires language attribute for all voices (per official docs)
@@ -1129,7 +1108,7 @@ router.post('/voice/incoming', async (req, res) => {
         twilioForwardNumberExisting: clinic.twilioForwardNumberExisting
       })}`);
       // Get voice for error message - use default
-      const errorVoice = validateAndGetVoice('Polly.Danielle-Generative');
+      const errorVoice = validateAndGetVoice(TTS_VOICE);
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
         // Twilio requires language attribute for all voices (per official docs)
         return `<Say voice="${voiceSetting}" language="en-US">${text}</Say>`;
@@ -1151,7 +1130,7 @@ router.post('/voice/incoming', async (req, res) => {
       console.error(`❌ Invalid forward number format: ${forwardNumber}`);
       console.error(`   Forward number must be in E.164 format: +1XXXXXXXXXX`);
       // Get voice for error message (before main voice declaration) - use clinic's voice if available
-      const requestedErrorVoice = clinic?.twilioVoice || 'Polly.Danielle-Generative';
+      const requestedErrorVoice = clinic?.twilioVoice || TTS_VOICE;
       const errorVoice = validateAndGetVoice(requestedErrorVoice);
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
         // Twilio requires language attribute for all voices (per official docs)
@@ -1166,13 +1145,13 @@ router.post('/voice/incoming', async (req, res) => {
       return res.send(errorTwiML);
     }
     
-    // Get voice setting - use clinic's custom voice, fallback to default (Polly.Danielle-Generative)
-    // NO ENV VARIABLE - use database value or default only
-    const requestedVoice = clinic.twilioVoice || 'Polly.Danielle-Generative';
+    // Get voice setting - use clinic's custom voice, fallback to hard-coded default
+    // NO ENV VARIABLE - use database value or hard-coded constant only
+    const requestedVoice = clinic.twilioVoice || TTS_VOICE;
     const voice = validateAndGetVoice(requestedVoice);
     
-    // Log the voice being used (for debugging)
-    console.log(`[VOICE] Clinic: ${clinic.name || clinic._id} | Requested: ${requestedVoice} | Using: ${voice}`);
+    // Log the voice being used (for debugging - confirms code path is using correct voice)
+    console.log(`[VOICE] Using Twilio TTS voice: ${voice} | Clinic: ${clinic.name || clinic._id}`);
     
     // Helper function to generate Say verb with proper voice attributes
     const generateSayVerb = (text, voiceSetting = voice) => {
@@ -1353,7 +1332,7 @@ router.post('/voice/incoming', async (req, res) => {
     console.error('   Error stack:', error.stack);
     console.error('   Error message:', error.message);
     // Try to get clinic for voice setting, but if error occurred before clinic lookup, use default
-    const errorVoice = validateAndGetVoice('Polly.Danielle-Generative');
+    const errorVoice = validateAndGetVoice(TTS_VOICE);
     const generateSayVerb = (text, voiceSetting = errorVoice) => {
       // Twilio requires language attribute for all voices (per official docs)
       return `<Say voice="${voiceSetting}" language="en-US">${text}</Say>`;
@@ -1616,7 +1595,7 @@ router.get('/voice/voicemail', async (req, res) => {
     console.log(`📞 Call was NOT answered (DialCallStatus: ${DialCallStatus}) - prompting for voicemail`);
     
     // Get clinic's voice setting - look up clinic from CallSid
-    let requestedVoice = 'Polly.Danielle-Generative'; // Default
+    let requestedVoice = TTS_VOICE; // Default to hard-coded voice
     if (CallSid) {
       try {
         const callLog = await CallLog.findOne({ callSid: CallSid });
@@ -1632,7 +1611,7 @@ router.get('/voice/voicemail', async (req, res) => {
     }
     
     const voice = validateAndGetVoice(requestedVoice);
-    console.log(`[VOICE] Voicemail | Requested: ${requestedVoice} | Using: ${voice}`);
+    console.log(`[VOICE] Using Twilio TTS voice: ${voice} | Voicemail handler`);
     
     // Helper function to generate Say verb with proper voice attributes
     const generateSayVerb = (text, voiceSetting = voice) => {

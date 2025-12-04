@@ -137,7 +137,7 @@ const userSchema = new mongoose.Schema({
   },
   twilioVoice: {
     type: String,
-    default: null, // Custom voice setting, falls back to 'Polly.Danielle-Generative' if not set
+    default: null, // Custom voice setting, falls back to 'Google.en-US-Chirp3-HD-Aoede' if not set
   },
   sharedFolderLink: {
     type: String,
