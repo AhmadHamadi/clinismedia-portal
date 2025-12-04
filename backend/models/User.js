@@ -135,6 +135,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null, // Custom menu message, falls back to default if not set
   },
+  twilioVoice: {
+    type: String,
+    default: null, // Custom voice setting, falls back to TWILIO_VOICE env var or 'Polly.Joanna-Neural'
+  },
   sharedFolderLink: {
     type: String,
     default: null,

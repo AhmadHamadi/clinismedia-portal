@@ -1,7 +1,74 @@
-import React, { useState } from 'react';
-import { FaPhone, FaSpinner, FaSyncAlt, FaCheckCircle, FaTimesCircle, FaUnlink, FaEdit, FaTimes } from 'react-icons/fa';
+import React, { useState, useRef, useEffect } from 'react';
+import { FaPhone, FaSpinner, FaSyncAlt, FaCheckCircle, FaTimesCircle, FaUnlink, FaEdit, FaTimes, FaVolumeUp, FaStop } from 'react-icons/fa';
 import { useTwilioManagement, Customer, TwilioPhoneNumber } from './TwilioManagementLogic';
 import axios from 'axios';
+
+// Sample text to play for voice preview
+const VOICE_SAMPLE_TEXT = "Thank you for calling. Press 1 for new patients, press 2 for existing patients.";
+
+// Valid Twilio voice names organized by category
+const TWILIO_VOICES = [
+  // 🔥 MOST NATURAL - OpenAI AI Voices (Best Quality, Human-Like)
+  { 
+    category: 'Most Natural (AI Voices)', 
+    voices: [
+      { value: 'ai:alloy', label: 'Alloy (AI) - Most Natural, Warm, Professional', description: 'Best overall - sounds like a real human receptionist' },
+      { value: 'ai:shimmer', label: 'Shimmer (AI) - Soft, Friendly, Calming', description: 'Perfect for dental clinics - very calming tone' },
+      { value: 'ai:verse', label: 'Verse (AI) - Clear, Smooth, Natural', description: 'Great for support menus and appointment systems' },
+    ]
+  },
+  // 💎 Premium Neural Voices (High Quality)
+  { 
+    category: 'Premium Neural Voices', 
+    voices: [
+      { value: 'Polly.Joanna-Neural', label: 'Polly Joanna (Neural) - Female, US English', description: 'Current default - professional female voice' },
+      { value: 'Polly.Olivia-Neural', label: 'Polly Olivia (Neural) - Female, Australian English', description: 'Warm Australian accent' },
+      { value: 'Polly.Matthew-Neural', label: 'Polly Matthew (Neural) - Male, US English', description: 'Professional male voice' },
+      { value: 'Polly.Joey-Neural', label: 'Polly Joey (Neural) - Male, US English', description: 'Clear male voice' },
+      { value: 'Polly.Amy-Neural', label: 'Polly Amy (Neural) - Female, British English', description: 'Elegant British female voice' },
+      { value: 'Polly.Brian-Neural', label: 'Polly Brian (Neural) - Male, British English', description: 'Professional British male voice' },
+      { value: 'Polly.Emma-Neural', label: 'Polly Emma (Neural) - Female, British English', description: 'Friendly British female voice' },
+    ]
+  },
+  // 🌍 International & Regional Voices
+  { 
+    category: 'International & Regional', 
+    voices: [
+      { value: 'Polly.Raveena-Neural', label: 'Polly Raveena (Neural) - Female, Indian English', description: 'Indian English accent' },
+      { value: 'Polly.Nicole-Neural', label: 'Polly Nicole (Neural) - Female, Australian English', description: 'Australian female voice' },
+      { value: 'Polly.Russell-Neural', label: 'Polly Russell (Neural) - Male, Australian English', description: 'Australian male voice' },
+      { value: 'Polly.Kendra-Neural', label: 'Polly Kendra (Neural) - Female, US English', description: 'Warm US female voice' },
+      { value: 'Polly.Kimberly-Neural', label: 'Polly Kimberly (Neural) - Female, US English', description: 'Friendly US female voice' },
+      { value: 'Polly.Salli-Neural', label: 'Polly Salli (Neural) - Female, US English', description: 'Clear US female voice' },
+    ]
+  },
+  // 👶 Special Purpose Voices
+  { 
+    category: 'Special Purpose', 
+    voices: [
+      { value: 'Polly.Ivy-Neural', label: 'Polly Ivy (Neural) - Female, US English (Child)', description: 'Child voice - use for pediatric clinics' },
+      { value: 'Polly.Justin-Neural', label: 'Polly Justin (Neural) - Male, US English (Child)', description: 'Child voice - use for pediatric clinics' },
+    ]
+  },
+  // 📞 Basic Twilio Voices (Legacy)
+  { 
+    category: 'Basic Voices (Legacy)', 
+    voices: [
+      { value: 'alice', label: 'Alice - Female, Multiple Languages', description: 'Multi-language support' },
+      { value: 'man', label: 'Man - Male, US English', description: 'Basic male voice' },
+      { value: 'woman', label: 'Woman - Female, US English', description: 'Basic female voice' },
+    ]
+  },
+];
+
+// Flatten voices for dropdown (with category prefix for display)
+const FLATTENED_VOICES = TWILIO_VOICES.flatMap(category => 
+  category.voices.map(voice => ({
+    ...voice,
+    category: category.category,
+    displayLabel: `[${category.category}] ${voice.label}`
+  }))
+);
 
 const TwilioManagementPage: React.FC = () => {
   const {
@@ -24,6 +91,7 @@ const TwilioManagementPage: React.FC = () => {
       forwardNumberNew: string;
       forwardNumberExisting: string;
       menuMessage: string;
+      voice: string;
     } 
   }>({});
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -31,6 +99,9 @@ const TwilioManagementPage: React.FC = () => {
   const [editingMessage, setEditingMessage] = useState<string | null>(null); // Clinic ID being edited
   const [editingMessageValue, setEditingMessageValue] = useState<string>('');
   const [updatingMessage, setUpdatingMessage] = useState<string | null>(null);
+  const [playingVoice, setPlayingVoice] = useState<string | null>(null); // Voice value currently playing
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['Most Natural (AI Voices)'])); // Categories expanded by default
+  const synthRef = useRef<SpeechSynthesis | null>(null);
 
   const handleConnect = async (customer: Customer) => {
     const connection = selectedConnections[customer._id];
@@ -98,6 +169,7 @@ const TwilioManagementPage: React.FC = () => {
   };
 
   const handleForwardNumberChange = (customerId: string, forwardNumber: string) => {
+    const customer = customers.find(c => c._id === customerId);
     setSelectedConnections(prev => ({
       ...prev,
       [customerId]: {
@@ -107,11 +179,13 @@ const TwilioManagementPage: React.FC = () => {
         forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
         forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
         menuMessage: prev[customerId]?.menuMessage || '',
+        voice: prev[customerId]?.voice || customer?.twilioVoice || 'ai:alloy',
       },
     }));
   };
 
   const handleForwardNumberNewChange = (customerId: string, forwardNumberNew: string) => {
+    const customer = customers.find(c => c._id === customerId);
     setSelectedConnections(prev => ({
       ...prev,
       [customerId]: {
@@ -121,11 +195,13 @@ const TwilioManagementPage: React.FC = () => {
         forwardNumberNew,
         forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
         menuMessage: prev[customerId]?.menuMessage || '',
+        voice: prev[customerId]?.voice || customer?.twilioVoice || 'ai:alloy',
       },
     }));
   };
 
   const handleForwardNumberExistingChange = (customerId: string, forwardNumberExisting: string) => {
+    const customer = customers.find(c => c._id === customerId);
     setSelectedConnections(prev => ({
       ...prev,
       [customerId]: {
@@ -135,6 +211,7 @@ const TwilioManagementPage: React.FC = () => {
         forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
         forwardNumberExisting,
         menuMessage: prev[customerId]?.menuMessage || '',
+        voice: prev[customerId]?.voice || customer?.twilioVoice || 'ai:alloy',
       },
     }));
   };
@@ -149,6 +226,22 @@ const TwilioManagementPage: React.FC = () => {
         forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
         forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
         menuMessage,
+        voice: prev[customerId]?.voice || customer?.twilioVoice || 'ai:alloy',
+      },
+    }));
+  };
+
+  const handleVoiceChange = (customerId: string, voice: string) => {
+    setSelectedConnections(prev => ({
+      ...prev,
+      [customerId]: {
+        ...prev[customerId],
+        phoneNumber: prev[customerId]?.phoneNumber || '',
+        forwardNumber: prev[customerId]?.forwardNumber || '',
+        forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
+        forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
+        menuMessage: prev[customerId]?.menuMessage || '',
+        voice,
       },
     }));
   };
@@ -192,6 +285,15 @@ const TwilioManagementPage: React.FC = () => {
   };
 
   const availablePhoneNumbers = phoneNumbers.filter(num => !num.assigned);
+
+  // Cleanup speech synthesis on unmount
+  useEffect(() => {
+    return () => {
+      if (synthRef.current) {
+        synthRef.current.cancel();
+      }
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -275,8 +377,11 @@ const TwilioManagementPage: React.FC = () => {
                   <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '15%' }}>
                     Twilio Number
                   </th>
-                  <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '30%' }}>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '25%' }}>
                     Forward Numbers
+                  </th>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '15%' }}>
+                    Voice
                   </th>
                   <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '10%' }}>
                     Status
@@ -406,6 +511,70 @@ const TwilioManagementPage: React.FC = () => {
                              <p className="text-xs text-gray-500 mt-0.5">
                                Default message includes clinic name. Edit as needed.
                              </p>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-gray-900" style={{ width: '15%' }}>
+                        {status.connected ? (
+                          <div className="text-xs">
+                            <div className="font-medium flex items-center gap-1">
+                              {customer.twilioVoice || 'ai:alloy'}
+                              <button
+                                onClick={() => playVoiceSample(customer.twilioVoice || 'ai:alloy')}
+                                className="text-blue-600 hover:text-blue-800 p-0.5"
+                                title="Play voice sample"
+                                disabled={playingVoice === (customer.twilioVoice || 'ai:alloy')}
+                              >
+                                {playingVoice === (customer.twilioVoice || 'ai:alloy') ? (
+                                  <FaStop className="text-xs" />
+                                ) : (
+                                  <FaVolumeUp className="text-xs" />
+                                )}
+                              </button>
+                            </div>
+                            <div className="text-gray-500 text-xs mt-0.5">
+                              {FLATTENED_VOICES.find(v => v.value === (customer.twilioVoice || 'ai:alloy'))?.description || 'Default voice (AI - Most Natural)'}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <select
+                              className="border rounded px-1.5 py-1 w-full text-xs"
+                              value={selectedConnections[customer._id]?.voice || customer.twilioVoice || 'ai:alloy'}
+                              onChange={(e) => handleVoiceChange(customer._id, e.target.value)}
+                              disabled={isConnecting}
+                            >
+                              {TWILIO_VOICES.map((category) => (
+                                <optgroup key={category.category} label={category.category}>
+                                  {category.voices.map((voice) => (
+                                    <option key={voice.value} value={voice.value}>
+                                      {voice.label}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => playVoiceSample(selectedConnections[customer._id]?.voice || customer.twilioVoice || 'ai:alloy')}
+                                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 px-1.5 py-0.5 border border-blue-300 rounded hover:bg-blue-50"
+                                title="Play voice sample"
+                                disabled={isConnecting || playingVoice === (selectedConnections[customer._id]?.voice || customer.twilioVoice || 'ai:alloy')}
+                              >
+                                {playingVoice === (selectedConnections[customer._id]?.voice || customer.twilioVoice || 'ai:alloy') ? (
+                                  <>
+                                    <FaStop className="text-xs" /> Stop
+                                  </>
+                                ) : (
+                                  <>
+                                    <FaVolumeUp className="text-xs" /> Preview
+                                  </>
+                                )}
+                              </button>
+                              <span className="text-xs text-gray-500">
+                                {FLATTENED_VOICES.find(v => v.value === (selectedConnections[customer._id]?.voice || customer.twilioVoice || 'ai:alloy'))?.description || ''}
+                              </span>
+                            </div>
                           </div>
                         )}
                       </td>

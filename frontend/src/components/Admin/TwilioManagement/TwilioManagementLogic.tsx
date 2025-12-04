@@ -12,6 +12,7 @@ export interface Customer {
   twilioForwardNumberNew?: string;
   twilioForwardNumberExisting?: string;
   twilioMenuMessage?: string;
+  twilioVoice?: string;
 }
 
 export interface TwilioPhoneNumber {
@@ -69,7 +70,8 @@ export const useTwilioManagement = () => {
     forwardNumber?: string,
     forwardNumberNew?: string,
     forwardNumberExisting?: string,
-    menuMessage?: string
+    menuMessage?: string,
+    voice?: string
   ) => {
     try {
       setConnecting(clinicId);
@@ -81,6 +83,7 @@ export const useTwilioManagement = () => {
         forwardNumberNew,
         forwardNumberExisting,
         menuMessage,
+        voice,
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -95,6 +98,7 @@ export const useTwilioManagement = () => {
               twilioForwardNumberNew: forwardNumberNew || response.data.user.twilioForwardNumberNew,
               twilioForwardNumberExisting: forwardNumberExisting || response.data.user.twilioForwardNumberExisting,
               twilioMenuMessage: menuMessage !== undefined ? menuMessage : response.data.user.twilioMenuMessage,
+              twilioVoice: voice !== undefined ? voice : response.data.user.twilioVoice,
             }
           : customer
       ));

@@ -685,7 +685,7 @@ router.get('/numbers', authenticateToken, authorizeRole(['admin']), async (req, 
 // POST /api/twilio/connect - Connect a Twilio phone number to a clinic (admin only)
 router.post('/connect', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    const { clinicId, phoneNumber, forwardNumber, forwardNumberNew, forwardNumberExisting, menuMessage } = req.body;
+    const { clinicId, phoneNumber, forwardNumber, forwardNumberNew, forwardNumberExisting, menuMessage, voice } = req.body;
     
     if (!clinicId || !phoneNumber) {
       return res.status(400).json({ 
@@ -771,6 +771,10 @@ router.post('/connect', authenticateToken, authorizeRole(['admin']), async (req,
       updateData.twilioMenuMessage = menuMessage || null; // Allow empty string to clear custom message
     }
     
+    if (voice !== undefined) {
+      updateData.twilioVoice = voice || null; // Allow empty string to clear custom voice
+    }
+    
     // Simplified logic: If only one forward number is provided, use it for both options
     const enableMenu = process.env.TWILIO_ENABLE_MENU === 'true';
     if (enableMenu) {
@@ -847,6 +851,7 @@ router.post('/connect', authenticateToken, authorizeRole(['admin']), async (req,
         twilioForwardNumberNew: user.twilioForwardNumberNew,
         twilioForwardNumberExisting: user.twilioForwardNumberExisting,
         twilioMenuMessage: user.twilioMenuMessage,
+        twilioVoice: user.twilioVoice,
       }
     });
   } catch (error) {
@@ -894,6 +899,7 @@ router.patch('/update-message/:clinicId', authenticateToken, authorizeRole(['adm
         name: updatedUser.name,
         twilioPhoneNumber: updatedUser.twilioPhoneNumber,
         twilioMenuMessage: updatedUser.twilioMenuMessage,
+        twilioVoice: updatedUser.twilioVoice,
       }
     });
   } catch (error) {
@@ -937,6 +943,7 @@ router.patch('/disconnect/:clinicId', authenticateToken, authorizeRole(['admin']
         twilioForwardNumberNew: user.twilioForwardNumberNew,
         twilioForwardNumberExisting: user.twilioForwardNumberExisting,
         twilioMenuMessage: user.twilioMenuMessage,
+        twilioVoice: user.twilioVoice,
       }
     });
   } catch (error) {
@@ -1005,11 +1012,18 @@ router.post('/voice/incoming', async (req, res) => {
           twilioForwardNumberExisting: clinic.twilioForwardNumberExisting
         })}`);
       }
-      // Get voice for error message
-      const errorVoice = process.env.TWILIO_VOICE || 'Polly.Joanna-Neural';
+      // Get voice for error message - use clinic's voice if available, otherwise fallback
+      const errorVoice = clinic?.twilioVoice || process.env.TWILIO_VOICE || 'ai:alloy';
+      const generateSayVerb = (text, voiceSetting = errorVoice) => {
+        if (voiceSetting && voiceSetting.startsWith('ai:')) {
+          const aiVoiceName = voiceSetting.replace('ai:', '');
+          return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
+        }
+        return `<Say voice="${voiceSetting}">${text}</Say>`;
+      };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${errorVoice}">Sorry, this number is not configured. Please contact your administrator.</Say>
+  ${generateSayVerb('Sorry, this number is not configured. Please contact your administrator.')}
   <Hangup/>
 </Response>`;
       res.type('text/xml');
@@ -1047,9 +1061,18 @@ router.post('/voice/incoming', async (req, res) => {
         twilioForwardNumberNew: clinic.twilioForwardNumberNew,
         twilioForwardNumberExisting: clinic.twilioForwardNumberExisting
       })}`);
+      // Get voice for error message - use default AI voice
+      const errorVoice = process.env.TWILIO_VOICE || 'ai:alloy';
+      const generateSayVerb = (text, voiceSetting = errorVoice) => {
+        if (voiceSetting && voiceSetting.startsWith('ai:')) {
+          const aiVoiceName = voiceSetting.replace('ai:', '');
+          return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
+        }
+        return `<Say voice="${voiceSetting}">${text}</Say>`;
+      };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna-Neural">Sorry, this number is not configured. Please contact your administrator.</Say>
+  ${generateSayVerb('Sorry, this number is not configured. Please contact your administrator.')}
   <Hangup/>
 </Response>`;
       res.type('text/xml');
@@ -1063,20 +1086,38 @@ router.post('/voice/incoming', async (req, res) => {
     if (!/^\+[1-9]\d{1,14}$/.test(forwardNumber)) {
       console.error(`❌ Invalid forward number format: ${forwardNumber}`);
       console.error(`   Forward number must be in E.164 format: +1XXXXXXXXXX`);
-      // Get voice for error message (before main voice declaration)
-      const errorVoice = process.env.TWILIO_VOICE || 'Polly.Joanna-Neural';
+      // Get voice for error message (before main voice declaration) - use clinic's voice if available
+      const errorVoice = clinic?.twilioVoice || process.env.TWILIO_VOICE || 'ai:alloy';
+      const generateSayVerb = (text, voiceSetting = errorVoice) => {
+        if (voiceSetting && voiceSetting.startsWith('ai:')) {
+          const aiVoiceName = voiceSetting.replace('ai:', '');
+          return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
+        }
+        return `<Say voice="${voiceSetting}">${text}</Say>`;
+      };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${errorVoice}">Sorry, the forward number is not configured correctly. Please contact your administrator.</Say>
+  ${generateSayVerb('Sorry, the forward number is not configured correctly. Please contact your administrator.')}
   <Hangup/>
 </Response>`;
       res.type('text/xml');
       return res.send(errorTwiML);
     }
     
-    // Get voice setting (default: Polly.Joanna-Neural for better quality)
-    // Options: Polly.Joanna-Neural, Polly.Olivia-Neural (female), Polly.Matthew-Neural, Polly.Joey-Neural (male)
-    const voice = process.env.TWILIO_VOICE || 'Polly.Joanna-Neural';
+    // Get voice setting - use clinic's custom voice, fallback to env var, then default
+    // Default to AI voice (alloy) for best quality
+    const voice = clinic.twilioVoice || process.env.TWILIO_VOICE || 'ai:alloy';
+    
+    // Helper function to generate Say verb with proper voice attributes
+    const generateSayVerb = (text, voiceSetting = voice) => {
+      // Check if it's an AI voice (format: ai:alloy, ai:shimmer, ai:verse)
+      if (voiceSetting && voiceSetting.startsWith('ai:')) {
+        const aiVoiceName = voiceSetting.replace('ai:', '');
+        return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
+      }
+      // Standard voice format
+      return `<Say voice="${voiceSetting}">${text}</Say>`;
+    };
     
     // Get custom menu message or use default with clinic name
     // If custom message is set, use it as-is (clinic name can be included manually if desired)
@@ -1151,7 +1192,7 @@ router.post('/voice/incoming', async (req, res) => {
     // This is played AFTER menu selection, before connecting the call
     const needsDisclosure = enableRecording || enableTranscription;
     const disclosureMessage = needsDisclosure 
-      ? `<Say voice="${voice}">This call may be recorded and transcribed for quality assurance and scheduling.</Say>`
+      ? generateSayVerb('This call may be recorded and transcribed for quality assurance and scheduling.')
       : '';
     
     // v2: Menu system - handle digit selection (user pressed 1 or 2)
@@ -1199,9 +1240,9 @@ router.post('/voice/incoming', async (req, res) => {
       twiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather action="${callbackUrl}" method="POST" numDigits="1" timeout="10">
-    <Say voice="${voice}">${menuMessage}</Say>
+    ${generateSayVerb(menuMessage)}
   </Gather>
-  <Say voice="${voice}">We didn't receive your selection. Please call back and try again.</Say>
+  ${generateSayVerb('We didn\'t receive your selection. Please call back and try again.')}
   <Hangup/>
 </Response>`;
     }
@@ -1250,10 +1291,18 @@ router.post('/voice/incoming', async (req, res) => {
     console.error('❌ Error handling incoming call:', error);
     console.error('   Error stack:', error.stack);
     console.error('   Error message:', error.message);
-    const errorVoice = process.env.TWILIO_VOICE || 'alice';
+    // Try to get clinic for voice setting, but if error occurred before clinic lookup, use default
+    const errorVoice = process.env.TWILIO_VOICE || 'ai:alloy';
+    const generateSayVerb = (text, voiceSetting = errorVoice) => {
+      if (voiceSetting && voiceSetting.startsWith('ai:')) {
+        const aiVoiceName = voiceSetting.replace('ai:', '');
+        return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
+      }
+      return `<Say voice="${voiceSetting}">${text}</Say>`;
+    };
     const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${errorVoice}">Sorry, an error occurred while processing your call. Please try again later.</Say>
+  ${generateSayVerb('Sorry, an error occurred while processing your call. Please try again later.')}
   <Hangup/>
 </Response>`;
     res.type('text/xml');
@@ -1508,8 +1557,30 @@ router.get('/voice/voicemail', async (req, res) => {
     // Call was NOT answered - proceed with voicemail prompt
     console.log(`📞 Call was NOT answered (DialCallStatus: ${DialCallStatus}) - prompting for voicemail`);
     
-    // Get voice setting
-    const voice = process.env.TWILIO_VOICE || 'Polly.Joanna-Neural';
+    // Get clinic's voice setting - look up clinic from CallSid
+    let voice = process.env.TWILIO_VOICE || 'ai:alloy';
+    if (CallSid) {
+      try {
+        const callLog = await CallLog.findOne({ callSid: CallSid });
+        if (callLog && callLog.customerId) {
+          const clinic = await User.findById(callLog.customerId);
+          if (clinic && clinic.twilioVoice) {
+            voice = clinic.twilioVoice;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch clinic voice setting, using default:', err.message);
+      }
+    }
+    
+    // Helper function to generate Say verb with proper voice attributes
+    const generateSayVerb = (text, voiceSetting = voice) => {
+      if (voiceSetting && voiceSetting.startsWith('ai:')) {
+        const aiVoiceName = voiceSetting.replace('ai:', '');
+        return `<Say voice="ai" model="gpt-4o-mini-tts" voice_name="${aiVoiceName}">${text}</Say>`;
+      }
+      return `<Say voice="${voiceSetting}">${text}</Say>`;
+    };
     
     // Get base URL for voicemail callbacks
     let voicemailBaseUrl = process.env.BACKEND_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000';
@@ -1521,7 +1592,7 @@ router.get('/voice/voicemail', async (req, res) => {
     // TwiML to record voicemail
     const twiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}">Please leave a message after the tone. Press the pound key when you're finished.</Say>
+  ${generateSayVerb('Please leave a message after the tone. Press the pound key when you\'re finished.')}
   <Record 
     maxLength="300" 
     finishOnKey="#" 
@@ -1530,7 +1601,7 @@ router.get('/voice/voicemail', async (req, res) => {
     recordingStatusCallbackMethod="POST"
     transcribe="false"
   />
-  <Say voice="${voice}">Thank you for your message. Goodbye.</Say>
+  ${generateSayVerb('Thank you for your message. Goodbye.')}
   <Hangup/>
 </Response>`;
     
