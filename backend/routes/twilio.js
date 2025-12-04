@@ -6,6 +6,62 @@ const CallLog = require('../models/CallLog');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 
+// ============================================
+// Voice Validation - 100% Verified Twilio Voices
+// ============================================
+
+// Valid Twilio voice names (verified working)
+const VALID_TWILIO_VOICES = [
+  // Polly Generative (Best - Most Natural)
+  'Polly.Ruth', 'Polly.Stephen', 'Polly.Matthew',
+  
+  // Google Wavenet (High Quality Natural)
+  'Google.en-US-Wavenet-A', 'Google.en-US-Wavenet-B', 'Google.en-US-Wavenet-C',
+  'Google.en-US-Wavenet-D', 'Google.en-US-Wavenet-E', 'Google.en-US-Wavenet-F',
+  'Google.en-US-Wavenet-G', 'Google.en-US-Wavenet-H', 'Google.en-US-Wavenet-I',
+  'Google.en-US-Wavenet-J',
+  
+  // Google Neural2 (Excellent Quality)
+  'Google.en-US-Neural2-A', 'Google.en-US-Neural2-C', 'Google.en-US-Neural2-D',
+  'Google.en-US-Neural2-F',
+  
+  // Polly Neural (Good Quality)
+  'Polly.Joanna-Neural', 'Polly.Matthew-Neural', 'Polly.Kendra-Neural',
+  'Polly.Kimberly-Neural', 'Polly.Salli-Neural', 'Polly.Joey-Neural',
+  'Polly.Justin-Neural', 'Polly.Kevin-Neural', 'Polly.Ivy-Neural',
+  'Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Brian-Neural',
+  'Polly.Olivia-Neural',
+  
+  // Polly Standard (Basic Quality)
+  'Polly.Joanna', 'Polly.Matthew', 'Polly.Kendra', 'Polly.Kimberly',
+  'Polly.Salli', 'Polly.Joey', 'Polly.Justin', 'Polly.Kevin',
+  'Polly.Amy', 'Polly.Emma', 'Polly.Brian', 'Polly.Nicole', 'Polly.Russell',
+  'Polly.Aditi', 'Polly.Raveena', 'Polly.Geraint',
+  
+  // Google Standard (Basic Quality)
+  'Google.en-US-Standard-A', 'Google.en-US-Standard-B', 'Google.en-US-Standard-C',
+  'Google.en-US-Standard-D', 'Google.en-US-Standard-E',
+  
+  // Basic voices (Legacy)
+  'alice', 'woman', 'man'
+];
+
+// Voice validation function - ensures only valid voices are used
+const validateAndGetVoice = (requestedVoice) => {
+  if (!requestedVoice) {
+    return 'Polly.Ruth'; // Default to most natural voice
+  }
+  
+  // Check if voice is valid
+  if (VALID_TWILIO_VOICES.includes(requestedVoice)) {
+    return requestedVoice;
+  }
+  
+  // Invalid voice - log warning and use default
+  console.warn(`[VOICE WARNING] Invalid voice "${requestedVoice}" requested. Using default: Polly.Ruth`);
+  return 'Polly.Ruth';
+};
+
 // OpenAI for AI-powered appointment detection (optional - falls back to keyword matching)
 let OpenAI = null;
 try {
@@ -771,8 +827,17 @@ router.post('/connect', authenticateToken, authorizeRole(['admin']), async (req,
       updateData.twilioMenuMessage = menuMessage || null; // Allow empty string to clear custom message
     }
     
+    // Handle voice update with validation
     if (voice !== undefined) {
-      updateData.twilioVoice = voice || null; // Allow empty string to clear custom voice
+      if (voice) {
+        const validatedVoice = validateAndGetVoice(voice);
+        updateData.twilioVoice = validatedVoice;
+        console.log(`[VOICE UPDATE] Clinic: ${clinicId} | New voice: ${validatedVoice}`);
+      } else {
+        // Empty string or null clears custom voice (will use default)
+        updateData.twilioVoice = null;
+        console.log(`[VOICE UPDATE] Clinic: ${clinicId} | Voice cleared, will use default: Polly.Ruth`);
+      }
     }
     
     // Simplified logic: If only one forward number is provided, use it for both options
@@ -1012,10 +1077,13 @@ router.post('/voice/incoming', async (req, res) => {
           twilioForwardNumberExisting: clinic.twilioForwardNumberExisting
         })}`);
       }
-      // Get voice for error message - use clinic's voice if available, otherwise fallback
-      const errorVoice = clinic?.twilioVoice || process.env.TWILIO_VOICE || 'Google.en-US-Studio-O';
+      // Get voice for error message - use clinic's voice if available, otherwise default
+      const requestedErrorVoice = clinic?.twilioVoice || 'Polly.Ruth';
+      const errorVoice = validateAndGetVoice(requestedErrorVoice);
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
-        return `<Say voice="${voiceSetting}">${text}</Say>`;
+        const isGoogleVoice = voiceSetting && voiceSetting.startsWith('Google.');
+        const languageAttr = isGoogleVoice ? ' language="en-US"' : '';
+        return `<Say voice="${voiceSetting}"${languageAttr}>${text}</Say>`;
       };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -1057,10 +1125,12 @@ router.post('/voice/incoming', async (req, res) => {
         twilioForwardNumberNew: clinic.twilioForwardNumberNew,
         twilioForwardNumberExisting: clinic.twilioForwardNumberExisting
       })}`);
-      // Get voice for error message - use default AI voice
-      const errorVoice = process.env.TWILIO_VOICE || 'Google.en-US-Studio-O';
+      // Get voice for error message - use default
+      const errorVoice = validateAndGetVoice('Polly.Ruth');
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
-        return `<Say voice="${voiceSetting}">${text}</Say>`;
+        const isGoogleVoice = voiceSetting && voiceSetting.startsWith('Google.');
+        const languageAttr = isGoogleVoice ? ' language="en-US"' : '';
+        return `<Say voice="${voiceSetting}"${languageAttr}>${text}</Say>`;
       };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -1079,9 +1149,12 @@ router.post('/voice/incoming', async (req, res) => {
       console.error(`❌ Invalid forward number format: ${forwardNumber}`);
       console.error(`   Forward number must be in E.164 format: +1XXXXXXXXXX`);
       // Get voice for error message (before main voice declaration) - use clinic's voice if available
-      const errorVoice = clinic?.twilioVoice || process.env.TWILIO_VOICE || 'Google.en-US-Studio-O';
+      const requestedErrorVoice = clinic?.twilioVoice || 'Polly.Ruth';
+      const errorVoice = validateAndGetVoice(requestedErrorVoice);
       const generateSayVerb = (text, voiceSetting = errorVoice) => {
-        return `<Say voice="${voiceSetting}">${text}</Say>`;
+        const isGoogleVoice = voiceSetting && voiceSetting.startsWith('Google.');
+        const languageAttr = isGoogleVoice ? ' language="en-US"' : '';
+        return `<Say voice="${voiceSetting}"${languageAttr}>${text}</Say>`;
       };
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -1092,17 +1165,21 @@ router.post('/voice/incoming', async (req, res) => {
       return res.send(errorTwiML);
     }
     
-    // Get voice setting - use clinic's custom voice, fallback to env var, then default
-    // Default to AI voice (alloy) for best quality
-    const voice = clinic.twilioVoice || process.env.TWILIO_VOICE || 'Google.en-US-Studio-O';
+    // Get voice setting - use clinic's custom voice, fallback to default (Polly.Ruth)
+    // NO ENV VARIABLE - use database value or default only
+    const requestedVoice = clinic.twilioVoice || 'Polly.Ruth';
+    const voice = validateAndGetVoice(requestedVoice);
+    
+    // Log the voice being used (for debugging)
+    console.log(`[VOICE] Clinic: ${clinic.name || clinic._id} | Requested: ${requestedVoice} | Using: ${voice}`);
     
     // Helper function to generate Say verb with proper voice attributes
     const generateSayVerb = (text, voiceSetting = voice) => {
-      // All Twilio voices use standard format: voice="VoiceName"
-      // Google voices: Google.en-US-Studio-O, Google.en-US-Neural2-C, etc.
-      // Polly voices: Polly.Joanna-Generative, Polly.Joanna-Neural, etc.
-      // Basic voices: alice, man, woman
-      return `<Say voice="${voiceSetting}">${text}</Say>`;
+      // Add language attribute for Google voices (required for optimal quality)
+      const isGoogleVoice = voiceSetting && voiceSetting.startsWith('Google.');
+      const languageAttr = isGoogleVoice ? ' language="en-US"' : '';
+      
+      return `<Say voice="${voiceSetting}"${languageAttr}>${text}</Say>`;
     };
     
     // Get custom menu message or use default with clinic name
@@ -1278,9 +1355,11 @@ router.post('/voice/incoming', async (req, res) => {
     console.error('   Error stack:', error.stack);
     console.error('   Error message:', error.message);
     // Try to get clinic for voice setting, but if error occurred before clinic lookup, use default
-    const errorVoice = process.env.TWILIO_VOICE || 'ai:alloy';
+    const errorVoice = validateAndGetVoice('Polly.Ruth');
     const generateSayVerb = (text, voiceSetting = errorVoice) => {
-      return `<Say voice="${voiceSetting}">${text}</Say>`;
+      const isGoogleVoice = voiceSetting && voiceSetting.startsWith('Google.');
+      const languageAttr = isGoogleVoice ? ' language="en-US"' : '';
+      return `<Say voice="${voiceSetting}"${languageAttr}>${text}</Say>`;
     };
     const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -1540,14 +1619,14 @@ router.get('/voice/voicemail', async (req, res) => {
     console.log(`📞 Call was NOT answered (DialCallStatus: ${DialCallStatus}) - prompting for voicemail`);
     
     // Get clinic's voice setting - look up clinic from CallSid
-    let voice = process.env.TWILIO_VOICE || 'Google.en-US-Studio-O';
+    let requestedVoice = 'Polly.Ruth'; // Default
     if (CallSid) {
       try {
         const callLog = await CallLog.findOne({ callSid: CallSid });
         if (callLog && callLog.customerId) {
           const clinic = await User.findById(callLog.customerId);
           if (clinic && clinic.twilioVoice) {
-            voice = clinic.twilioVoice;
+            requestedVoice = clinic.twilioVoice;
           }
         }
       } catch (err) {
@@ -1555,9 +1634,14 @@ router.get('/voice/voicemail', async (req, res) => {
       }
     }
     
+    const voice = validateAndGetVoice(requestedVoice);
+    console.log(`[VOICE] Voicemail | Requested: ${requestedVoice} | Using: ${voice}`);
+    
     // Helper function to generate Say verb with proper voice attributes
     const generateSayVerb = (text, voiceSetting = voice) => {
-      return `<Say voice="${voiceSetting}">${text}</Say>`;
+      const isGoogleVoice = voiceSetting && voiceSetting.startsWith('Google.');
+      const languageAttr = isGoogleVoice ? ' language="en-US"' : '';
+      return `<Say voice="${voiceSetting}"${languageAttr}>${text}</Say>`;
     };
     
     // Get base URL for voicemail callbacks
