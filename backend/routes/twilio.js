@@ -1792,13 +1792,35 @@ router.get('/recording/:recordingSid', authenticateToken, async (req, res) => {
       const recordingMediaUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${recordingSid}.mp3`;
       
       // Fetch the actual audio file from Twilio with authentication
-      const audioResponse = await axios.get(recordingMediaUrl, {
-        auth: {
-          username: username,
-          password: password
-        },
-        responseType: 'stream'
-      });
+      // Try with current credentials first, fallback to Auth Token if API keys fail
+      let audioResponse;
+      try {
+        audioResponse = await axios.get(recordingMediaUrl, {
+          auth: {
+            username: username,
+            password: password
+          },
+          responseType: 'stream'
+        });
+      } catch (authError) {
+        // If API keys fail (401/403), try with Auth Token as fallback
+        const isAuthError = authError.response?.status === 401 || authError.response?.status === 403;
+        const hasAuthToken = !!process.env.TWILIO_AUTH_TOKEN;
+        const wasUsingApiKey = username !== accountSid;
+        
+        if (isAuthError && wasUsingApiKey && hasAuthToken) {
+          console.warn('⚠️ API Key failed for recording fetch, falling back to Auth Token...');
+          audioResponse = await axios.get(recordingMediaUrl, {
+            auth: {
+              username: accountSid,
+              password: process.env.TWILIO_AUTH_TOKEN
+            },
+            responseType: 'stream'
+          });
+        } else {
+          throw authError;
+        }
+      }
       
       // Set appropriate headers for audio streaming (BEFORE piping)
       res.setHeader('Content-Type', 'audio/mpeg');
@@ -1913,13 +1935,35 @@ router.get('/voicemail/:callSid', authenticateToken, async (req, res) => {
       const recordingMediaUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${callLog.recordingSid}.mp3`;
       
       // Fetch the actual audio file from Twilio with authentication
-      const audioResponse = await axios.get(recordingMediaUrl, {
-        auth: {
-          username: username,
-          password: password
-        },
-        responseType: 'stream'
-      });
+      // Try with current credentials first, fallback to Auth Token if API keys fail
+      let audioResponse;
+      try {
+        audioResponse = await axios.get(recordingMediaUrl, {
+          auth: {
+            username: username,
+            password: password
+          },
+          responseType: 'stream'
+        });
+      } catch (authError) {
+        // If API keys fail (401/403), try with Auth Token as fallback
+        const isAuthError = authError.response?.status === 401 || authError.response?.status === 403;
+        const hasAuthToken = !!process.env.TWILIO_AUTH_TOKEN;
+        const wasUsingApiKey = username !== accountSid;
+        
+        if (isAuthError && wasUsingApiKey && hasAuthToken) {
+          console.warn('⚠️ API Key failed for voicemail fetch, falling back to Auth Token...');
+          audioResponse = await axios.get(recordingMediaUrl, {
+            auth: {
+              username: accountSid,
+              password: process.env.TWILIO_AUTH_TOKEN
+            },
+            responseType: 'stream'
+          });
+        } else {
+          throw authError;
+        }
+      }
       
       // Set appropriate headers for audio streaming (BEFORE piping)
       res.setHeader('Content-Type', 'audio/mpeg');
