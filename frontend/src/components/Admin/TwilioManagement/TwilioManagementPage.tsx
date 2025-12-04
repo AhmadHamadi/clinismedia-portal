@@ -6,111 +6,56 @@ import axios from 'axios';
 // Sample text to play for voice preview
 const VOICE_SAMPLE_TEXT = "Thank you for calling. Press 1 for new patients, press 2 for existing patients.";
 
-// Valid Twilio voice names organized by category (100% VERIFIED - All names confirmed working)
+// Valid Twilio voice names (100% VERIFIED - From Twilio Console Text-to-Speech)
+// Format: <Provider>.<Voice> where Provider is "Polly" or "Google" and Voice is exact value from console
+// Rule: Provider from console (Amazon Polly → Polly, Google Text-to-Speech → Google)
+//       Voice from dropdown (e.g. "en-US-Chirp3-HD-Aoede", "Joanna-Generative")
+//       Combined: Google.en-US-Chirp3-HD-Aoede or Polly.Joanna-Generative
 const TWILIO_VOICES = [
   {
-    category: '⭐ Premium - Most Natural (Best for Medical Clinics)',
+    category: '⭐ Amazon Polly Generative (Best Quality - Most Natural)',
     voices: [
-      { value: 'Polly.Ruth', label: '🏆 Polly Ruth - Female (BEST: Natural, Warm, Professional)', description: '⭐ BEST OVERALL - Most natural female voice, perfect for medical clinics' },
-      { value: 'Polly.Stephen', label: '🏆 Polly Stephen - Male (BEST: Calm, Trustworthy, Deep)', description: '⭐ BEST MALE - Most natural male voice, calm and trustworthy' },
-      { value: 'Polly.Matthew', label: 'Polly Matthew - Male (Warm, Friendly, Professional)', description: 'Very natural - warm, friendly, professional male voice' },
-      { value: 'Google.en-US-Wavenet-C', label: 'Google Wavenet C - Female (Very Natural, Clear)', description: 'Very natural - clear, professional female voice' },
-      { value: 'Google.en-US-Wavenet-F', label: 'Google Wavenet F - Female (Warm, Caring, Soft)', description: 'Very natural - warm, caring, soft female voice' },
-      { value: 'Google.en-US-Wavenet-D', label: 'Google Wavenet D - Male (Deep, Authoritative)', description: 'Very natural - deep, authoritative male voice' },
+      { value: 'Polly.Danielle-Generative', label: '🏆 Danielle-Generative - Female (BEST: Most Natural)', description: '⭐ BEST OVERALL - Most natural female voice, perfect for medical clinics' },
+      { value: 'Polly.Joanna-Generative', label: '🏆 Joanna-Generative - Female (Excellent: Professional, Warm)', description: 'Excellent quality - professional, warm female voice' },
+      { value: 'Polly.Matthew-Generative', label: 'Matthew-Generative - Male (Natural, Professional)', description: 'Very natural - professional male voice' },
+      { value: 'Polly.Ruth-Generative', label: 'Ruth-Generative - Female (Natural, Friendly)', description: 'Very natural - friendly, clear female voice' },
+      { value: 'Polly.Stephen-Generative', label: '🏆 Stephen-Generative - Male (BEST: Calm, Trustworthy)', description: '⭐ BEST MALE - Most natural male voice, calm and trustworthy' },
     ]
   },
   {
-    category: 'Google Neural2 - Excellent Quality',
+    category: 'Amazon Polly Neural (High Quality)',
     voices: [
-      { value: 'Google.en-US-Neural2-A', label: 'Neural2 A - Male (Clear, Professional)', description: 'Excellent quality - clear, professional male voice' },
-      { value: 'Google.en-US-Neural2-C', label: 'Neural2 C - Female (Warm, Friendly)', description: 'Excellent quality - warm, friendly female voice' },
-      { value: 'Google.en-US-Neural2-D', label: 'Neural2 D - Male (Deep, Authoritative)', description: 'Excellent quality - deep, authoritative male voice' },
-      { value: 'Google.en-US-Neural2-F', label: 'Neural2 F - Female (Energetic, Clear)', description: 'Excellent quality - energetic, clear female voice' },
+      { value: 'Polly.Danielle-Neural', label: 'Danielle-Neural - Female (High Quality)', description: 'High quality neural female voice' },
+      { value: 'Polly.Gregory-Neural', label: 'Gregory-Neural - Male (High Quality)', description: 'High quality neural male voice' },
+      { value: 'Polly.Ivy-Neural', label: 'Ivy-Neural - Female Child (Young Voice)', description: 'Child voice - use for pediatric clinics' },
+      { value: 'Polly.Joanna-Neural', label: 'Joanna-Neural - Female (Professional)', description: 'Professional female voice - neural quality' },
+      { value: 'Polly.Joey-Neural', label: 'Joey-Neural - Male (Young, Casual)', description: 'Young, casual male voice - neural quality' },
+      { value: 'Polly.Justin-Neural', label: 'Justin-Neural - Male (Young, Professional)', description: 'Young, professional male voice - neural quality' },
+      { value: 'Polly.Kendra-Neural', label: 'Kendra-Neural - Female (Young, Energetic)', description: 'Young, energetic female voice - neural quality' },
+      { value: 'Polly.Kevin-Neural', label: 'Kevin-Neural - Male (Young, Friendly)', description: 'Young, friendly male voice - neural quality' },
+      { value: 'Polly.Kimberly-Neural', label: 'Kimberly-Neural - Female (Professional, Mature)', description: 'Professional, mature female voice - neural quality' },
     ]
   },
   {
-    category: 'Google Wavenet - High Quality Natural Voices',
+    category: 'Amazon Polly Standard (Standard Quality)',
     voices: [
-      { value: 'Google.en-US-Wavenet-A', label: 'Wavenet A - Male (Natural, Balanced)', description: 'High quality - natural, balanced male voice' },
-      { value: 'Google.en-US-Wavenet-B', label: 'Wavenet B - Male (Deep, Strong)', description: 'High quality - deep, strong male voice' },
-      { value: 'Google.en-US-Wavenet-E', label: 'Wavenet E - Female (Professional, Clear)', description: 'High quality - professional, clear female voice' },
-      { value: 'Google.en-US-Wavenet-G', label: 'Wavenet G - Female (Young, Energetic)', description: 'High quality - young, energetic female voice' },
-      { value: 'Google.en-US-Wavenet-H', label: 'Wavenet H - Female (Soft, Gentle)', description: 'High quality - soft, gentle female voice' },
-      { value: 'Google.en-US-Wavenet-I', label: 'Wavenet I - Male (Young, Friendly)', description: 'High quality - young, friendly male voice' },
-      { value: 'Google.en-US-Wavenet-J', label: 'Wavenet J - Male (Mature, Experienced)', description: 'High quality - mature, experienced male voice' },
-    ]
-  },
-  {
-    category: 'Amazon Polly Neural - Good Quality',
-    voices: [
-      { value: 'Polly.Joanna-Neural', label: 'Joanna - Female (Professional, Standard)', description: 'Professional female voice - good quality' },
-      { value: 'Polly.Matthew-Neural', label: 'Matthew - Male (Friendly, Approachable)', description: 'Friendly, approachable male voice' },
-      { value: 'Polly.Kendra-Neural', label: 'Kendra - Female (Young, Energetic)', description: 'Young, energetic female voice' },
-      { value: 'Polly.Kimberly-Neural', label: 'Kimberly - Female (Professional, Mature)', description: 'Professional, mature female voice' },
-      { value: 'Polly.Salli-Neural', label: 'Salli - Female (Warm, Friendly)', description: 'Warm, friendly female voice' },
-      { value: 'Polly.Joey-Neural', label: 'Joey - Male (Young, Casual)', description: 'Young, casual male voice' },
-      { value: 'Polly.Justin-Neural', label: 'Justin - Male (Young, Professional)', description: 'Young, professional male voice' },
-      { value: 'Polly.Kevin-Neural', label: 'Kevin - Male (Young, Friendly)', description: 'Young, friendly male voice' },
-      { value: 'Polly.Ivy-Neural', label: 'Ivy - Female Child (Young Voice)', description: 'Child voice - use for pediatric clinics' },
-    ]
-  },
-  {
-    category: 'Amazon Polly Standard - Basic Quality',
-    voices: [
-      { value: 'Polly.Joanna', label: 'Joanna - Female (Standard Quality)', description: 'Standard quality female voice' },
-      { value: 'Polly.Matthew', label: 'Matthew - Male (Standard Quality)', description: 'Standard quality male voice' },
-      { value: 'Polly.Kendra', label: 'Kendra - Female (Standard Quality)', description: 'Standard quality female voice' },
-      { value: 'Polly.Kimberly', label: 'Kimberly - Female (Standard Quality)', description: 'Standard quality female voice' },
-      { value: 'Polly.Salli', label: 'Salli - Female (Standard Quality)', description: 'Standard quality female voice' },
       { value: 'Polly.Joey', label: 'Joey - Male (Standard Quality)', description: 'Standard quality male voice' },
       { value: 'Polly.Justin', label: 'Justin - Male (Standard Quality)', description: 'Standard quality male voice' },
+      { value: 'Polly.Kendra', label: 'Kendra - Female (Standard Quality)', description: 'Standard quality female voice' },
       { value: 'Polly.Kevin', label: 'Kevin - Male (Standard Quality)', description: 'Standard quality male voice' },
+      { value: 'Polly.Kimberly', label: 'Kimberly - Female (Standard Quality)', description: 'Standard quality female voice' },
+      { value: 'Polly.Matthew', label: 'Matthew - Male (Standard Quality)', description: 'Standard quality male voice' },
+      { value: 'Polly.Salli', label: 'Salli - Female (Standard Quality)', description: 'Standard quality female voice' },
     ]
   },
   {
-    category: 'British English',
+    category: 'Google Text-to-Speech (Chirp3 HD - High Quality)',
     voices: [
-      { value: 'Polly.Amy-Neural', label: 'Amy - Female British Neural (Professional)', description: 'Elegant British female voice - neural quality' },
-      { value: 'Polly.Emma-Neural', label: 'Emma - Female British Neural (Warm)', description: 'Friendly British female voice - neural quality' },
-      { value: 'Polly.Brian-Neural', label: 'Brian - Male British Neural (Professional)', description: 'Professional British male voice - neural quality' },
-      { value: 'Polly.Amy', label: 'Amy - Female British Standard', description: 'British female voice - standard quality' },
-      { value: 'Polly.Emma', label: 'Emma - Female British Standard', description: 'British female voice - standard quality' },
-      { value: 'Polly.Brian', label: 'Brian - Male British Standard', description: 'British male voice - standard quality' },
+      { value: 'Google.en-US-Chirp3-HD-Aoede', label: '🏆 Chirp3 HD Aoede - Female (Google HD Voice)', description: '⭐ GOOGLE HD - High quality Google Chirp3 HD voice, very natural' },
     ]
   },
   {
-    category: 'Australian English',
-    voices: [
-      { value: 'Polly.Olivia-Neural', label: 'Olivia - Female Australian Neural (Friendly)', description: 'Friendly Australian female voice - neural quality' },
-      { value: 'Polly.Nicole', label: 'Nicole - Female Australian Standard', description: 'Australian female voice - standard quality' },
-      { value: 'Polly.Russell', label: 'Russell - Male Australian Standard', description: 'Australian male voice - standard quality' },
-    ]
-  },
-  {
-    category: 'Indian English',
-    voices: [
-      { value: 'Polly.Aditi', label: 'Aditi - Female Indian English', description: 'Indian English accent - female voice' },
-      { value: 'Polly.Raveena', label: 'Raveena - Female Indian English', description: 'Indian English accent - female voice' },
-    ]
-  },
-  {
-    category: 'Welsh English',
-    voices: [
-      { value: 'Polly.Geraint', label: 'Geraint - Male Welsh English', description: 'Welsh English accent - male voice' },
-    ]
-  },
-  {
-    category: 'Google Standard - Basic Quality',
-    voices: [
-      { value: 'Google.en-US-Standard-A', label: 'Standard A - Male (Basic)', description: 'Basic quality male voice' },
-      { value: 'Google.en-US-Standard-B', label: 'Standard B - Male (Basic)', description: 'Basic quality male voice' },
-      { value: 'Google.en-US-Standard-C', label: 'Standard C - Female (Basic)', description: 'Basic quality female voice' },
-      { value: 'Google.en-US-Standard-D', label: 'Standard D - Male (Basic)', description: 'Basic quality male voice' },
-      { value: 'Google.en-US-Standard-E', label: 'Standard E - Female (Basic)', description: 'Basic quality female voice' },
-    ]
-  },
-  {
-    category: 'Basic Twilio Voices (Not Recommended)',
+    category: 'Basic Twilio Voices (Legacy - Not Recommended)',
     voices: [
       { value: 'alice', label: 'Alice - Basic Female (Legacy)', description: 'Legacy basic female voice - not recommended' },
       { value: 'woman', label: 'Woman - Basic Female (Legacy)', description: 'Legacy basic female voice - not recommended' },
@@ -223,7 +168,7 @@ const TwilioManagementPage: React.FC = () => {
         forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
         // Pre-fill with default message if not already set
         menuMessage: prev[customerId]?.menuMessage || defaultMessage,
-        voice: prev[customerId]?.voice || customer?.twilioVoice || 'Polly.Ruth',
+        voice: prev[customerId]?.voice || customer?.twilioVoice || 'Polly.Danielle-Generative',
       },
     }));
   };
@@ -239,7 +184,7 @@ const TwilioManagementPage: React.FC = () => {
         forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
         forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
         menuMessage: prev[customerId]?.menuMessage || '',
-        voice: prev[customerId]?.voice || customer?.twilioVoice || 'Polly.Ruth',
+        voice: prev[customerId]?.voice || customer?.twilioVoice || 'Polly.Danielle-Generative',
       },
     }));
   };
@@ -255,7 +200,7 @@ const TwilioManagementPage: React.FC = () => {
         forwardNumberNew,
         forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
         menuMessage: prev[customerId]?.menuMessage || '',
-        voice: prev[customerId]?.voice || customer?.twilioVoice || 'Polly.Ruth',
+        voice: prev[customerId]?.voice || customer?.twilioVoice || 'Polly.Danielle-Generative',
       },
     }));
   };
@@ -271,7 +216,7 @@ const TwilioManagementPage: React.FC = () => {
         forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
         forwardNumberExisting,
         menuMessage: prev[customerId]?.menuMessage || '',
-        voice: prev[customerId]?.voice || customer?.twilioVoice || 'Polly.Ruth',
+        voice: prev[customerId]?.voice || customer?.twilioVoice || 'Polly.Danielle-Generative',
       },
     }));
   };
@@ -287,7 +232,7 @@ const TwilioManagementPage: React.FC = () => {
         forwardNumberNew: prev[customerId]?.forwardNumberNew || '',
         forwardNumberExisting: prev[customerId]?.forwardNumberExisting || '',
         menuMessage,
-        voice: prev[customerId]?.voice || customer?.twilioVoice || 'Polly.Ruth',
+        voice: prev[customerId]?.voice || customer?.twilioVoice || 'Polly.Danielle-Generative',
       },
     }));
   };
@@ -360,35 +305,17 @@ const TwilioManagementPage: React.FC = () => {
       // Map Twilio voices to browser voices
       const utterance = new SpeechSynthesisUtterance(VOICE_SAMPLE_TEXT);
       
-      // For Google Wavenet/Neural2/Standard voices, use high-quality voice mapping
-      if (voiceValue.startsWith('Google.en-US-Wavenet-') || voiceValue.startsWith('Google.en-US-Neural2-') || voiceValue.startsWith('Google.en-US-Standard-')) {
+      // For Polly and Google voices, try to match gender
+      if (voiceValue.startsWith('Polly.') || voiceValue.startsWith('Google.')) {
         const voices = synth.getVoices();
-        // Try to find Google voices or high-quality alternatives
-        let selectedVoice = voices.find(v => 
-          v.name.includes('Google') || 
-          v.name.includes('Chrome') ||
-          v.name.includes('Microsoft') ||
-          v.name.includes('Samantha') ||
-          v.name.includes('Alex')
-        ) || voices.find(v => v.lang.startsWith('en'));
-        
-        if (selectedVoice) {
-          utterance.voice = selectedVoice;
-        }
-        utterance.rate = 0.95; // Slightly slower for naturalness
-        utterance.pitch = 1.0;
-      } else if (voiceValue.startsWith('Polly.')) {
-        // For Polly voices, try to match gender
-        const voices = synth.getVoices();
-        const isFemale = voiceValue.includes('Ruth') || voiceValue.includes('Joanna') || voiceValue.includes('Olivia') || 
-                        voiceValue.includes('Amy') || voiceValue.includes('Emma') ||
-                        voiceValue.includes('Raveena') || voiceValue.includes('Nicole') ||
-                        voiceValue.includes('Kendra') || voiceValue.includes('Kimberly') ||
-                        voiceValue.includes('Salli') || voiceValue.includes('Ivy');
+        // For Polly and Google voices, try to match gender
+        const isFemale = voiceValue.includes('Danielle') || voiceValue.includes('Joanna') || 
+                        voiceValue.includes('Ruth') || voiceValue.includes('Kendra') || 
+                        voiceValue.includes('Kimberly') || voiceValue.includes('Ivy') ||
+                        voiceValue.includes('Salli') || voiceValue.includes('Aoede');
         const isMale = voiceValue.includes('Matthew') || voiceValue.includes('Stephen') || 
                        voiceValue.includes('Joey') || voiceValue.includes('Justin') ||
-                       voiceValue.includes('Kevin') || voiceValue.includes('Brian') ||
-                       voiceValue.includes('Russell');
+                       voiceValue.includes('Kevin') || voiceValue.includes('Gregory');
         
         const selectedVoice = voices.find(v => {
           const name = v.name.toLowerCase();
@@ -690,14 +617,14 @@ const TwilioManagementPage: React.FC = () => {
                         {status.connected ? (
                           <div className="text-xs">
                             <div className="font-medium flex items-center gap-1">
-                              {customer.twilioVoice || 'Polly.Ruth'}
+                              {customer.twilioVoice || 'Polly.Danielle-Generative'}
                               <button
-                                onClick={() => playVoiceSample(customer.twilioVoice || 'Polly.Ruth')}
+                                onClick={() => playVoiceSample(customer.twilioVoice || 'Polly.Danielle-Generative')}
                                 className="text-blue-600 hover:text-blue-800 p-0.5"
                                 title="Play voice sample"
-                                disabled={playingVoice === (customer.twilioVoice || 'Polly.Ruth')}
+                                disabled={playingVoice === (customer.twilioVoice || 'Polly.Danielle-Generative')}
                               >
-                                {playingVoice === (customer.twilioVoice || 'Polly.Ruth') ? (
+                                {playingVoice === (customer.twilioVoice || 'Polly.Danielle-Generative') ? (
                                   <FaStop className="text-xs" />
                                 ) : (
                                   <FaVolumeUp className="text-xs" />
@@ -705,14 +632,14 @@ const TwilioManagementPage: React.FC = () => {
                               </button>
                             </div>
                             <div className="text-gray-500 text-xs mt-0.5">
-                              {FLATTENED_VOICES.find(v => v.value === (customer.twilioVoice || 'Polly.Ruth'))?.description || 'Default voice (AI - Most Natural)'}
+                              {FLATTENED_VOICES.find(v => v.value === (customer.twilioVoice || 'Polly.Danielle-Generative'))?.description || 'Default voice (Most Natural)'}
                             </div>
                           </div>
                         ) : (
                           <div className="space-y-1">
                             <select
                               className="border rounded px-1.5 py-1 w-full text-xs"
-                              value={selectedConnections[customer._id]?.voice || customer.twilioVoice || 'Polly.Ruth'}
+                              value={selectedConnections[customer._id]?.voice || customer.twilioVoice || 'Polly.Danielle-Generative'}
                               onChange={(e) => handleVoiceChange(customer._id, e.target.value)}
                               disabled={isConnecting}
                             >
@@ -728,12 +655,12 @@ const TwilioManagementPage: React.FC = () => {
                             </select>
                             <div className="flex items-center gap-1">
                               <button
-                                onClick={() => playVoiceSample(selectedConnections[customer._id]?.voice || customer.twilioVoice || 'Polly.Ruth')}
+                                onClick={() => playVoiceSample(selectedConnections[customer._id]?.voice || customer.twilioVoice || 'Polly.Danielle-Generative')}
                                 className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 px-1.5 py-0.5 border border-blue-300 rounded hover:bg-blue-50"
                                 title="Play voice sample"
-                                disabled={isConnecting || playingVoice === (selectedConnections[customer._id]?.voice || customer.twilioVoice || 'Polly.Ruth')}
+                                disabled={isConnecting || playingVoice === (selectedConnections[customer._id]?.voice || customer.twilioVoice || 'Polly.Danielle-Generative')}
                               >
-                                {playingVoice === (selectedConnections[customer._id]?.voice || customer.twilioVoice || 'Polly.Ruth') ? (
+                                {playingVoice === (selectedConnections[customer._id]?.voice || customer.twilioVoice || 'Polly.Danielle-Generative') ? (
                                   <>
                                     <FaStop className="text-xs" /> Stop
                                   </>
@@ -744,7 +671,7 @@ const TwilioManagementPage: React.FC = () => {
                                 )}
                               </button>
                               <span className="text-xs text-gray-500">
-                                {FLATTENED_VOICES.find(v => v.value === (selectedConnections[customer._id]?.voice || customer.twilioVoice || 'Polly.Ruth'))?.description || ''}
+                                {FLATTENED_VOICES.find(v => v.value === (selectedConnections[customer._id]?.voice || customer.twilioVoice || 'Polly.Danielle-Generative'))?.description || ''}
                               </span>
                             </div>
                           </div>
