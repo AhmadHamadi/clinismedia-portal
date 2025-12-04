@@ -1704,9 +1704,19 @@ router.post('/voice/dial-status', async (req, res) => {
 
 // OPTIONS handler for CORS preflight (recording endpoint) - MUST be before GET route
 router.options('/recording/:recordingSid', (req, res) => {
-  const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
-  res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+  // Hardcode production URL for audio endpoints to fix CORS issues
+  let frontendUrl = process.env.FRONTEND_URL;
+  if (!frontendUrl) {
+    if (req.headers.origin && req.headers.origin.includes('clinimediaportal.ca')) {
+      frontendUrl = req.headers.origin;
+    } else if (req.headers.origin && req.headers.origin.includes('localhost')) {
+      frontendUrl = req.headers.origin;
+    } else {
+      frontendUrl = 'https://www.clinimediaportal.ca';
+    }
+  }
+  res.setHeader('Access-Control-Allow-Origin', frontendUrl);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
@@ -1715,9 +1725,19 @@ router.options('/recording/:recordingSid', (req, res) => {
 
 // OPTIONS handler for CORS preflight (voicemail endpoint) - MUST be before GET route
 router.options('/voicemail/:callSid', (req, res) => {
-  const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
-  res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+  // Hardcode production URL for audio endpoints to fix CORS issues
+  let frontendUrl = process.env.FRONTEND_URL;
+  if (!frontendUrl) {
+    if (req.headers.origin && req.headers.origin.includes('clinimediaportal.ca')) {
+      frontendUrl = req.headers.origin;
+    } else if (req.headers.origin && req.headers.origin.includes('localhost')) {
+      frontendUrl = req.headers.origin;
+    } else {
+      frontendUrl = 'https://www.clinimediaportal.ca';
+    }
+  }
+  res.setHeader('Access-Control-Allow-Origin', frontendUrl);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
@@ -1750,10 +1770,19 @@ router.get('/recording/:recordingSid', authenticateToken, async (req, res) => {
     const { accountSid, username, password } = getTwilioCredentials();
     
     // Set CORS headers explicitly for production (BEFORE fetching/streaming)
-    // When using credentials, origin cannot be '*' - must be specific origin
-    const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
-    res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
-    res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+    // Hardcode production URL for audio endpoints to fix CORS issues
+    let frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+      if (req.headers.origin && req.headers.origin.includes('clinimediaportal.ca')) {
+        frontendUrl = req.headers.origin;
+      } else if (req.headers.origin && req.headers.origin.includes('localhost')) {
+        frontendUrl = req.headers.origin;
+      } else {
+        frontendUrl = 'https://www.clinimediaportal.ca';
+      }
+    }
+    res.setHeader('Access-Control-Allow-Origin', frontendUrl);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
     
@@ -1803,17 +1832,35 @@ router.get('/recording/:recordingSid', authenticateToken, async (req, res) => {
         console.error('Twilio API error:', error.response.status, error.response.data);
       }
       // Set CORS headers even for errors
-      const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
-      res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
-      res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+      let frontendUrl = process.env.FRONTEND_URL;
+      if (!frontendUrl) {
+        if (req.headers.origin && req.headers.origin.includes('clinimediaportal.ca')) {
+          frontendUrl = req.headers.origin;
+        } else if (req.headers.origin && req.headers.origin.includes('localhost')) {
+          frontendUrl = req.headers.origin;
+        } else {
+          frontendUrl = 'https://www.clinimediaportal.ca';
+        }
+      }
+      res.setHeader('Access-Control-Allow-Origin', frontendUrl);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.status(500).json({ error: 'Failed to fetch recording', details: error.message });
     }
   } catch (error) {
     console.error('Error in recording proxy:', error);
     // Set CORS headers even for errors
-    const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
-    res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
-    res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+    let frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+      if (req.headers.origin && req.headers.origin.includes('clinimediaportal.ca')) {
+        frontendUrl = req.headers.origin;
+      } else if (req.headers.origin && req.headers.origin.includes('localhost')) {
+        frontendUrl = req.headers.origin;
+      } else {
+        frontendUrl = 'https://www.clinimediaportal.ca';
+      }
+    }
+    res.setHeader('Access-Control-Allow-Origin', frontendUrl);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.status(500).json({ error: 'Failed to proxy recording', details: error.message });
   }
 });
@@ -1845,10 +1892,19 @@ router.get('/voicemail/:callSid', authenticateToken, async (req, res) => {
     const { accountSid, username, password } = getTwilioCredentials();
     
     // Set CORS headers explicitly for production (BEFORE fetching/streaming)
-    // When using credentials, origin cannot be '*' - must be specific origin
-    const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
-    res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
-    res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+    // Hardcode production URL for audio endpoints to fix CORS issues
+    let frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+      if (req.headers.origin && req.headers.origin.includes('clinimediaportal.ca')) {
+        frontendUrl = req.headers.origin;
+      } else if (req.headers.origin && req.headers.origin.includes('localhost')) {
+        frontendUrl = req.headers.origin;
+      } else {
+        frontendUrl = 'https://www.clinimediaportal.ca';
+      }
+    }
+    res.setHeader('Access-Control-Allow-Origin', frontendUrl);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
     
@@ -1897,17 +1953,35 @@ router.get('/voicemail/:callSid', authenticateToken, async (req, res) => {
         console.error('Twilio API error:', error.response.status, error.response.data);
       }
       // Set CORS headers even for errors
-      const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
-      res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
-      res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+      let frontendUrl = process.env.FRONTEND_URL;
+      if (!frontendUrl) {
+        if (req.headers.origin && req.headers.origin.includes('clinimediaportal.ca')) {
+          frontendUrl = req.headers.origin;
+        } else if (req.headers.origin && req.headers.origin.includes('localhost')) {
+          frontendUrl = req.headers.origin;
+        } else {
+          frontendUrl = 'https://www.clinimediaportal.ca';
+        }
+      }
+      res.setHeader('Access-Control-Allow-Origin', frontendUrl);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.status(500).json({ error: 'Failed to fetch voicemail', details: error.message });
     }
   } catch (error) {
     console.error('Error in voicemail proxy:', error);
     // Set CORS headers even for errors
-    const frontendUrl = process.env.FRONTEND_URL || req.headers.origin || '*';
-    res.setHeader('Access-Control-Allow-Origin', frontendUrl !== '*' ? frontendUrl : '*');
-    res.setHeader('Access-Control-Allow-Credentials', frontendUrl !== '*' ? 'true' : 'false');
+    let frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+      if (req.headers.origin && req.headers.origin.includes('clinimediaportal.ca')) {
+        frontendUrl = req.headers.origin;
+      } else if (req.headers.origin && req.headers.origin.includes('localhost')) {
+        frontendUrl = req.headers.origin;
+      } else {
+        frontendUrl = 'https://www.clinimediaportal.ca';
+      }
+    }
+    res.setHeader('Access-Control-Allow-Origin', frontendUrl);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.status(500).json({ error: 'Failed to proxy voicemail', details: error.message });
   }
 });

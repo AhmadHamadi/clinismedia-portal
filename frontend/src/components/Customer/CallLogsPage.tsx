@@ -851,8 +851,15 @@ const CallLogsPage: React.FC = () => {
                                   }
                                   
                                   // Use voicemail endpoint for missed calls
-                                  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-                                  const voicemailApiUrl = `${apiBaseUrl}/twilio/voicemail/${log.callSid}`;
+                                  // Hardcode production URL for audio endpoints to fix CORS issues
+                                  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+                                  const isProduction = hostname === 'www.clinimediaportal.ca' || 
+                                                       hostname === 'clinimediaportal.ca' || 
+                                                       hostname.includes('clinimediaportal.ca');
+                                  const audioApiBaseUrl = isProduction 
+                                    ? 'https://api.clinimediaportal.ca' 
+                                    : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000');
+                                  const voicemailApiUrl = `${audioApiBaseUrl}/api/twilio/voicemail/${log.callSid}`;
                                   
                                   // Fetch voicemail with credentials
                                   const response = await fetch(voicemailApiUrl, {
@@ -900,9 +907,15 @@ const CallLogsPage: React.FC = () => {
                                     return;
                                   }
                                   
-                                  // Use the same API base URL as other requests
-                                  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-                                  const recordingApiUrl = `${apiBaseUrl}/twilio/recording/${log.recordingSid}`;
+                                  // Hardcode production URL for audio endpoints to fix CORS issues
+                                  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+                                  const isProduction = hostname === 'www.clinimediaportal.ca' || 
+                                                       hostname === 'clinimediaportal.ca' || 
+                                                       hostname.includes('clinimediaportal.ca');
+                                  const audioApiBaseUrl = isProduction 
+                                    ? 'https://api.clinimediaportal.ca' 
+                                    : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000');
+                                  const recordingApiUrl = `${audioApiBaseUrl}/api/twilio/recording/${log.recordingSid}`;
                                   
                                   // Fetch recording with credentials
                                   const response = await fetch(recordingApiUrl, {
