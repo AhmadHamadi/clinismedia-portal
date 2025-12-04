@@ -861,6 +861,8 @@ const CallLogsPage: React.FC = () => {
                                     : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000');
                                   const voicemailApiUrl = `${audioApiBaseUrl}/api/twilio/voicemail/${log.callSid}`;
                                   
+                                  console.log('Fetching voicemail from:', voicemailApiUrl);
+                                  
                                   // Fetch voicemail with credentials
                                   const response = await fetch(voicemailApiUrl, {
                                     method: 'GET',
@@ -870,14 +872,38 @@ const CallLogsPage: React.FC = () => {
                                     credentials: 'include' // Include credentials for CORS
                                   });
                                   
-                                  if (response.ok) {
-                                    const blob = await response.blob();
-                                    const blobUrl = URL.createObjectURL(blob);
-                                    setRecordingUrl(blobUrl);
-                                  } else {
-                                    alert('Failed to load voicemail. Please try again.');
+                                  console.log('Voicemail response status:', response.status, response.statusText);
+                                  
+                                  if (!response.ok) {
+                                    const errorText = await response.text().catch(() => 'Unknown error');
+                                    console.error('Voicemail fetch failed:', response.status, errorText);
+                                    alert(`Failed to load voicemail (${response.status}): ${errorText}`);
                                     setShowRecordingModal(false);
+                                    return;
                                   }
+                                  
+                                  // Validate content type
+                                  const contentType = response.headers.get('content-type');
+                                  if (!contentType || !contentType.includes('audio')) {
+                                    console.error('Invalid content type:', contentType);
+                                    alert('Invalid response format. Expected audio file.');
+                                    setShowRecordingModal(false);
+                                    return;
+                                  }
+                                  
+                                  const blob = await response.blob();
+                                  
+                                  // Validate blob
+                                  if (!blob || blob.size === 0) {
+                                    console.error('Voicemail blob is empty');
+                                    alert('Voicemail file is empty or corrupted.');
+                                    setShowRecordingModal(false);
+                                    return;
+                                  }
+                                  
+                                  console.log('Voicemail loaded successfully, size:', blob.size, 'bytes');
+                                  const blobUrl = URL.createObjectURL(blob);
+                                  setRecordingUrl(blobUrl);
                                 } catch (error) {
                                   console.error('Error loading voicemail:', error);
                                   alert('Failed to load voicemail');
@@ -917,6 +943,8 @@ const CallLogsPage: React.FC = () => {
                                     : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000');
                                   const recordingApiUrl = `${audioApiBaseUrl}/api/twilio/recording/${log.recordingSid}`;
                                   
+                                  console.log('Fetching recording from:', recordingApiUrl);
+                                  
                                   // Fetch recording with credentials
                                   const response = await fetch(recordingApiUrl, {
                                     method: 'GET',
@@ -926,14 +954,38 @@ const CallLogsPage: React.FC = () => {
                                     credentials: 'include' // Include credentials for CORS
                                   });
                                   
-                                  if (response.ok) {
-                                    const blob = await response.blob();
-                                    const blobUrl = URL.createObjectURL(blob);
-                                    setRecordingUrl(blobUrl);
-                                  } else {
-                                    alert('Failed to load recording. Please try again.');
+                                  console.log('Recording response status:', response.status, response.statusText);
+                                  
+                                  if (!response.ok) {
+                                    const errorText = await response.text().catch(() => 'Unknown error');
+                                    console.error('Recording fetch failed:', response.status, errorText);
+                                    alert(`Failed to load recording (${response.status}): ${errorText}`);
                                     setShowRecordingModal(false);
+                                    return;
                                   }
+                                  
+                                  // Validate content type
+                                  const contentType = response.headers.get('content-type');
+                                  if (!contentType || !contentType.includes('audio')) {
+                                    console.error('Invalid content type:', contentType);
+                                    alert('Invalid response format. Expected audio file.');
+                                    setShowRecordingModal(false);
+                                    return;
+                                  }
+                                  
+                                  const blob = await response.blob();
+                                  
+                                  // Validate blob
+                                  if (!blob || blob.size === 0) {
+                                    console.error('Recording blob is empty');
+                                    alert('Recording file is empty or corrupted.');
+                                    setShowRecordingModal(false);
+                                    return;
+                                  }
+                                  
+                                  console.log('Recording loaded successfully, size:', blob.size, 'bytes');
+                                  const blobUrl = URL.createObjectURL(blob);
+                                  setRecordingUrl(blobUrl);
                                 } catch (error) {
                                   console.error('Error loading recording:', error);
                                   alert('Failed to load recording');
