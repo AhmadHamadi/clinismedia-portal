@@ -1484,9 +1484,29 @@ router.get('/voice/dial-status', (req, res) => {
 // GET /api/twilio/voice/voicemail - Handle voicemail recording (when dial times out or no answer)
 router.get('/voice/voicemail', async (req, res) => {
   try {
-    const { CallSid, DialCallStatus } = req.query;
+    const { CallSid, DialCallStatus, DialCallDuration } = req.query;
     
-    console.log(`📞 Voicemail triggered for CallSid: ${CallSid}, DialCallStatus: ${DialCallStatus}`);
+    console.log(`📞 Voicemail triggered for CallSid: ${CallSid}, DialCallStatus: ${DialCallStatus}, DialCallDuration: ${DialCallDuration}`);
+    
+    // Check if the call was answered before prompting for voicemail
+    // If clinic ended the call, DialCallStatus might be 'completed' with duration > 0
+    const dialDuration = DialCallDuration ? parseInt(DialCallDuration) : 0;
+    const wasAnswered = DialCallStatus === 'answered' || 
+                       (DialCallStatus === 'completed' && dialDuration > 0);
+    
+    if (wasAnswered) {
+      // Call was answered - clinic ended the call, patient should not hear voicemail prompt
+      console.log(`✅ Call was answered (DialCallStatus: ${DialCallStatus}, Duration: ${dialDuration}s) - silently hanging up`);
+      const silentHangup = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Hangup/>
+</Response>`;
+      res.type('text/xml');
+      return res.send(silentHangup);
+    }
+    
+    // Call was NOT answered - proceed with voicemail prompt
+    console.log(`📞 Call was NOT answered (DialCallStatus: ${DialCallStatus}) - prompting for voicemail`);
     
     // Get voice setting
     const voice = process.env.TWILIO_VOICE || 'Polly.Joanna-Neural';
