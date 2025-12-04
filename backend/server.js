@@ -104,22 +104,9 @@ app.use('/uploads/invoices', express.static(__dirname + '/uploads/invoices'));
 app.use('/uploads/customer-logos', express.static(__dirname + '/uploads/customer-logos'));
 app.use('/uploads/gallery', express.static(__dirname + '/uploads/gallery'));
 
-// Serve static files from React app (frontend/dist)
-const frontendPath = path.join(__dirname, '..', 'frontend', 'dist');
-app.use(express.static(frontendPath));
-
-// API routes should come before the catch-all route
-// All API routes are already defined above with /api prefix
-
-// Catch-all handler: send back React's index.html file for any non-API routes
-// This allows React Router to handle client-side routing
-app.get('*', (req, res) => {
-  // Don't serve index.html for API routes
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'API route not found' });
-  }
-  // Serve React app for all other routes
-  res.sendFile(path.join(frontendPath, 'index.html'));
+// Root route
+app.get("/", (req, res) => {
+  res.send("CliniMedia Portal API is running.");
 });
 
 const PORT = process.env.PORT || 3000;

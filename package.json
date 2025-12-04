@@ -6,9 +6,7 @@
   "author": "Muhaz Ahmed",
   "scripts": {
     "dev": "vite",
-    "build": "cd frontend && npm ci && npm run build",
-    "build:frontend": "cd frontend && npm ci && npm run build",
-    "start": "cd backend && npm start",
+    "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
