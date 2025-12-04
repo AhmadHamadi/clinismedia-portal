@@ -125,7 +125,8 @@ const TwilioManagementPage: React.FC = () => {
         connection.forwardNumber || undefined,
         connection.forwardNumberNew || undefined,
         connection.forwardNumberExisting || undefined,
-        connection.menuMessage || undefined
+        connection.menuMessage || undefined,
+        connection.voice || undefined
       );
       setSelectedConnections(prev => {
         const next = { ...prev };
@@ -217,6 +218,7 @@ const TwilioManagementPage: React.FC = () => {
   };
 
   const handleMenuMessageChange = (customerId: string, menuMessage: string) => {
+    const customer = customers.find(c => c._id === customerId);
     setSelectedConnections(prev => ({
       ...prev,
       [customerId]: {
@@ -282,6 +284,118 @@ const TwilioManagementPage: React.FC = () => {
     } finally {
       setUpdatingMessage(null);
     }
+  };
+
+  // Play voice sample using Web Speech API
+  const playVoiceSample = (voiceValue: string) => {
+    // Stop any currently playing voice
+    if (synthRef.current) {
+      synthRef.current.cancel();
+    }
+
+    // Initialize speech synthesis
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const synth = window.speechSynthesis;
+      synthRef.current = synth;
+
+      // Map Twilio voices to browser voices
+      const utterance = new SpeechSynthesisUtterance(VOICE_SAMPLE_TEXT);
+      
+      // For AI voices, use a high-quality voice mapping
+      if (voiceValue.startsWith('ai:')) {
+        const aiVoiceName = voiceValue.replace('ai:', '');
+        // Try to find a matching voice or use default
+        const voices = synth.getVoices();
+        let selectedVoice = voices.find(v => 
+          v.name.toLowerCase().includes('alloy') || 
+          v.name.toLowerCase().includes('shimmer') ||
+          v.name.toLowerCase().includes('verse')
+        );
+        
+        if (!selectedVoice) {
+          // Fallback to high-quality voices
+          selectedVoice = voices.find(v => 
+            v.name.includes('Google') || 
+            v.name.includes('Microsoft') ||
+            v.name.includes('Samantha') ||
+            v.name.includes('Alex')
+          ) || voices.find(v => v.lang.startsWith('en'));
+        }
+        
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        }
+        utterance.rate = 0.95; // Slightly slower for naturalness
+        utterance.pitch = 1.0;
+      } else if (voiceValue.startsWith('Polly.')) {
+        // For Polly voices, try to match gender
+        const voices = synth.getVoices();
+        const isFemale = voiceValue.includes('Joanna') || voiceValue.includes('Olivia') || 
+                        voiceValue.includes('Amy') || voiceValue.includes('Emma') ||
+                        voiceValue.includes('Raveena') || voiceValue.includes('Nicole') ||
+                        voiceValue.includes('Kendra') || voiceValue.includes('Kimberly') ||
+                        voiceValue.includes('Salli') || voiceValue.includes('Ivy');
+        
+        const selectedVoice = voices.find(v => {
+          const name = v.name.toLowerCase();
+          if (isFemale) {
+            return name.includes('female') || name.includes('samantha') || name.includes('susan') || 
+                   name.includes('karen') || name.includes('victoria') || name.includes('zira');
+          } else {
+            return name.includes('male') || name.includes('david') || name.includes('mark') ||
+                   name.includes('richard') || name.includes('james') || name.includes('alex');
+          }
+        }) || voices.find(v => v.lang.startsWith('en'));
+        
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        }
+        utterance.rate = 0.9;
+        utterance.pitch = isFemale ? 1.1 : 0.9;
+      } else {
+        // Basic voices
+        const voices = synth.getVoices();
+        const selectedVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        }
+      }
+
+      utterance.lang = 'en-US';
+      utterance.volume = 1;
+      
+      utterance.onend = () => {
+        setPlayingVoice(null);
+      };
+      
+      utterance.onerror = () => {
+        setPlayingVoice(null);
+      };
+
+      setPlayingVoice(voiceValue);
+      synth.speak(utterance);
+    } else {
+      alert('Speech synthesis is not supported in your browser. Please use a modern browser like Chrome, Firefox, or Edge.');
+    }
+  };
+
+  const stopVoiceSample = () => {
+    if (synthRef.current) {
+      synthRef.current.cancel();
+      setPlayingVoice(null);
+    }
+  };
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
   };
 
   const availablePhoneNumbers = phoneNumbers.filter(num => !num.assigned);
