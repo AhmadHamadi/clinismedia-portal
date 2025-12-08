@@ -8,6 +8,7 @@ interface InstagramInsightImage {
   month: string;
   imageUrl: string;
   uploadedAt: string;
+  url?: string; // Presigned URL from API (Railway Bucket)
 }
 
 const InstagramInsightsPage: React.FC = () => {
@@ -268,7 +269,22 @@ const InstagramInsightsPage: React.FC = () => {
               
               <div className="mt-6 rounded-lg overflow-hidden border border-gray-200">
                 <img
-                  src={`${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${imageForSelectedMonth.imageUrl}`}
+                  src={(() => {
+                    // Use presigned URL from API if available (Railway Bucket)
+                    if (imageForSelectedMonth.url) {
+                      return imageForSelectedMonth.url;
+                    }
+                    // If it's a full URL (old format), use it directly
+                    if (imageForSelectedMonth.imageUrl.startsWith('http')) {
+                      return imageForSelectedMonth.imageUrl;
+                    }
+                    // If it's a local path, use backend URL
+                    if (imageForSelectedMonth.imageUrl.startsWith('/uploads/')) {
+                      return `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${imageForSelectedMonth.imageUrl}`;
+                    }
+                    // Otherwise, it's an object key (Railway Bucket) - use proxy route to get presigned URL
+                    return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/instagram-insights/image/${imageForSelectedMonth._id}`;
+                  })()}
                   alt={`Instagram Insights - ${formatMonth(selectedMonth!)}`}
                   className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
                   style={{ 
@@ -279,7 +295,18 @@ const InstagramInsightsPage: React.FC = () => {
                     objectFit: 'contain'
                   }}
                   onClick={() => {
-                    const imageUrl = `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${imageForSelectedMonth.imageUrl}`;
+                    const imageUrl = (() => {
+                      if (imageForSelectedMonth.url) {
+                        return imageForSelectedMonth.url;
+                      }
+                      if (imageForSelectedMonth.imageUrl.startsWith('http')) {
+                        return imageForSelectedMonth.imageUrl;
+                      }
+                      if (imageForSelectedMonth.imageUrl.startsWith('/uploads/')) {
+                        return `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${imageForSelectedMonth.imageUrl}`;
+                      }
+                      return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/instagram-insights/image/${imageForSelectedMonth._id}`;
+                    })();
                     window.open(imageUrl, '_blank');
                   }}
                   onError={(e) => {
@@ -337,14 +364,33 @@ const InstagramInsightsPage: React.FC = () => {
         >
           <div className="max-w-6xl max-h-[90vh] overflow-auto">
             <img
-              src={`${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${selectedImage.imageUrl}`}
+              src={(() => {
+                if (selectedImage.url) {
+                  return selectedImage.url;
+                }
+                if (selectedImage.imageUrl.startsWith('http')) {
+                  return selectedImage.imageUrl;
+                }
+                if (selectedImage.imageUrl.startsWith('/uploads/')) {
+                  return `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${selectedImage.imageUrl}`;
+                }
+                return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/instagram-insights/image/${selectedImage._id}`;
+              })()}
               alt={`Instagram Insights - ${formatMonth(selectedImage.month)}`}
               className="w-full h-auto rounded-lg shadow-2xl"
               style={{ minWidth: '100%', maxWidth: 'none' }}
               onClick={(e) => e.stopPropagation()}
               onError={(e) => {
                 console.error('Modal image failed to load:', selectedImage.imageUrl);
-                const fullUrl = `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${selectedImage.imageUrl}`;
+                const fullUrl = (() => {
+                  if (selectedImage.imageUrl.startsWith('http')) {
+                    return selectedImage.imageUrl;
+                  }
+                  if (selectedImage.imageUrl.startsWith('/uploads/')) {
+                    return `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${selectedImage.imageUrl}`;
+                  }
+                  return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/instagram-insights/image/${selectedImage._id}`;
+                })();
                 console.error('Full URL:', fullUrl);
               }}
             />

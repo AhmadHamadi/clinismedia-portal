@@ -14,6 +14,7 @@ interface InstagramInsightImage {
   month: string;
   imageUrl: string;
   uploadedAt: string;
+  url?: string; // Presigned URL from API (Railway Bucket)
 }
 
 const InstagramInsightsManagementPage: React.FC = () => {
@@ -365,7 +366,18 @@ const InstagramInsightsManagementPage: React.FC = () => {
                   
                   <div className="mb-3">
                     <img
-                      src={`${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${image.imageUrl}`}
+                      src={(() => {
+                        if (image.url) {
+                          return image.url;
+                        }
+                        if (image.imageUrl.startsWith('http')) {
+                          return image.imageUrl;
+                        }
+                        if (image.imageUrl.startsWith('/uploads/')) {
+                          return `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${image.imageUrl}`;
+                        }
+                        return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/instagram-insights/image/${image._id}`;
+                      })()}
                       alt={`Instagram Insights - ${getMonthLabel(image.month)}`}
                       className="w-full h-48 object-contain rounded-lg border border-gray-200 bg-white"
                       onError={(e) => {
