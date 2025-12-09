@@ -2723,6 +2723,36 @@ router.delete('/call-logs/:customerId', authenticateToken, authorizeRole(['admin
   }
 });
 
+// DELETE /api/twilio/call-logs - Delete all call logs for authenticated customer (customer only)
+router.delete('/call-logs', authenticateToken, async (req, res) => {
+  try {
+    const customerId = req.user.id;
+    
+    // Verify user is a customer
+    const user = await User.findById(customerId);
+    if (!user || user.role !== 'customer') {
+      return res.status(403).json({ error: 'Access denied. Customers only.' });
+    }
+    
+    // Delete all call logs for this customer
+    const deleteResult = await CallLog.deleteMany({ customerId });
+    
+    console.log(`🗑️ Customer deleted ${deleteResult.deletedCount} call logs for: ${user.name || user.email} (${customerId})`);
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deleteResult.deletedCount} call log${deleteResult.deletedCount !== 1 ? 's' : ''}`,
+      deletedCount: deleteResult.deletedCount
+    });
+  } catch (error) {
+    console.error('Error deleting call logs:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete call logs',
+      details: error.message 
+    });
+  }
+});
+
 // Helper function to format duration
 function formatDuration(seconds) {
   if (!seconds) return '0s';

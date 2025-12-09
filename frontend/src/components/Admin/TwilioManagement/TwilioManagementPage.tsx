@@ -708,7 +708,7 @@ const TwilioManagementPage: React.FC = () => {
                           <button
                             onClick={() => handleDeleteAllLogs(customer)}
                             disabled={deletingLogs === customer._id}
-                            className="text-xs text-gray-400 hover:text-red-600 disabled:text-gray-300 disabled:cursor-not-allowed flex items-center gap-0.5 px-1 py-0.5 rounded hover:bg-red-50 transition-colors"
+                            className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 disabled:text-gray-300 disabled:cursor-not-allowed flex items-center gap-1 px-2 py-1 rounded border border-red-200 transition-colors mt-1"
                             title="Delete all call logs for this clinic"
                           >
                             {deletingLogs === customer._id ? (
@@ -717,7 +717,7 @@ const TwilioManagementPage: React.FC = () => {
                               </>
                             ) : (
                               <>
-                                <FaTrash className="inline text-xs" /> Reset
+                                <FaTrash className="inline text-xs" /> Reset Logs
                               </>
                             )}
                           </button>
