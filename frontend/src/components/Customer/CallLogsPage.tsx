@@ -305,34 +305,33 @@ const CallLogsPage: React.FC = () => {
   };
 
   const getStatusLabel = (dialCallStatus: string | null, status: string, duration: number = 0) => {
-    // Use dialCallStatus if available (more accurate for forwarded calls)
+    // CRITICAL: ONLY mark as "Answered" if dialCallStatus === 'answered'
+    // The forward number must have actually answered for it to be "Answered"
+    // Duration > 0 does NOT mean answered (could be menu/disclosure/ringing time)
+    
     if (dialCallStatus) {
       if (dialCallStatus === 'answered') {
+        // Forward number actually answered = Answered
         return 'Answered';
-      } else if (dialCallStatus === 'no-answer' || dialCallStatus === 'busy' || 
-                 dialCallStatus === 'failed' || dialCallStatus === 'canceled') {
-        // All non-answered statuses should show as "Missed"
+      } else {
+        // All other dialCallStatus values = Missed
+        // This includes: 'no-answer', 'busy', 'failed', 'canceled', 'completed' (without 'answered' first)
         return 'Missed';
-      } else if (dialCallStatus === 'completed') {
-        // If completed with duration > 0, it was answered
-        // If completed with duration = 0, it was not answered (missed)
-        return duration > 0 ? 'Answered' : 'Missed';
       }
     }
-    // Fallback to status if dialCallStatus is not available
-    // If status is 'completed' but no dialCallStatus, check duration to determine if answered
-    if (status === 'completed') {
-      // If duration > 0, it was answered; otherwise missed
-      return duration > 0 ? 'Answered' : 'Missed';
-    }
-    // For other non-answered statuses, show as "Missed"
-    if (status === 'failed' || status === 'busy' || status === 'no-answer' || status === 'canceled') {
+    
+    // Fallback: If no dialCallStatus, it means Dial never happened or was canceled before it started
+    // This means forward number NEVER answered = Missed
+    // Even if status is 'completed' with duration > 0, that's just menu/disclosure time, NOT conversation
+    if (status === 'completed' || status === 'failed' || status === 'busy' || status === 'no-answer' || status === 'canceled') {
       return 'Missed';
     }
+    
     // For in-progress statuses, show actual status
     if (status === 'ringing' || status === 'in-progress') {
       return status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ');
     }
+    
     return status;
   };
 
@@ -1253,4 +1252,5 @@ const CallLogsPage: React.FC = () => {
 };
 
 export default CallLogsPage;
+
 

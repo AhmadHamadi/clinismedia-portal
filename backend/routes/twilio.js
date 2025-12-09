@@ -1466,11 +1466,24 @@ router.post('/voice/status-callback', async (req, res) => {
             updateData.duration = dialDuration || callInfo.duration;
             console.log(`✅ FALLBACK: Call ANSWERED (from DialCallStatus in status callback)`);
           } else if (DialCallStatus === 'completed') {
-            if (dialDuration > 0) {
+            // CRITICAL: 'completed' with duration > 0 does NOT mean answered if we never got 'answered' status
+            // If patient ends call during ringing, duration > 0 is just ringing time, not conversation time
+            // Only mark as answered if we previously had 'answered' status
+            const wasPreviouslyAnswered = existingLog && existingLog.dialCallStatus === 'answered';
+            
+            if (wasPreviouslyAnswered && dialDuration > 0) {
+              // Was previously answered, then completed = legitimate answered call
               updateData.dialCallStatus = 'answered';
               updateData.duration = dialDuration;
-              updateData.answerTime = new Date();
-              console.log(`✅ FALLBACK: Call COMPLETED and ANSWERED (duration: ${dialDuration}s)`);
+              if (!existingLog.answerTime) {
+                updateData.answerTime = new Date();
+              }
+              console.log(`✅ FALLBACK: Call COMPLETED and ANSWERED (was previously answered, duration: ${dialDuration}s)`);
+            } else if (dialDuration > 0) {
+              // Duration > 0 but never answered = ended during ringing (MISSED)
+              updateData.dialCallStatus = 'no-answer';
+              updateData.duration = 0; // Don't count ringing time
+              console.log(`❌ FALLBACK: Call COMPLETED with duration ${dialDuration}s but NEVER answered (ended during ringing) - MISSED`);
             } else {
               // Dial completed but duration = 0 = forward number didn't answer (missed)
               updateData.dialCallStatus = 'no-answer';
@@ -1487,24 +1500,15 @@ router.post('/voice/status-callback', async (req, res) => {
         }
         // Option 2: Use CallStatus and CallDuration as fallback
         // This handles cases where patient cancels BEFORE Dial starts (no DialCallStatus)
-        else if (CallStatus === 'completed' && callInfo.duration > 0) {
-          // Call completed with duration > 0 = answered (but this shouldn't happen without DialCallStatus)
-          // Only set as answered if we're sure it was answered
-          updateData.dialCallStatus = 'answered';
-          updateData.duration = callInfo.duration;
-          updateData.answerTime = new Date();
-          console.log(`✅ FALLBACK: Call COMPLETED with duration > 0 (answered, duration: ${callInfo.duration}s)`);
-        } else if (CallStatus === 'completed' && callInfo.duration === 0) {
-          // Call completed with duration = 0 = not answered (missed)
-          updateData.dialCallStatus = 'no-answer';
-          updateData.duration = 0;
-          console.log(`❌ FALLBACK: Call COMPLETED with duration = 0 (not answered) - MISSED`);
-        } else if (CallStatus === 'failed' || CallStatus === 'busy' || CallStatus === 'no-answer' || CallStatus === 'canceled') {
-          // Patient canceled, call failed, busy, or no answer = MISSED
-          // CRITICAL: 'canceled' means patient hung up before forward number answered (missed)
-          updateData.dialCallStatus = CallStatus;
-          updateData.duration = 0;
-          console.log(`❌ FALLBACK: Call NOT answered (${CallStatus}) - MISSED (patient canceled or call failed before forward number answered)`);
+        // CRITICAL: If there's no DialCallStatus, it means Dial never happened or was canceled before it started
+        // This means the forward number NEVER answered = MISSED (never mark as answered)
+        else if (CallStatus === 'completed' || CallStatus === 'failed' || CallStatus === 'busy' || CallStatus === 'no-answer' || CallStatus === 'canceled') {
+          // No DialCallStatus means Dial never started or was canceled before forward number answered
+          // Even if duration > 0, this is just menu/disclosure time, NOT conversation time
+          // The forward number NEVER answered = MISSED
+          updateData.dialCallStatus = CallStatus === 'completed' ? 'no-answer' : CallStatus;
+          updateData.duration = 0; // Don't count menu/disclosure time as call duration
+          console.log(`❌ FALLBACK: Call ${CallStatus} but NO DialCallStatus (ended before Dial or Dial never started) - MISSED`);
         }
         
         // Set duration from status callback if not already set
@@ -1830,36 +1834,38 @@ router.post('/voice/dial-status', async (req, res) => {
       updateData.answerTime = new Date();
       console.log(`✅ Call ANSWERED (authoritative from dial-status webhook)`);
     } else if (DialCallStatus === 'completed') {
-      // Call completed - determine if it was answered based on duration
+      // Call completed - determine if it was answered based on duration AND previous status
       const duration = DialCallDuration ? parseInt(DialCallDuration) : 0;
       
-      if (duration > 0) {
-        // Duration > 0 means call was answered and had conversation
-        // BUT: Only mark as answered if no voicemail was triggered
-        // (This check is redundant now due to hasVoicemail check above, but kept for clarity)
+      // CRITICAL: Check if we previously received 'answered' status
+      // If DialCallStatus was 'answered' before, then 'completed' means it was answered and then ended
+      // If we never got 'answered', then 'completed' with any duration means it was ended during ringing (MISSED)
+      const wasPreviouslyAnswered = existingLog && existingLog.dialCallStatus === 'answered';
+      
+      if (wasPreviouslyAnswered) {
+        // Call was previously answered, then completed (ended after being answered)
+        // This is a legitimate answered call
         updateData.dialCallStatus = 'answered';
-        updateData.duration = duration;
-        if (!existingLog || !existingLog.answerTime) {
+        updateData.duration = duration > 0 ? duration : (existingLog.duration || 0);
+        if (!existingLog.answerTime) {
           updateData.answerTime = new Date();
         }
         updateData.endedAt = new Date();
-        console.log(`✅ Call COMPLETED and ANSWERED (authoritative, duration: ${duration}s)`);
+        console.log(`✅ Call COMPLETED (was previously answered, duration: ${updateData.duration}s) - ANSWERED`);
+      } else if (duration > 0) {
+        // Duration > 0 BUT we never got 'answered' status
+        // This means the call was ended during ringing (patient hung up while forward number was ringing)
+        // The duration is just the ringing time, NOT conversation time = MISSED
+        updateData.dialCallStatus = 'no-answer';
+        updateData.duration = 0; // Don't count ringing time as call duration
+        updateData.endedAt = new Date();
+        console.log(`❌ Call COMPLETED with duration ${duration}s but NEVER answered (ended during ringing) - MISSED`);
       } else {
-        // Duration is 0 = not answered (or answered but immediately hung up)
-        // Check if we previously had 'answered' status
-        if (existingLog && existingLog.dialCallStatus === 'answered') {
-          // Was previously answered, keep it as answered but set duration to 0
-          updateData.dialCallStatus = 'answered';
-          updateData.duration = 0;
-          updateData.endedAt = new Date();
-          console.log(`⚠️ Call COMPLETED (was answered but duration is 0 - keeping as answered)`);
-        } else {
-          // Not answered
-          updateData.dialCallStatus = 'no-answer';
-          updateData.duration = 0;
-          updateData.endedAt = new Date();
-          console.log(`❌ Call COMPLETED but NOT answered (authoritative, duration: 0)`);
-        }
+        // Duration is 0 = not answered
+        updateData.dialCallStatus = 'no-answer';
+        updateData.duration = 0;
+        updateData.endedAt = new Date();
+        console.log(`❌ Call COMPLETED but NOT answered (authoritative, duration: 0) - MISSED`);
       }
     } else if (DialCallStatus === 'no-answer' || DialCallStatus === 'busy' || 
                DialCallStatus === 'failed' || DialCallStatus === 'canceled') {
