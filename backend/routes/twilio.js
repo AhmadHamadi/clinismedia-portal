@@ -1452,10 +1452,12 @@ router.post('/voice/status-callback', async (req, res) => {
       
       // FALLBACK LOGIC: If dialCallStatus is not set yet, try to determine it from status callback
       // This handles cases where the dial-status webhook doesn't fire or is delayed
+      // CRITICAL: This also handles cases where patient cancels BEFORE Dial starts (e.g., during menu)
       if (!existingLog || !existingLog.dialCallStatus) {
         // No dialCallStatus yet - try to determine from status callback data
         
         // Option 1: Use DialCallStatus if provided in status callback
+        // This means Dial was attempted (call reached forward number)
         if (DialCallStatus) {
           const dialDuration = DialCallDuration ? parseInt(DialCallDuration) : 0;
           if (DialCallStatus === 'answered') {
@@ -1470,33 +1472,39 @@ router.post('/voice/status-callback', async (req, res) => {
               updateData.answerTime = new Date();
               console.log(`✅ FALLBACK: Call COMPLETED and ANSWERED (duration: ${dialDuration}s)`);
             } else {
+              // Dial completed but duration = 0 = forward number didn't answer (missed)
               updateData.dialCallStatus = 'no-answer';
               updateData.duration = 0;
-              console.log(`❌ FALLBACK: Call COMPLETED but NOT answered (duration: 0)`);
+              console.log(`❌ FALLBACK: Call COMPLETED but NOT answered (duration: 0) - Forward number didn't answer`);
             }
           } else if (DialCallStatus === 'no-answer' || DialCallStatus === 'busy' || 
                      DialCallStatus === 'failed' || DialCallStatus === 'canceled') {
+            // Forward number didn't answer, was busy, failed, or was canceled = MISSED
             updateData.dialCallStatus = DialCallStatus;
             updateData.duration = 0;
-            console.log(`❌ FALLBACK: Call NOT answered (${DialCallStatus})`);
+            console.log(`❌ FALLBACK: Call NOT answered (${DialCallStatus}) - MISSED`);
           }
         }
         // Option 2: Use CallStatus and CallDuration as fallback
+        // This handles cases where patient cancels BEFORE Dial starts (no DialCallStatus)
         else if (CallStatus === 'completed' && callInfo.duration > 0) {
-          // Call completed with duration > 0 = answered
+          // Call completed with duration > 0 = answered (but this shouldn't happen without DialCallStatus)
+          // Only set as answered if we're sure it was answered
           updateData.dialCallStatus = 'answered';
           updateData.duration = callInfo.duration;
           updateData.answerTime = new Date();
           console.log(`✅ FALLBACK: Call COMPLETED with duration > 0 (answered, duration: ${callInfo.duration}s)`);
         } else if (CallStatus === 'completed' && callInfo.duration === 0) {
-          // Call completed with duration = 0 = not answered
+          // Call completed with duration = 0 = not answered (missed)
           updateData.dialCallStatus = 'no-answer';
           updateData.duration = 0;
-          console.log(`❌ FALLBACK: Call COMPLETED with duration = 0 (not answered)`);
+          console.log(`❌ FALLBACK: Call COMPLETED with duration = 0 (not answered) - MISSED`);
         } else if (CallStatus === 'failed' || CallStatus === 'busy' || CallStatus === 'no-answer' || CallStatus === 'canceled') {
+          // Patient canceled, call failed, busy, or no answer = MISSED
+          // CRITICAL: 'canceled' means patient hung up before forward number answered (missed)
           updateData.dialCallStatus = CallStatus;
           updateData.duration = 0;
-          console.log(`❌ FALLBACK: Call NOT answered (${CallStatus})`);
+          console.log(`❌ FALLBACK: Call NOT answered (${CallStatus}) - MISSED (patient canceled or call failed before forward number answered)`);
         }
         
         // Set duration from status callback if not already set
@@ -1597,15 +1605,18 @@ router.get('/voice/voicemail', async (req, res) => {
     
     console.log(`📞 Voicemail triggered for CallSid: ${CallSid}, DialCallStatus: ${DialCallStatus}, DialCallDuration: ${DialCallDuration}`);
     
-    // Check if the call was answered before prompting for voicemail
-    // If clinic ended the call, DialCallStatus might be 'completed' with duration > 0
-    const dialDuration = DialCallDuration ? parseInt(DialCallDuration) : 0;
-    const wasAnswered = DialCallStatus === 'answered' || 
-                       (DialCallStatus === 'completed' && dialDuration > 0);
+    // CRITICAL: If voicemail is triggered, the call was NOT answered by a person
+    // Voicemail only triggers when Dial times out (no answer) or is not answered
+    // Even if DialCallStatus is 'completed' with duration > 0, if we're in voicemail, it means no one answered
     
-    if (wasAnswered) {
-      // Call was answered - clinic ended the call, patient should not hear voicemail prompt
-      console.log(`✅ Call was answered (DialCallStatus: ${DialCallStatus}, Duration: ${dialDuration}s) - silently hanging up`);
+    // Check if the call was actually answered BEFORE voicemail was triggered
+    // Only if DialCallStatus is explicitly 'answered' should we skip voicemail
+    const dialDuration = DialCallDuration ? parseInt(DialCallDuration) : 0;
+    const wasActuallyAnswered = DialCallStatus === 'answered';
+    
+    if (wasActuallyAnswered) {
+      // Call was actually answered - clinic ended the call, patient should not hear voicemail prompt
+      console.log(`✅ Call was actually answered (DialCallStatus: ${DialCallStatus}) - silently hanging up`);
       const silentHangup = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Hangup/>
@@ -1615,6 +1626,26 @@ router.get('/voice/voicemail', async (req, res) => {
     }
     
     // Call was NOT answered - proceed with voicemail prompt
+    // IMPORTANT: Mark this as a missed call (no-answer) immediately
+    // This ensures that even if dial-status webhook reports 'completed' with duration > 0,
+    // we know it went to voicemail, so it's a missed call
+    if (CallSid) {
+      try {
+        await CallLog.findOneAndUpdate(
+          { callSid: CallSid },
+          {
+            dialCallStatus: 'no-answer' // Voicemail = missed call (not answered)
+            // Note: voicemailUrl will be set later by voicemail-status webhook
+            // The presence of voicemailUrl indicates voicemail was triggered
+          },
+          { upsert: true, setDefaultsOnInsert: true }
+        );
+        console.log(`✅ Marked call as missed (no-answer) - voicemail triggered for CallSid: ${CallSid}`);
+      } catch (err) {
+        console.error('Error updating call log with voicemail trigger:', err);
+      }
+    }
+    
     console.log(`📞 Call was NOT answered (DialCallStatus: ${DialCallStatus}) - prompting for voicemail`);
     
     // Get clinic's voice setting - look up clinic from CallSid
@@ -1688,42 +1719,33 @@ router.post('/voice/voicemail-status', async (req, res) => {
       // Get existing call log to check status
       const existingLog = await CallLog.findOne({ callSid: CallSid });
       
-      // Only store voicemail if call was not answered (it's a missed call)
-      // If call was answered, this recording is a regular call recording, not voicemail
-      if (existingLog && existingLog.dialCallStatus !== 'answered') {
-        // Store voicemail in call log
-        // Note: recordingSid is used for voicemail playback (since voicemail only happens on missed calls,
-        // there won't be a regular call recording, so we can safely reuse recordingSid)
-        const updateData = {
-          voicemailUrl: RecordingUrl || null,
-          voicemailDuration: RecordingDuration ? parseInt(RecordingDuration) : null,
-          recordingSid: RecordingSid // Store for voicemail playback (safe since call wasn't answered)
-        };
-        
+      // CRITICAL: If voicemail was recorded, the call was NOT answered by a person
+      // Voicemail = missed call, regardless of what dial-status webhook might say
+      // Store voicemail and ensure dialCallStatus is set to 'no-answer' (missed)
+      
+      const updateData = {
+        voicemailUrl: RecordingUrl || null,
+        voicemailDuration: RecordingDuration ? parseInt(RecordingDuration) : null,
+        recordingSid: RecordingSid, // Store for voicemail playback
+        dialCallStatus: 'no-answer', // CRITICAL: Voicemail = missed call (not answered)
+        duration: 0 // Voicemail duration doesn't count as call duration
+      };
+      
+      // Only update if call wasn't actually answered (safety check)
+      // If dialCallStatus is already 'answered', don't override (this shouldn't happen, but safety first)
+      if (!existingLog || existingLog.dialCallStatus !== 'answered') {
         await CallLog.findOneAndUpdate(
           { callSid: CallSid },
           updateData,
-          { new: true }
+          { upsert: true, setDefaultsOnInsert: true, new: true }
         ).catch(err => console.error('Error updating call log with voicemail:', err));
         
         console.log(`✅ Voicemail saved for CallSid: ${CallSid}, Duration: ${RecordingDuration}s`);
-      } else if (existingLog && existingLog.dialCallStatus === 'answered') {
-        // Call was answered, this is a regular recording, not voicemail
-        // Don't store voicemail for answered calls
-        console.log(`ℹ️ Call was answered - ignoring voicemail recording (this should not happen)`);
+        console.log(`   ✅ Marked as missed call (no-answer) - voicemail recorded`);
       } else {
-        // No call log found yet - store voicemail anyway (it will be a missed call)
-        await CallLog.findOneAndUpdate(
-          { callSid: CallSid },
-          {
-            voicemailUrl: RecordingUrl || null,
-            voicemailDuration: RecordingDuration ? parseInt(RecordingDuration) : null,
-            recordingSid: RecordingSid // Store for voicemail playback
-          },
-          { upsert: true, setDefaultsOnInsert: true }
-        ).catch(err => console.error('Error updating call log with voicemail:', err));
-        
-        console.log(`✅ Voicemail saved for CallSid: ${CallSid} (no existing log found)`);
+        // Call was actually answered - this shouldn't happen, but log it
+        console.log(`⚠️ Call was answered - ignoring voicemail recording (this should not happen)`);
+        console.log(`   Current dialCallStatus: ${existingLog.dialCallStatus}`);
       }
     }
     
@@ -1786,8 +1808,24 @@ router.post('/voice/dial-status', async (req, res) => {
     // AUTHORITATIVE LOGIC: This webhook is the PRIMARY source for dialCallStatus
     // It overrides any fallback logic from status-callback
     
-    if (DialCallStatus === 'answered') {
-      // Call was answered - this is definitive
+    // CRITICAL: Check if voicemail was triggered - if so, this is a missed call (not answered)
+    // Voicemail only happens when Dial times out (no answer), so even if dial-status says 'completed' with duration > 0,
+    // if voicemail exists, it means no one answered
+    // Check for voicemailUrl OR if dialCallStatus was already set to 'no-answer' by voicemail handler
+    const hasVoicemail = existingLog && (
+      existingLog.voicemailUrl || 
+      (existingLog.dialCallStatus === 'no-answer' && existingLog.voicemailDuration !== undefined)
+    );
+    
+    if (hasVoicemail) {
+      // Voicemail was triggered = call was NOT answered by a person
+      // Override any 'completed' or 'answered' status - voicemail = missed call
+      updateData.dialCallStatus = 'no-answer';
+      updateData.duration = 0; // Voicemail duration doesn't count as call duration
+      updateData.endedAt = new Date();
+      console.log(`📞 Voicemail detected - marking as MISSED (no-answer) regardless of DialCallStatus: ${DialCallStatus}`);
+    } else if (DialCallStatus === 'answered') {
+      // Call was answered - this is definitive (and no voicemail)
       updateData.dialCallStatus = 'answered';
       updateData.answerTime = new Date();
       console.log(`✅ Call ANSWERED (authoritative from dial-status webhook)`);
@@ -1797,6 +1835,8 @@ router.post('/voice/dial-status', async (req, res) => {
       
       if (duration > 0) {
         // Duration > 0 means call was answered and had conversation
+        // BUT: Only mark as answered if no voicemail was triggered
+        // (This check is redundant now due to hasVoicemail check above, but kept for clarity)
         updateData.dialCallStatus = 'answered';
         updateData.duration = duration;
         if (!existingLog || !existingLog.answerTime) {
@@ -1824,10 +1864,14 @@ router.post('/voice/dial-status', async (req, res) => {
     } else if (DialCallStatus === 'no-answer' || DialCallStatus === 'busy' || 
                DialCallStatus === 'failed' || DialCallStatus === 'canceled') {
       // Call was not answered - these statuses are definitive
+      // 'no-answer' = Forward number didn't answer (missed)
+      // 'busy' = Forward number was busy (missed)
+      // 'failed' = Forward number call failed (missed)
+      // 'canceled' = Patient canceled after Dial started but before forward number answered (missed)
       updateData.dialCallStatus = DialCallStatus;
       updateData.duration = 0;
       updateData.endedAt = new Date();
-      console.log(`❌ Call NOT answered: ${DialCallStatus} (authoritative)`);
+      console.log(`❌ Call NOT answered: ${DialCallStatus} (authoritative) - MISSED`);
     } else {
       // Intermediate status (initiated, ringing) - update status but don't mark as answered/missed yet
       updateData.dialCallStatus = DialCallStatus;
@@ -2644,6 +2688,36 @@ router.get('/call-logs/stats', authenticateToken, async (req, res) => {
     console.error('Error fetching call stats:', error);
     res.status(500).json({ 
       error: 'Failed to fetch call statistics',
+      details: error.message 
+    });
+  }
+});
+
+// DELETE /api/twilio/call-logs/:customerId - Delete all call logs for a specific clinic (admin only)
+router.delete('/call-logs/:customerId', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    
+    // Verify customer exists
+    const customer = await User.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    // Delete all call logs for this customer
+    const deleteResult = await CallLog.deleteMany({ customerId });
+    
+    console.log(`🗑️ Deleted ${deleteResult.deletedCount} call logs for customer: ${customer.name || customer.email} (${customerId})`);
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deleteResult.deletedCount} call log${deleteResult.deletedCount !== 1 ? 's' : ''} for ${customer.name || customer.email}`,
+      deletedCount: deleteResult.deletedCount
+    });
+  } catch (error) {
+    console.error('Error deleting call logs:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete call logs',
       details: error.message 
     });
   }

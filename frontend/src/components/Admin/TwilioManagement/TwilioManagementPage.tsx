@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FaPhone, FaSpinner, FaSyncAlt, FaCheckCircle, FaTimesCircle, FaUnlink, FaEdit, FaTimes, FaVolumeUp, FaStop } from 'react-icons/fa';
+import { FaPhone, FaSpinner, FaSyncAlt, FaCheckCircle, FaTimesCircle, FaUnlink, FaEdit, FaTimes, FaVolumeUp, FaStop, FaTrash } from 'react-icons/fa';
 import { useTwilioManagement, Customer, TwilioPhoneNumber } from './TwilioManagementLogic';
 import axios from 'axios';
 
@@ -68,6 +68,7 @@ const TwilioManagementPage: React.FC = () => {
   const [updatingMessage, setUpdatingMessage] = useState<string | null>(null);
   const [playingVoice, setPlayingVoice] = useState<string | null>(null); // Voice value currently playing
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['Most Natural (AI Voices)'])); // Categories expanded by default
+  const [deletingLogs, setDeletingLogs] = useState<string | null>(null); // Customer ID currently deleting logs
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
   const handleConnect = async (customer: Customer) => {
@@ -328,6 +329,42 @@ const TwilioManagementPage: React.FC = () => {
       }
       return newSet;
     });
+  };
+
+  const handleDeleteAllLogs = async (customer: Customer) => {
+    // Confirmation dialog
+    const confirmMessage = `Are you sure you want to delete ALL call logs for ${customer.name}?\n\nThis action cannot be undone and will delete all call history, recordings, and statistics for this clinic.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+    
+    // Double confirmation
+    const doubleConfirm = window.confirm(`FINAL CONFIRMATION: Delete ALL call logs for ${customer.name}?\n\nThis will permanently delete all call history.`);
+    
+    if (!doubleConfirm) {
+      return;
+    }
+    
+    try {
+      setDeletingLogs(customer._id);
+      const token = localStorage.getItem('adminToken');
+      
+      const response = await axios.delete(
+        `${import.meta.env.VITE_API_BASE_URL}/twilio/call-logs/${customer._id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      alert(`Successfully deleted ${response.data.deletedCount} call log${response.data.deletedCount !== 1 ? 's' : ''} for ${customer.name}`);
+      
+      // Optionally refresh the page or update UI
+      window.location.reload();
+    } catch (err: any) {
+      console.error('Failed to delete call logs:', err);
+      alert(err.response?.data?.error || 'Failed to delete call logs');
+    } finally {
+      setDeletingLogs(null);
+    }
   };
 
   const availablePhoneNumbers = phoneNumbers.filter(num => !num.assigned);
@@ -636,37 +673,55 @@ const TwilioManagementPage: React.FC = () => {
                         )}
                       </td>
                       <td className="px-2 py-1.5 whitespace-nowrap text-xs font-medium" style={{ width: '10%' }}>
-                        {status.connected ? (
+                        <div className="flex flex-col gap-1">
+                          {status.connected ? (
+                            <button
+                              onClick={() => handleDisconnect(customer)}
+                              className="text-red-600 hover:text-red-900 text-xs"
+                              disabled={isConnecting}
+                              title="Disconnect"
+                            >
+                              <FaUnlink className="inline mr-0.5" /> Disconnect
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleConnect(customer)}
+                              disabled={
+                                isConnecting || 
+                                !selectedConnections[customer._id]?.phoneNumber || 
+                                (!selectedConnections[customer._id]?.forwardNumber && 
+                                 !selectedConnections[customer._id]?.forwardNumberNew && 
+                                 !selectedConnections[customer._id]?.forwardNumberExisting)
+                              }
+                              className="text-blue-600 hover:text-blue-900 disabled:text-gray-400 disabled:cursor-not-allowed text-xs"
+                              title="Connect"
+                            >
+                              {isConnecting ? (
+                                <>
+                                  <FaSpinner className="inline mr-0.5 animate-spin" /> Connecting...
+                                </>
+                              ) : (
+                                'Connect'
+                              )}
+                            </button>
+                          )}
                           <button
-                            onClick={() => handleDisconnect(customer)}
-                            className="text-red-600 hover:text-red-900 text-xs"
-                            disabled={isConnecting}
-                            title="Disconnect"
+                            onClick={() => handleDeleteAllLogs(customer)}
+                            disabled={deletingLogs === customer._id}
+                            className="text-xs text-gray-400 hover:text-red-600 disabled:text-gray-300 disabled:cursor-not-allowed flex items-center gap-0.5 px-1 py-0.5 rounded hover:bg-red-50 transition-colors"
+                            title="Delete all call logs for this clinic"
                           >
-                            <FaUnlink className="inline mr-0.5" /> Disconnect
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleConnect(customer)}
-                            disabled={
-                              isConnecting || 
-                              !selectedConnections[customer._id]?.phoneNumber || 
-                              (!selectedConnections[customer._id]?.forwardNumber && 
-                               !selectedConnections[customer._id]?.forwardNumberNew && 
-                               !selectedConnections[customer._id]?.forwardNumberExisting)
-                            }
-                            className="text-blue-600 hover:text-blue-900 disabled:text-gray-400 disabled:cursor-not-allowed text-xs"
-                            title="Connect"
-                          >
-                            {isConnecting ? (
+                            {deletingLogs === customer._id ? (
                               <>
-                                <FaSpinner className="inline mr-0.5 animate-spin" /> Connecting...
+                                <FaSpinner className="inline animate-spin text-xs" /> Deleting...
                               </>
                             ) : (
-                              'Connect'
+                              <>
+                                <FaTrash className="inline text-xs" /> Reset
+                              </>
                             )}
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   );
