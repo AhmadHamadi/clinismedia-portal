@@ -441,6 +441,42 @@ const CallLogsPage: React.FC = () => {
     return 'All Calls';
   };
 
+  const handleDeleteAllLogs = async () => {
+    // Confirmation dialog
+    const confirmMessage = `Are you sure you want to delete ALL call logs?\n\nThis action cannot be undone and will delete all call history, recordings, and statistics.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+    
+    // Double confirmation
+    const doubleConfirm = window.confirm(`FINAL CONFIRMATION: Delete ALL call logs?\n\nThis will permanently delete all call history.`);
+    
+    if (!doubleConfirm) {
+      return;
+    }
+    
+    try {
+      setDeletingLogs(true);
+      const token = localStorage.getItem('customerToken');
+      
+      const response = await axios.delete(
+        `${import.meta.env.VITE_API_BASE_URL}/twilio/call-logs`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      alert(`Successfully deleted ${response.data.deletedCount} call log${response.data.deletedCount !== 1 ? 's' : ''}`);
+      
+      // Refresh the page to show empty state
+      window.location.reload();
+    } catch (err: any) {
+      console.error('Failed to delete call logs:', err);
+      alert(err.response?.data?.error || 'Failed to delete call logs');
+    } finally {
+      setDeletingLogs(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4 flex items-center justify-center min-h-screen">
