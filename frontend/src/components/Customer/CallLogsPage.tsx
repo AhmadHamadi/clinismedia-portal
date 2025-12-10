@@ -954,7 +954,11 @@ const CallLogsPage: React.FC = () => {
                               <FaHeadphones className="text-xs" />
                               Voicemail
                             </button>
-                          ) : log.recordingSid && log.dialCallStatus === 'answered' ? (
+                          ) : log.recordingSid ? (
+                            // CRITICAL: If recordingSid exists, the call was answered
+                            // We use record="record-from-answer" which only records answered calls
+                            // Show recording button whenever recordingSid exists, regardless of dialCallStatus
+                            // (recording-status webhook should have set dialCallStatus to 'answered', but show it anyway)
                             <button
                               onClick={async () => {
                                 try {
@@ -1087,8 +1091,8 @@ const CallLogsPage: React.FC = () => {
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <FaHeadphones className={selectedCall && selectedCall.dialCallStatus && selectedCall.dialCallStatus !== 'answered' && selectedCall.voicemailUrl ? "text-purple-500" : "text-blue-500"} />
-                {selectedCall && selectedCall.dialCallStatus && selectedCall.dialCallStatus !== 'answered' && selectedCall.voicemailUrl ? 'Voicemail' : 'Call Recording'}
+                <FaHeadphones className={selectedCall && selectedCall.voicemailUrl && (!selectedCall.recordingSid || (selectedCall.dialCallStatus && selectedCall.dialCallStatus !== 'answered')) ? "text-purple-500" : "text-blue-500"} />
+                {selectedCall && selectedCall.voicemailUrl && (!selectedCall.recordingSid || (selectedCall.dialCallStatus && selectedCall.dialCallStatus !== 'answered')) ? 'Voicemail' : 'Call Recording'}
               </h2>
               <button
                 onClick={() => {

@@ -1463,22 +1463,38 @@ router.post('/voice/status-callback', async (req, res) => {
           if (DialCallStatus === 'answered') {
             updateData.dialCallStatus = 'answered';
             updateData.answerTime = new Date();
-            updateData.duration = dialDuration || callInfo.duration;
-            console.log(`✅ FALLBACK: Call ANSWERED (from DialCallStatus in status callback)`);
+            // CRITICAL: For answered calls, duration should NEVER be 0
+            if (dialDuration > 0) {
+              updateData.duration = dialDuration;
+            } else if (callInfo.duration > 0) {
+              updateData.duration = callInfo.duration;
+            } else {
+              updateData.duration = 1; // Minimum 1 second for answered call
+              console.log(`   ⚠️ Duration is 0 for answered call, setting minimum 1s`);
+            }
+            console.log(`✅ FALLBACK: Call ANSWERED (from DialCallStatus in status callback, duration: ${updateData.duration}s)`);
           } else if (DialCallStatus === 'completed') {
             // CRITICAL: 'completed' with duration > 0 does NOT mean answered if we never got 'answered' status
             // If patient ends call during ringing, duration > 0 is just ringing time, not conversation time
             // Only mark as answered if we previously had 'answered' status
             const wasPreviouslyAnswered = existingLog && existingLog.dialCallStatus === 'answered';
             
-            if (wasPreviouslyAnswered && dialDuration > 0) {
+            if (wasPreviouslyAnswered) {
               // Was previously answered, then completed = legitimate answered call
+              // CRITICAL: For answered calls, duration should NEVER be 0
               updateData.dialCallStatus = 'answered';
-              updateData.duration = dialDuration;
+              if (dialDuration > 0) {
+                updateData.duration = dialDuration;
+              } else if (existingLog && existingLog.duration > 0) {
+                updateData.duration = existingLog.duration;
+              } else {
+                updateData.duration = 1; // Minimum 1 second for answered call
+                console.log(`   ⚠️ Duration is 0 for answered call, setting minimum 1s`);
+              }
               if (!existingLog.answerTime) {
                 updateData.answerTime = new Date();
               }
-              console.log(`✅ FALLBACK: Call COMPLETED and ANSWERED (was previously answered, duration: ${dialDuration}s)`);
+              console.log(`✅ FALLBACK: Call COMPLETED and ANSWERED (was previously answered, duration: ${updateData.duration}s)`);
             } else if (dialDuration > 0) {
               // Duration > 0 but never answered = ended during ringing (MISSED)
               updateData.dialCallStatus = 'no-answer';
@@ -1511,18 +1527,32 @@ router.post('/voice/status-callback', async (req, res) => {
           console.log(`❌ FALLBACK: Call ${CallStatus} but NO DialCallStatus (ended before Dial or Dial never started) - MISSED`);
         }
         
+        // CRITICAL: For answered calls, duration should NEVER be 0
         // Set duration from status callback if not already set
         if (updateData.duration === undefined) {
-          updateData.duration = callInfo.duration;
+          if (callInfo.duration > 0) {
+            updateData.duration = callInfo.duration;
+          } else if (updateData.dialCallStatus === 'answered') {
+            // Call is answered but duration is 0 - set minimum 1 second
+            updateData.duration = 1;
+            console.log(`   ⚠️ Duration is 0 for answered call, setting minimum 1s`);
+          } else {
+            updateData.duration = callInfo.duration;
+          }
         }
       } else {
         // dialCallStatus already exists - don't override it (dial-status webhook is authoritative)
         console.log(`✅ dialCallStatus already exists (${existingLog.dialCallStatus}), preserving it`);
+        // CRITICAL: For answered calls, duration should NEVER be 0
         // Only update duration if it's not set or is 0
         if (!existingLog.duration || existingLog.duration === 0) {
           if (callInfo.duration > 0) {
             updateData.duration = callInfo.duration;
             console.log(`   Updating duration from status callback: ${callInfo.duration}s`);
+          } else if (existingLog.dialCallStatus === 'answered') {
+            // Call is answered but duration is 0 - set minimum 1 second
+            updateData.duration = 1;
+            console.log(`   ⚠️ Duration is 0 for answered call, setting minimum 1s`);
           }
         }
       }
@@ -1631,20 +1661,31 @@ router.get('/voice/voicemail', async (req, res) => {
     
     // Call was NOT answered - proceed with voicemail prompt
     // IMPORTANT: Mark this as a missed call (no-answer) immediately
+    // BUT: Only if the call doesn't have a recording or summary (recording/summary = answered call)
     // This ensures that even if dial-status webhook reports 'completed' with duration > 0,
-    // we know it went to voicemail, so it's a missed call
+    // we know it went to voicemail, so it's a missed call (unless recording/summary exists)
     if (CallSid) {
       try {
-        await CallLog.findOneAndUpdate(
-          { callSid: CallSid },
-          {
-            dialCallStatus: 'no-answer' // Voicemail = missed call (not answered)
-            // Note: voicemailUrl will be set later by voicemail-status webhook
-            // The presence of voicemailUrl indicates voicemail was triggered
-          },
-          { upsert: true, setDefaultsOnInsert: true }
-        );
-        console.log(`✅ Marked call as missed (no-answer) - voicemail triggered for CallSid: ${CallSid}`);
+        const existingLog = await CallLog.findOne({ callSid: CallSid });
+        const hasRecording = existingLog && existingLog.recordingSid;
+        const hasSummary = existingLog && existingLog.summaryText && existingLog.summaryReady;
+        
+        // Only mark as missed if there's no recording and no summary (recording/summary = answered call)
+        if (!hasRecording && !hasSummary) {
+          await CallLog.findOneAndUpdate(
+            { callSid: CallSid },
+            {
+              dialCallStatus: 'no-answer' // Voicemail = missed call (not answered)
+              // Note: voicemailUrl will be set later by voicemail-status webhook
+              // The presence of voicemailUrl indicates voicemail was triggered
+            },
+            { upsert: true, setDefaultsOnInsert: true }
+          );
+          console.log(`✅ Marked call as missed (no-answer) - voicemail triggered for CallSid: ${CallSid}`);
+        } else {
+          const reason = hasRecording ? 'recording' : 'summary';
+          console.log(`✅ Call has ${reason} - NOT marking as missed (call was answered)`);
+        }
       } catch (err) {
         console.error('Error updating call log with voicemail trigger:', err);
       }
@@ -1723,29 +1764,58 @@ router.post('/voice/voicemail-status', async (req, res) => {
       // Get existing call log to check status
       const existingLog = await CallLog.findOne({ callSid: CallSid });
       
-      // CRITICAL: If voicemail was recorded, the call was NOT answered by a person
-      // Voicemail = missed call, regardless of what dial-status webhook might say
-      // Store voicemail and ensure dialCallStatus is set to 'no-answer' (missed)
+      // CRITICAL: Check if call has a recording - if so, it was DEFINITELY answered
+      // We use record="record-from-answer" in TwiML, which means recordings ONLY happen when the call is answered
+      // A recording = answered call, regardless of what other webhooks might say
+      const hasRecording = existingLog && existingLog.recordingSid;
       
+      // CRITICAL: Check if call has a summary - if so, it was DEFINITELY answered
+      // Summaries are only created from recordings of answered calls with conversations
+      // If summaryText exists, the call was answered, so don't mark as missed
+      const hasSummary = existingLog && existingLog.summaryText && existingLog.summaryReady;
+      
+      // CRITICAL: If voicemail was recorded, the call was NOT answered by a person
+      // BUT: If a recording or summary exists, it means the call was answered
+      // Voicemail = missed call ONLY if there's no recording and no summary
       const updateData = {
         voicemailUrl: RecordingUrl || null,
         voicemailDuration: RecordingDuration ? parseInt(RecordingDuration) : null,
         recordingSid: RecordingSid, // Store for voicemail playback
-        dialCallStatus: 'no-answer', // CRITICAL: Voicemail = missed call (not answered)
-        duration: 0 // Voicemail duration doesn't count as call duration
       };
       
-      // Only update if call wasn't actually answered (safety check)
-      // If dialCallStatus is already 'answered', don't override (this shouldn't happen, but safety first)
-      if (!existingLog || existingLog.dialCallStatus !== 'answered') {
+      // Only mark as missed if there's no recording and no summary (recording/summary = answered call)
+      if (!hasRecording && !hasSummary) {
+        updateData.dialCallStatus = 'no-answer'; // Voicemail = missed call (not answered)
+        updateData.duration = 0; // Voicemail duration doesn't count as call duration
+      } else {
+        // Call has recording or summary = it was answered, so preserve answered status
+        const reason = hasRecording ? 'recording' : 'summary';
+        console.log(`✅ Call has ${reason} - preserving answered status despite voicemail recording`);
+        // Don't override dialCallStatus if it's already 'answered'
+        if (existingLog && existingLog.dialCallStatus === 'answered') {
+          // Keep it as answered
+        } else {
+          // If somehow not marked as answered yet, mark it now
+          updateData.dialCallStatus = 'answered';
+        }
+      }
+      
+      // Only update if call wasn't already marked as answered (unless we're preserving it)
+      if (!existingLog || existingLog.dialCallStatus !== 'answered' || hasRecording || hasSummary) {
         await CallLog.findOneAndUpdate(
           { callSid: CallSid },
           updateData,
           { upsert: true, setDefaultsOnInsert: true, new: true }
         ).catch(err => console.error('Error updating call log with voicemail:', err));
         
-        console.log(`✅ Voicemail saved for CallSid: ${CallSid}, Duration: ${RecordingDuration}s`);
-        console.log(`   ✅ Marked as missed call (no-answer) - voicemail recorded`);
+        if (hasRecording || hasSummary) {
+          const reason = hasRecording ? 'recording' : 'summary';
+          console.log(`✅ Voicemail saved for CallSid: ${CallSid}, Duration: ${RecordingDuration}s`);
+          console.log(`   ✅ Call has ${reason} - marked as ANSWERED (not missed)`);
+        } else {
+          console.log(`✅ Voicemail saved for CallSid: ${CallSid}, Duration: ${RecordingDuration}s`);
+          console.log(`   ✅ Marked as missed call (no-answer) - voicemail recorded`);
+        }
       } else {
         // Call was actually answered - this shouldn't happen, but log it
         console.log(`⚠️ Call was answered - ignoring voicemail recording (this should not happen)`);
@@ -1812,16 +1882,57 @@ router.post('/voice/dial-status', async (req, res) => {
     // AUTHORITATIVE LOGIC: This webhook is the PRIMARY source for dialCallStatus
     // It overrides any fallback logic from status-callback
     
-    // CRITICAL: Check if voicemail was triggered - if so, this is a missed call (not answered)
-    // Voicemail only happens when Dial times out (no answer), so even if dial-status says 'completed' with duration > 0,
-    // if voicemail exists, it means no one answered
+    // CRITICAL: Check if call has a recording - if so, it was DEFINITELY answered
+    // We use record="record-from-answer" in TwiML, which means recordings ONLY happen when the call is answered
+    // A recording = answered call, regardless of what other webhooks might say
+    const hasRecording = existingLog && existingLog.recordingSid;
+    
+    // CRITICAL: Check if call has a summary - if so, it was DEFINITELY answered
+    // Summaries are only created from recordings of answered calls with conversations
+    // If summaryText exists, the call was answered, regardless of voicemail status
+    const hasSummary = existingLog && existingLog.summaryText && existingLog.summaryReady;
+    
+    // CRITICAL: Check if voicemail was triggered - but ONLY if there's no recording and no summary
+    // If a call has a recording or summary, it means it was answered
+    // Voicemail only happens when Dial times out (no answer), so if voicemail exists AND no recording/summary, it's missed
     // Check for voicemailUrl OR if dialCallStatus was already set to 'no-answer' by voicemail handler
-    const hasVoicemail = existingLog && (
+    const hasVoicemail = existingLog && !hasRecording && !hasSummary && (
       existingLog.voicemailUrl || 
       (existingLog.dialCallStatus === 'no-answer' && existingLog.voicemailDuration !== undefined)
     );
     
-    if (hasVoicemail) {
+    if (hasRecording || hasSummary) {
+      // Call has a recording or summary = it was DEFINITELY answered
+      // Recording exists = answered (record-from-answer only records answered calls)
+      // Summary exists = answered (summaries only exist for answered calls with conversations)
+      // Override any voicemail or missed status - recording/summary = answered call
+      updateData.dialCallStatus = 'answered';
+      // CRITICAL: For answered calls, duration should NEVER be 0
+      // Preserve duration if it exists and is > 0, otherwise use DialCallDuration
+      if (!updateData.duration) {
+        if (existingLog && existingLog.duration > 0) {
+          updateData.duration = existingLog.duration;
+        } else if (DialCallDuration) {
+          const dialDuration = parseInt(DialCallDuration) || 0;
+          // If DialCallDuration is 0, set minimum 1 second for answered call
+          updateData.duration = dialDuration > 0 ? dialDuration : 1;
+          if (dialDuration === 0) {
+            console.log(`   ⚠️ DialCallDuration is 0 for answered call, setting minimum 1s`);
+          }
+        } else {
+          // No duration available - set minimum 1 second for answered call
+          updateData.duration = 1;
+          console.log(`   ⚠️ No duration available for answered call, setting minimum 1s`);
+        }
+      }
+      if (!updateData.answerTime && existingLog && existingLog.answerTime) {
+        updateData.answerTime = existingLog.answerTime;
+      } else if (!updateData.answerTime) {
+        updateData.answerTime = new Date();
+      }
+      const reason = hasRecording ? 'recording exists' : 'summary exists';
+      console.log(`✅ ${reason.charAt(0).toUpperCase() + reason.slice(1)} - marking as ANSWERED (call was answered, duration: ${updateData.duration || existingLog?.duration || 0}s)`);
+    } else if (hasVoicemail) {
       // Voicemail was triggered = call was NOT answered by a person
       // Override any 'completed' or 'answered' status - voicemail = missed call
       updateData.dialCallStatus = 'no-answer';
@@ -1832,7 +1943,25 @@ router.post('/voice/dial-status', async (req, res) => {
       // Call was answered - this is definitive (and no voicemail)
       updateData.dialCallStatus = 'answered';
       updateData.answerTime = new Date();
-      console.log(`✅ Call ANSWERED (authoritative from dial-status webhook)`);
+      // CRITICAL: For answered calls, duration should NEVER be 0
+      if (DialCallDuration) {
+        const dialDuration = parseInt(DialCallDuration) || 0;
+        // If DialCallDuration is 0, preserve existing duration or set minimum 1 second
+        if (dialDuration > 0) {
+          updateData.duration = dialDuration;
+        } else if (existingLog && existingLog.duration > 0) {
+          updateData.duration = existingLog.duration;
+        } else {
+          updateData.duration = 1; // Minimum 1 second for answered call
+          console.log(`   ⚠️ DialCallDuration is 0 for answered call, setting minimum 1s`);
+        }
+      } else if (existingLog && existingLog.duration > 0) {
+        updateData.duration = existingLog.duration;
+      } else {
+        updateData.duration = 1; // Minimum 1 second for answered call
+        console.log(`   ⚠️ No duration available for answered call, setting minimum 1s`);
+      }
+      console.log(`✅ Call ANSWERED (authoritative from dial-status webhook, duration: ${updateData.duration}s)`);
     } else if (DialCallStatus === 'completed') {
       // Call completed - determine if it was answered based on duration AND previous status
       const duration = DialCallDuration ? parseInt(DialCallDuration) : 0;
@@ -1845,8 +1974,16 @@ router.post('/voice/dial-status', async (req, res) => {
       if (wasPreviouslyAnswered) {
         // Call was previously answered, then completed (ended after being answered)
         // This is a legitimate answered call
+        // CRITICAL: For answered calls, duration should NEVER be 0
         updateData.dialCallStatus = 'answered';
-        updateData.duration = duration > 0 ? duration : (existingLog.duration || 0);
+        if (duration > 0) {
+          updateData.duration = duration;
+        } else if (existingLog && existingLog.duration > 0) {
+          updateData.duration = existingLog.duration;
+        } else {
+          updateData.duration = 1; // Minimum 1 second for answered call
+          console.log(`   ⚠️ Duration is 0 for answered call, setting minimum 1s`);
+        }
         if (!existingLog.answerTime) {
           updateData.answerTime = new Date();
         }
@@ -2262,13 +2399,33 @@ router.get('/call-logs/:callSid/summary', authenticateToken, async (req, res) =>
       // This ensures that if we improve the detection algorithm, existing summaries get re-analyzed
       const appointmentBooked = await detectAppointmentBooked(callLog.summaryText);
       
-      // Only update if the result is different (to avoid unnecessary DB writes)
-      if (callLog.appointmentBooked !== appointmentBooked) {
+      // CRITICAL: If summary exists but dialCallStatus is not 'answered', fix it
+      // This handles cases where summary was created but status wasn't updated
+      const needsStatusUpdate = callLog.dialCallStatus !== 'answered';
+      const needsAppointmentUpdate = callLog.appointmentBooked !== appointmentBooked;
+      
+      if (needsStatusUpdate || needsAppointmentUpdate) {
+        const updateData = {};
+        if (needsAppointmentUpdate) {
+          updateData.appointmentBooked = appointmentBooked;
+        }
+        if (needsStatusUpdate) {
+          updateData.dialCallStatus = 'answered'; // Summary = answered call
+          // CRITICAL: For answered calls, duration should NEVER be 0
+          if (callLog.duration === 0) {
+            updateData.duration = 1; // Set minimum 1 second
+          }
+        }
         await CallLog.findOneAndUpdate(
           { callSid: callSid },
-          { appointmentBooked: appointmentBooked }
+          updateData
         );
-        console.log(`✅ Re-analyzed summary - appointment status changed: ${callLog.appointmentBooked} → ${appointmentBooked}`);
+        if (needsStatusUpdate) {
+          console.log(`✅ Fixed: Summary exists but dialCallStatus was not 'answered' - now marked as ANSWERED`);
+        }
+        if (needsAppointmentUpdate) {
+          console.log(`✅ Re-analyzed summary - appointment status changed: ${callLog.appointmentBooked} → ${appointmentBooked}`);
+        }
       }
       
       return res.json({
@@ -2288,14 +2445,22 @@ router.get('/call-logs/:callSid/summary', authenticateToken, async (req, res) =>
           // Detect if an appointment was booked from the summary
           const appointmentBooked = await detectAppointmentBooked(summary);
           
+          // CRITICAL: If a summary exists, the call was DEFINITELY answered
+          // Summaries are only created from recordings of answered calls with conversations
+          // Mark the call as answered when summary is created (via polling)
           await CallLog.findOneAndUpdate(
             { callSid: callSid },
             { 
               summaryText: summary, 
               summaryReady: true,
-              appointmentBooked: appointmentBooked
+              appointmentBooked: appointmentBooked,
+              dialCallStatus: 'answered', // Summary = answered call
+              // CRITICAL: For answered calls, duration should NEVER be 0
+              // If duration is 0, set minimum 1 second
+              ...(callLog.duration === 0 ? { duration: 1 } : {})
             }
           );
+          console.log(`✅ Summary created via polling - call marked as ANSWERED (summary exists = call was answered)`);
           return res.json({
             summaryText: summary,
             summaryReady: true,
@@ -2448,51 +2613,126 @@ router.post('/voice/recording-status', async (req, res) => {
     console.log(`   RecordingUrl: ${RecordingUrl}`);
     console.log(`   RecordingDuration: ${RecordingDuration}`);
     
-    if (RecordingStatus === 'completed' && RecordingSid && CallSid) {
+    // CRITICAL: Always save RecordingSid if provided, regardless of RecordingStatus
+    // This ensures recordings are always available, even if status is 'processing' or webhook fires multiple times
+    // We use record="record-from-answer" which only records answered calls, so RecordingSid = answered call
+    if (RecordingSid && CallSid) {
+      // Get existing call log to check for summary and current status
+      const existingLog = await CallLog.findOne({ callSid: CallSid });
+      const hasSummary = existingLog && existingLog.summaryText && existingLog.summaryReady;
+      
+      // CRITICAL: If a recording exists, the call was DEFINITELY answered
+      // We use record="record-from-answer" in TwiML, which means recordings ONLY happen when the call is answered
+      // A recording = answered call, regardless of what dial-status or other webhooks might say
+      
       // Store the RecordingSid - we'll use it to fetch the recording via our proxy endpoint
       // Twilio recording URLs require authentication, so we'll proxy them through our backend
+      const updateData = {
+        recordingSid: RecordingSid, // ALWAYS save RecordingSid when provided
+        recordingUrl: RecordingUrl || null // Store the URL if provided, but we'll use SID for access
+      };
+      
+      // CRITICAL: Recording exists = call was answered (record-from-answer only records answered calls)
+      // Mark as answered and set duration from RecordingDuration (only when status is 'completed')
+      const recordingDuration = RecordingDuration ? parseInt(RecordingDuration) : 0;
+      
+      // Always mark as answered if recording exists (unless already marked as answered)
+      if (!existingLog || existingLog.dialCallStatus !== 'answered') {
+        updateData.dialCallStatus = 'answered';
+        console.log(`✅ Recording exists - marking call as ANSWERED (record-from-answer = call was answered)`);
+      }
+      
+      // Set duration from RecordingDuration (this is the actual conversation duration)
+      // CRITICAL: For answered calls, duration should NEVER be 0
+      // Only update duration when RecordingStatus is 'completed' (recording is finished)
+      if (RecordingStatus === 'completed') {
+        if (recordingDuration > 0) {
+          updateData.duration = recordingDuration;
+          console.log(`   Setting duration from recording: ${recordingDuration}s`);
+        } else if (existingLog && existingLog.duration > 0) {
+          // RecordingDuration is 0 but call was answered - preserve existing duration
+          updateData.duration = existingLog.duration;
+          console.log(`   RecordingDuration is 0, preserving existing duration: ${existingLog.duration}s`);
+        } else {
+          // No duration available - set minimum 1 second for answered call
+          updateData.duration = 1;
+          console.log(`   ⚠️ No duration available, setting minimum 1s for answered call`);
+        }
+      } else if (existingLog && existingLog.duration > 0) {
+        // Preserve existing duration if recording is still processing
+        updateData.duration = existingLog.duration;
+        console.log(`   Preserving existing duration: ${existingLog.duration}s (RecordingStatus: ${RecordingStatus})`);
+      } else if (existingLog && existingLog.duration === 0) {
+        // Duration is 0 but call was answered - set minimum 1 second
+        updateData.duration = 1;
+        console.log(`   ⚠️ Duration was 0 for answered call, setting minimum 1s`);
+      }
+      
+      // Set answerTime if not already set
+      if (!existingLog || !existingLog.answerTime) {
+        updateData.answerTime = new Date();
+      }
+      
       await CallLog.findOneAndUpdate(
         { callSid: CallSid },
-        {
-          recordingSid: RecordingSid,
-          recordingUrl: RecordingUrl || null // Store the URL if provided, but we'll use SID for access
-        },
+        updateData,
         { new: true }
       ).catch(err => console.error('Error updating call log with recording:', err));
       
       console.log(`✅ Recording saved for CallSid: ${CallSid}`);
       console.log(`   RecordingSid: ${RecordingSid}`);
+      console.log(`   RecordingStatus: ${RecordingStatus}`);
+      console.log(`   Duration: ${updateData.duration || existingLog?.duration || 0}s`);
+      console.log(`   dialCallStatus: ${updateData.dialCallStatus || existingLog?.dialCallStatus || 'unchanged'}`);
       
-      // Create CI transcript from recording (for Conversation Summary)
-      const enableTranscription = process.env.TWILIO_ENABLE_TRANSCRIPTION === 'true';
-      const viServiceSid = process.env.TWILIO_VI_SERVICE_SID;
-      
-      if (enableTranscription && viServiceSid) {
-        try {
-          console.log(`📝 Creating CI transcript from recording for Conversation Summary...`);
-          const transcriptData = await createTranscriptFromRecording(RecordingSid);
-          const transcriptSid = transcriptData.sid;
-          
-          // Store transcript SID for CI webhook lookup
-          await CallLog.findOneAndUpdate(
-            { callSid: CallSid },
-            {
-              transcriptSid: transcriptSid,
-              summaryReady: false // Summary will be set when CI webhook fires or polling
-            },
-            { new: true }
-          ).catch(err => console.error('Error updating call log with transcript SID:', err));
-          
-          console.log(`✅ CI transcript created: ${transcriptSid}`);
-          
-        } catch (transcriptError) {
-          console.error('Error creating CI transcript:', transcriptError);
-          if (transcriptError.response) {
-            console.error('   API Error:', transcriptError.response.status, transcriptError.response.data);
+      // Only create CI transcript when recording is completed (not during processing)
+      if (RecordingStatus === 'completed') {
+        // Create CI transcript from recording (for Conversation Summary)
+        const enableTranscription = process.env.TWILIO_ENABLE_TRANSCRIPTION === 'true';
+        const viServiceSid = process.env.TWILIO_VI_SERVICE_SID;
+        
+        if (enableTranscription && viServiceSid) {
+          try {
+            console.log(`📝 Creating CI transcript from recording for Conversation Summary...`);
+            const transcriptData = await createTranscriptFromRecording(RecordingSid);
+            const transcriptSid = transcriptData.sid;
+            
+            // Store transcript SID for CI webhook lookup
+            await CallLog.findOneAndUpdate(
+              { callSid: CallSid },
+              {
+                transcriptSid: transcriptSid,
+                summaryReady: false // Summary will be set when CI webhook fires or polling
+              },
+              { new: true }
+            ).catch(err => console.error('Error updating call log with transcript SID:', err));
+            
+            console.log(`✅ CI transcript created: ${transcriptSid}`);
+            
+          } catch (transcriptError) {
+            console.error('Error creating CI transcript:', transcriptError);
+            if (transcriptError.response) {
+              console.error('   API Error:', transcriptError.response.status, transcriptError.response.data);
+            }
+            // Don't fail the webhook - just log the error
           }
-          // Don't fail the webhook - just log the error
         }
+      } else {
+        // RecordingStatus is not 'completed' yet (e.g., 'processing')
+        // RecordingSid is already saved above, so recording will be available when completed
+        console.log(`⏳ Recording is still processing (Status: ${RecordingStatus}) - RecordingSid saved, will update when completed`);
       }
+    } else {
+      // No RecordingSid provided - log for debugging
+      console.log(`⚠️ Recording status update received but no RecordingSid provided (CallSid: ${CallSid}, Status: ${RecordingStatus})`);
+    } else {
+        // RecordingStatus is not 'completed' yet (e.g., 'processing')
+        // RecordingSid is already saved above, so recording will be available when completed
+        console.log(`⏳ Recording is still processing (Status: ${RecordingStatus}) - RecordingSid saved, will update when completed`);
+      }
+    } else {
+      // No RecordingSid provided - log for debugging
+      console.log(`⚠️ Recording status update received but no RecordingSid provided (CallSid: ${CallSid}, Status: ${RecordingStatus})`);
     }
     
     // Twilio expects a 200 response
@@ -2529,19 +2769,50 @@ router.post('/ci-status', async (req, res) => {
           // Detect if an appointment was booked from the summary
           const appointmentBooked = await detectAppointmentBooked(summary);
           
+          // CRITICAL: If a summary exists, the call was DEFINITELY answered
+          // Summaries are only created from recordings of answered calls with conversations
+          // Mark the call as answered when summary is created
+          const existingLog = await CallLog.findOne({ transcriptSid: transcriptSid });
+          
+          const updateData = {
+            summaryText: summary, 
+            summaryReady: true,
+            appointmentBooked: appointmentBooked,
+            updatedAt: new Date(),
+            dialCallStatus: 'answered' // Summary = answered call
+          };
+          
+          // CRITICAL: For answered calls (summary exists), duration should NEVER be 0
+          // Preserve duration and answerTime if they exist
+          if (existingLog) {
+            // Preserve duration if it exists and is > 0
+            if (existingLog.duration > 0) {
+              updateData.duration = existingLog.duration;
+            } else {
+              // Duration is 0 but call was answered (summary exists) - set minimum 1 second
+              updateData.duration = 1;
+              console.log(`   ⚠️ Duration was 0 for answered call with summary, setting minimum 1s`);
+            }
+            // Preserve answerTime if it exists
+            if (existingLog.answerTime) {
+              updateData.answerTime = existingLog.answerTime;
+            } else {
+              updateData.answerTime = new Date();
+            }
+          } else {
+            // No existing log - set minimum duration for answered call
+            updateData.duration = 1;
+            updateData.answerTime = new Date();
+            console.log(`   ⚠️ No existing log, setting minimum 1s duration for answered call with summary`);
+          }
+          
           await CallLog.updateOne(
             { transcriptSid: transcriptSid },
-            {
-              $set: { 
-                summaryText: summary, 
-                summaryReady: true,
-                appointmentBooked: appointmentBooked,
-                updatedAt: new Date() 
-              }
-            }
+            { $set: updateData }
           );
           console.log(`✅ Conversation summary saved for transcript: ${transcriptSid}`);
           console.log(`   Appointment booked: ${appointmentBooked ? 'Yes' : 'No'}`);
+          console.log(`   ✅ Call marked as ANSWERED (summary exists = call was answered)`);
         }
       } catch (summaryError) {
         console.error('Error fetching/saving conversation summary:', summaryError.message);
