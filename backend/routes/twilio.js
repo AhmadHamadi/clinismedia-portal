@@ -2725,14 +2725,6 @@ router.post('/voice/recording-status', async (req, res) => {
     } else {
       // No RecordingSid provided - log for debugging
       console.log(`⚠️ Recording status update received but no RecordingSid provided (CallSid: ${CallSid}, Status: ${RecordingStatus})`);
-    } else {
-        // RecordingStatus is not 'completed' yet (e.g., 'processing')
-        // RecordingSid is already saved above, so recording will be available when completed
-        console.log(`⏳ Recording is still processing (Status: ${RecordingStatus}) - RecordingSid saved, will update when completed`);
-      }
-    } else {
-      // No RecordingSid provided - log for debugging
-      console.log(`⚠️ Recording status update received but no RecordingSid provided (CallSid: ${CallSid}, Status: ${RecordingStatus})`);
     }
     
     // Twilio expects a 200 response
