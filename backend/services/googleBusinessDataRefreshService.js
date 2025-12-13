@@ -85,19 +85,26 @@ class GoogleBusinessDataRefreshService {
       const expiresAt = customer.googleBusinessTokenExpiry ? new Date(customer.googleBusinessTokenExpiry).getTime() : 0;
       const refreshThreshold = 60 * 1000; // 60 seconds before expiry
 
-      if (now > (expiresAt - refreshThreshold)) {
+      // ✅ FIXED: Only refresh if we have a valid expiry date AND token expires soon
+      // If expiresAt is 0 (no expiry set), assume token is still valid and try to use it
+      if (expiresAt > 0 && now > (expiresAt - refreshThreshold)) {
         console.log(`🔄 Refreshing token for ${customer.name}...`);
         try {
           const refreshedTokens = await refreshGoogleBusinessToken(customer.googleBusinessRefreshToken);
           
+          // ✅ FIXED: Always set expiry - default to 1 hour if expires_in is not provided
           let newExpiry = null;
-          if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in))) {
+          if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
             newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
+          } else {
+            // Default to 1 hour if expires_in is not provided (Google tokens typically expire in 1 hour)
+            newExpiry = new Date(Date.now() + 3600 * 1000);
+            console.log(`⚠️ Token refresh did not return expires_in for ${customer.name}, defaulting to 1 hour expiry`);
           }
           
           const updateData = {
             googleBusinessAccessToken: refreshedTokens.access_token,
-            googleBusinessTokenExpiry: newExpiry
+            googleBusinessTokenExpiry: newExpiry // ✅ FIXED: Always set expiry
           };
           
           if (refreshedTokens.refresh_token) {
@@ -228,21 +235,27 @@ class GoogleBusinessDataRefreshService {
           const expiresAt = customer.googleBusinessTokenExpiry ? new Date(customer.googleBusinessTokenExpiry).getTime() : 0;
           const refreshThreshold = 60 * 1000; // 60 seconds before expiry
 
-          if (now > (expiresAt - refreshThreshold)) {
+          // ✅ FIXED: Only refresh if we have a valid expiry date AND token expires soon
+          // If expiresAt is 0 (no expiry set), assume token is still valid and try to use it
+          if (expiresAt > 0 && now > (expiresAt - refreshThreshold)) {
             console.log(`🔄 Refreshing token for ${customer.name}...`);
             try {
               // Use direct token refresh (like Google Ads) - doesn't require redirect URI match
               const refreshedTokens = await refreshGoogleBusinessToken(customer.googleBusinessRefreshToken);
               
-              // Update customer with new tokens
+              // ✅ FIXED: Always set expiry - default to 1 hour if expires_in is not provided
               let newExpiry = null;
-              if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in))) {
+              if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
                 newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
+              } else {
+                // Default to 1 hour if expires_in is not provided (Google tokens typically expire in 1 hour)
+                newExpiry = new Date(Date.now() + 3600 * 1000);
+                console.log(`⚠️ Token refresh did not return expires_in for ${customer.name}, defaulting to 1 hour expiry`);
               }
               
               const updateData = {
                 googleBusinessAccessToken: refreshedTokens.access_token,
-                googleBusinessTokenExpiry: newExpiry
+                googleBusinessTokenExpiry: newExpiry // ✅ FIXED: Always set expiry
               };
               
               // Preserve refresh token if provided (Google may rotate it)

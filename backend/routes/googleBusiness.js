@@ -612,13 +612,31 @@ router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']
       googleBusinessProfileName: businessProfileName,
       googleBusinessAccessToken: tokens.access_token,
       googleBusinessRefreshToken: tokens.refresh_token,
-      googleBusinessNeedsReauth: false // Clear reauth flag when saving new tokens
+      googleBusinessNeedsReauth: false // ✅ FIXED: Always clear reauth flag when saving new tokens
     };
 
-    // Only add expiry if we have a valid expires_in value
-    if (tokens.expires_in && !isNaN(tokens.expires_in)) {
+    // ✅ FIXED: Always set expiry - default to 1 hour if expires_in is not provided
+    // OAuth tokens typically expire in 1 hour, so use that as default
+    // This prevents immediate expiry checks that would incorrectly trigger reauth
+    if (tokens.expires_in && !isNaN(tokens.expires_in) && tokens.expires_in > 0) {
       updateData.googleBusinessTokenExpiry = new Date(Date.now() + tokens.expires_in * 1000);
+      console.log(`✅ Token expiry set: ${tokens.expires_in} seconds from now`);
+    } else {
+      // Default to 1 hour (3600 seconds) if expires_in is not provided
+      // This prevents the expiry check from immediately triggering a refresh
+      updateData.googleBusinessTokenExpiry = new Date(Date.now() + 3600 * 1000);
+      console.log('⚠️ Token expires_in not provided or invalid, defaulting to 1 hour expiry');
     }
+    
+    console.log('💾 Saving business profile with tokens:', {
+      customerId,
+      businessProfileId,
+      businessProfileName,
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      tokenExpiry: updateData.googleBusinessTokenExpiry,
+      needsReauth: false
+    });
 
     await User.findByIdAndUpdate(customerId, updateData);
 
@@ -869,15 +887,18 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       hasRefreshToken: !!customer.googleBusinessRefreshToken,
       expiresAt: customer.googleBusinessTokenExpiry,
       expiresInMs: expiresAt - now,
-      needsRefresh: now > (expiresAt - refreshThreshold)
+      needsRefresh: expiresAt > 0 && now > (expiresAt - refreshThreshold),
+      hasExpiry: !!customer.googleBusinessTokenExpiry
     });
 
     if (!customer.googleBusinessAccessToken) {
       return res.status(400).json({ error: 'No access_token in store' });
     }
 
-    // Pre-call expiry guard: refresh if token expires within 60 seconds
-    if (now > (expiresAt - refreshThreshold)) {
+    // ✅ FIXED: Only refresh if we have a valid expiry date AND token expires soon
+    // If expiresAt is 0 (no expiry set), assume token is still valid and try to use it
+    // If it fails, the API call will fail and we can handle it then
+    if (expiresAt > 0 && now > (expiresAt - refreshThreshold)) {
       console.log('🔄 Token expires soon, refreshing proactively...');
       
       if (!customer.googleBusinessRefreshToken) {
@@ -902,23 +923,25 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
         });
         
         // Update customer with new tokens and recompute expiry
+        // ✅ FIXED: Always set expiry - default to 1 hour if expires_in is not provided
         let newExpiry = null;
-        if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in))) {
+        if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
           newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
+        } else {
+          // Default to 1 hour if expires_in is not provided (Google tokens typically expire in 1 hour)
+          newExpiry = new Date(Date.now() + 3600 * 1000);
+          console.log('⚠️ Token refresh did not return expires_in, defaulting to 1 hour expiry');
         }
         
         const updateData = {
           googleBusinessAccessToken: refreshedTokens.access_token,
+          googleBusinessTokenExpiry: newExpiry, // ✅ FIXED: Always set expiry
           googleBusinessNeedsReauth: false // Clear reauth flag on successful refresh
         };
         
         // Preserve refresh token (use new if provided, otherwise keep existing)
         if (refreshedTokens.refresh_token) {
           updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
-        }
-        
-        if (newExpiry) {
-          updateData.googleBusinessTokenExpiry = newExpiry;
         }
         
         await User.findByIdAndUpdate(customerId, updateData);
@@ -958,18 +981,36 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       }
     }
     
-    // Also check if customer was marked as needing reauth
-    if (customer.googleBusinessNeedsReauth) {
-      console.error(`❌ Customer ${customerId} marked as needing re-authentication`);
+    // ✅ FIXED: Check if customer was marked as needing reauth, but only if they actually have no tokens
+    // If tokens exist but flag is set, it might be a false positive - try to use the tokens first
+    if (customer.googleBusinessNeedsReauth && (!customer.googleBusinessAccessToken || !customer.googleBusinessRefreshToken)) {
+      console.error(`❌ Customer ${customerId} marked as needing re-authentication and has no valid tokens`);
       return res.status(401).json({ 
         error: 'Google Business Profile connection expired. Please ask your administrator to reconnect your Google Business Profile.',
         requiresReauth: true,
         details: 'Your Google Business Profile tokens have expired. Admin needs to re-assign the profile.'
       });
+    } else if (customer.googleBusinessNeedsReauth) {
+      // ✅ FIXED: If flag is set but tokens exist, clear the flag and try to use tokens
+      // This handles cases where the flag was incorrectly set (e.g., during token refresh failure that was temporary)
+      console.log(`⚠️ Customer ${customerId} has reauth flag set but tokens exist - clearing flag and attempting to use tokens`);
+      await User.findByIdAndUpdate(customerId, {
+        googleBusinessNeedsReauth: false
+      });
+      // Continue with the request using existing tokens
     }
 
     // Use Business Profile Performance API (recommended by ChatGPT)
     const performance = google.businessprofileperformance({ version: 'v1', auth: oauth2Client });
+
+    // ✅ FIXED: Get access token and location name early (before they're used)
+    // Get the current access token (might have been refreshed)
+    const currentCredentials = oauth2Client.credentials;
+    let accessToken = currentCredentials.access_token || customer.googleBusinessAccessToken;
+    
+    // ✅ FIXED: Define locationName early (before comparison fetch)
+    const locationId = customer.googleBusinessProfileId;
+    const locationName = `locations/${locationId}`;
 
     // Set date range with support for dynamic ranges and comparisons
     const today = new Date();
@@ -1061,10 +1102,6 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       });
     }
 
-    // Use the location ID from the customer's profile
-    const locationId = customer.googleBusinessProfileId;
-    const locationName = `locations/${locationId}`;
-
     console.log(`Fetching insights for location: ${locationName}`);
     console.log(`Date range: ${startDate} to ${endDate}`);
     console.log(`Start date object:`, startDateObj);
@@ -1106,9 +1143,9 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       // Don't fail the main request if test fails - just log and continue
     }
 
-    // Get the current access token (might have been refreshed)
-    const currentCredentials = oauth2Client.credentials;
-    const accessToken = currentCredentials.access_token;
+    // ✅ FIXED: Update access token in case it was refreshed during test call
+    const updatedCredentials = oauth2Client.credentials;
+    accessToken = updatedCredentials.access_token || accessToken;
 
     // Fetch main insights data using helper function
     const insights = await fetchBusinessInsightsData(oauth2Client, locationName, startDate, endDate, accessToken);
@@ -1331,6 +1368,17 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
     });
     
     // Log to Google Cloud Console format for debugging
+    // ✅ FIXED: Define metrics array for error logging
+    const errorMetrics = [
+      'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH',
+      'BUSINESS_IMPRESSIONS_MOBILE_SEARCH',
+      'BUSINESS_IMPRESSIONS_DESKTOP_MAPS',
+      'BUSINESS_IMPRESSIONS_MOBILE_MAPS',
+      'WEBSITE_CLICKS',
+      'CALL_CLICKS',
+      'BUSINESS_DIRECTION_REQUESTS'
+    ];
+    
     console.error('🔍 Cloud Console Debug Info:', {
       serviceName: 'businessprofileperformance.googleapis.com',
       method: 'fetchMultiDailyMetricsTimeSeries',
@@ -1338,7 +1386,7 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       errorMessage: error.response?.data?.error?.message,
       requestParams: {
         locationId: customer?.googleBusinessProfileId,
-        metrics: metrics,
+        metrics: errorMetrics,
         dateRange: { start: startDateObj, end: endDateObj }
       }
     });

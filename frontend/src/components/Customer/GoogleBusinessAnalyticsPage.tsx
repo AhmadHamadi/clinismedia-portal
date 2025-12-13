@@ -62,12 +62,6 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
     }
   }, [dateRange]);
 
-  useEffect(() => {
-    if (dateRange !== 'custom') {
-      fetchGoogleBusinessData();
-    }
-  }, [dateRange]);
-
   // Also fetch data when custom date range is applied
   useEffect(() => {
     if (dateRange === 'custom' && customStartDate && customEndDate) {
