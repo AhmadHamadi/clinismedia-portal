@@ -2021,6 +2021,11 @@ router.post('/voice/dial-status', async (req, res) => {
       console.log(`⏳ Intermediate status: ${DialCallStatus}`);
     }
     
+    // Preserve menu choice if it exists (important for new patient appointment tracking)
+    if (existingLog && existingLog.menuChoice) {
+      updateData.menuChoice = existingLog.menuChoice;
+    }
+    
     // Update the call log (this overrides any fallback logic from status-callback)
     const updatedLog = await CallLog.findOneAndUpdate(
       { callSid: callSidToUse },
@@ -2921,6 +2926,15 @@ router.get('/call-logs/stats', authenticateToken, async (req, res) => {
     });
     console.log(`📊 Appointments booked: ${appointmentsBooked}`);
     
+    // New Patient Appointments Booked = Calls where menuChoice === '1' (new patient) AND appointmentBooked === true
+    // This only counts appointments from callers who pressed "1" (new patient) before being forwarded
+    const newPatientAppointmentsBooked = await CallLog.countDocuments({
+      ...query,
+      menuChoice: '1',
+      appointmentBooked: true
+    });
+    console.log(`📊 New patient appointments booked: ${newPatientAppointmentsBooked}`);
+    
     // Calculate total duration (in seconds) for answered calls only
     // Use the same query as answeredCalls to ensure consistency (includes backward compatibility for old calls)
     const durationResult = await CallLog.aggregate([
@@ -2935,7 +2949,7 @@ router.get('/call-logs/stats', authenticateToken, async (req, res) => {
     const avgDuration = answeredCalls > 0 ? Math.round(totalDuration / answeredCalls) : 0;
     
     // Log final stats for debugging
-    console.log(`📊 Final stats: Total=${totalCalls}, Answered=${answeredCalls}, Missed=${missedCalls}, Appointments=${appointmentsBooked}, Duration=${totalDuration}s, Avg=${avgDuration}s`);
+    console.log(`📊 Final stats: Total=${totalCalls}, Answered=${answeredCalls}, Missed=${missedCalls}, Appointments=${appointmentsBooked}, NewPatientAppointments=${newPatientAppointmentsBooked}, Duration=${totalDuration}s, Avg=${avgDuration}s`);
     
     res.json({
       totalCalls,
@@ -2944,6 +2958,7 @@ router.get('/call-logs/stats', authenticateToken, async (req, res) => {
       newPatientCalls,
       existingPatientCalls,
       appointmentsBooked, // Number of calls that led to appointment bookings
+      newPatientAppointmentsBooked, // Number of appointments booked from new patients (pressed 1)
       totalDuration, // in seconds
       avgDuration, // in seconds
       totalDurationFormatted: formatDuration(totalDuration),

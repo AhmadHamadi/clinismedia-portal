@@ -60,6 +60,7 @@ interface CallStats {
   newPatientCalls: number;
   existingPatientCalls: number;
   appointmentsBooked: number;
+  newPatientAppointmentsBooked: number; // Appointments booked from new patients (pressed 1)
   totalDuration: number;
   avgDuration: number;
   totalDurationFormatted: string;
@@ -743,6 +744,32 @@ const CallLogsPage: React.FC = () => {
                   )}
                 </div>
                 <FaUser className="text-green-500 text-xl" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* New Patient Appointments Booked - Only counts appointments from callers who pressed 1 */}
+        {stats && (
+          <div className="mb-4">
+            <div className="bg-white p-3 rounded-lg shadow border-l-4 border-orange-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-600 font-medium">New Patient Appointments Booked</p>
+                  <p className="text-xl font-bold text-orange-600 mt-1">{stats.newPatientAppointmentsBooked || 0}</p>
+                  {stats.newPatientCalls > 0 ? (
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {Math.round((stats.newPatientAppointmentsBooked / stats.newPatientCalls) * 100)}% of new patient calls
+                    </p>
+                  ) : stats.appointmentsBooked > 0 ? (
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {Math.round((stats.newPatientAppointmentsBooked / stats.appointmentsBooked) * 100)}% of all appointments
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-400 mt-0.5">No appointments yet</p>
+                  )}
+                </div>
+                <FaCalendarCheck className="text-orange-500 text-xl" />
               </div>
             </div>
           </div>
