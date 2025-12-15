@@ -60,7 +60,9 @@ const CustomerInvoicePage: React.FC = () => {
   if (loading) return <div className="p-6 text-gray-600">Loading invoices...</div>;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 p-6">
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+      <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
+        <div className="flex flex-col lg:flex-row gap-6">
       {/* Left: Current Invoice */}
       <div className="w-full lg:w-2/3">
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-2 py-8 bg-gradient-to-br from-[#f8fafc] to-[#e0f2fe]">
@@ -147,6 +149,8 @@ const CustomerInvoicePage: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+      </div>
         </div>
       </div>
     </div>

@@ -83,7 +83,7 @@ class GoogleBusinessDataRefreshService {
       // Check if token needs refresh
       const now = Date.now();
       const expiresAt = customer.googleBusinessTokenExpiry ? new Date(customer.googleBusinessTokenExpiry).getTime() : 0;
-      const refreshThreshold = 60 * 1000; // 60 seconds before expiry
+      const refreshThreshold = 5 * 60 * 1000; // ✅ FIXED: Refresh 5 minutes before expiry (was 60 seconds) to ensure tokens never expire
 
       // ✅ FIXED: Only refresh if we have a valid expiry date AND token expires soon
       // If expiresAt is 0 (no expiry set), assume token is still valid and try to use it
@@ -132,13 +132,83 @@ class GoogleBusinessDataRefreshService {
       }
 
       // Fetch fresh insights data
-      const insightsData = await this.fetchBusinessInsightsData(
-        oauth2Client,
-        customer.googleBusinessProfileId,
-        startDate,
-        endDate,
-        oauth2Client.credentials.access_token
-      );
+      let insightsData = null;
+      try {
+        insightsData = await this.fetchBusinessInsightsData(
+          oauth2Client,
+          customer.googleBusinessProfileId,
+          startDate,
+          endDate,
+          oauth2Client.credentials.access_token
+        );
+      } catch (apiError) {
+        // ✅ FIXED: Handle 401 errors by attempting token refresh and retry
+        if (apiError.is401 || apiError.response?.status === 401) {
+          console.log(`⚠️ 401 error for ${customer.name}, attempting token refresh and retry...`);
+          
+          try {
+            // Attempt to refresh token
+            const refreshedTokens = await refreshGoogleBusinessToken(customer.googleBusinessRefreshToken);
+            
+            // Update customer with new tokens
+            let newExpiry = null;
+            if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
+              newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
+            } else {
+              newExpiry = new Date(Date.now() + 3600 * 1000);
+            }
+            
+            const updateData = {
+              googleBusinessAccessToken: refreshedTokens.access_token,
+              googleBusinessTokenExpiry: newExpiry
+            };
+            
+            if (refreshedTokens.refresh_token) {
+              updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
+            }
+            
+            await User.findByIdAndUpdate(customer._id, updateData);
+            
+            // Update OAuth client with new token
+            oauth2Client.setCredentials({
+              access_token: refreshedTokens.access_token,
+              refresh_token: refreshedTokens.refresh_token || customer.googleBusinessRefreshToken
+            });
+            
+            // Update customer object for retry
+            customer.googleBusinessAccessToken = refreshedTokens.access_token;
+            
+            console.log(`✅ Token refreshed for ${customer.name}, retrying API call...`);
+            
+            // Retry the API call with new token
+            insightsData = await this.fetchBusinessInsightsData(
+              oauth2Client,
+              customer.googleBusinessProfileId,
+              startDate,
+              endDate,
+              refreshedTokens.access_token
+            );
+          } catch (refreshError) {
+            console.error(`❌ Token refresh failed for ${customer.name}:`, refreshError.message);
+            
+            // Handle invalid_grant error (expired/revoked refresh token)
+            if (refreshError.response?.data?.error === 'invalid_grant' || 
+                refreshError.message?.includes('invalid_grant')) {
+              await User.findByIdAndUpdate(customer._id, {
+                googleBusinessNeedsReauth: true
+              });
+              console.log(`⚠️ Marked ${customer.name} as needing re-authentication (refresh token expired or revoked)`);
+            }
+            
+            // Set insightsData to null to trigger error handling below
+            insightsData = null;
+          }
+        } else {
+          // Non-401 error, just log and continue
+          console.error(`❌ API error for ${customer.name}:`, apiError.message);
+          insightsData = null;
+        }
+      }
 
       if (insightsData) {
         const processedData = await this.processAndSaveInsights(
@@ -233,7 +303,7 @@ class GoogleBusinessDataRefreshService {
           // Check if token needs refresh
           const now = Date.now();
           const expiresAt = customer.googleBusinessTokenExpiry ? new Date(customer.googleBusinessTokenExpiry).getTime() : 0;
-          const refreshThreshold = 60 * 1000; // 60 seconds before expiry
+          const refreshThreshold = 5 * 60 * 1000; // ✅ FIXED: Refresh 5 minutes before expiry (was 60 seconds) to ensure tokens never expire
 
           // ✅ FIXED: Only refresh if we have a valid expiry date AND token expires soon
           // If expiresAt is 0 (no expiry set), assume token is still valid and try to use it
@@ -295,13 +365,83 @@ class GoogleBusinessDataRefreshService {
           }
 
           // Fetch fresh insights data
-          const insightsData = await this.fetchBusinessInsightsData(
-            oauth2Client,
-            customer.googleBusinessProfileId,
-            startDate,
-            endDate,
-            oauth2Client.credentials.access_token
-          );
+          let insightsData = null;
+          try {
+            insightsData = await this.fetchBusinessInsightsData(
+              oauth2Client,
+              customer.googleBusinessProfileId,
+              startDate,
+              endDate,
+              oauth2Client.credentials.access_token
+            );
+          } catch (apiError) {
+            // ✅ FIXED: Handle 401 errors by attempting token refresh and retry
+            if (apiError.is401 || apiError.response?.status === 401) {
+              console.log(`⚠️ 401 error for ${customer.name}, attempting token refresh and retry...`);
+              
+              try {
+                // Attempt to refresh token
+                const refreshedTokens = await refreshGoogleBusinessToken(customer.googleBusinessRefreshToken);
+                
+                // Update customer with new tokens
+                let newExpiry = null;
+                if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
+                  newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
+                } else {
+                  newExpiry = new Date(Date.now() + 3600 * 1000);
+                }
+                
+                const updateData = {
+                  googleBusinessAccessToken: refreshedTokens.access_token,
+                  googleBusinessTokenExpiry: newExpiry
+                };
+                
+                if (refreshedTokens.refresh_token) {
+                  updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
+                }
+                
+                await User.findByIdAndUpdate(customer._id, updateData);
+                
+                // Update OAuth client with new token
+                oauth2Client.setCredentials({
+                  access_token: refreshedTokens.access_token,
+                  refresh_token: refreshedTokens.refresh_token || customer.googleBusinessRefreshToken
+                });
+                
+                // Update customer object for retry
+                customer.googleBusinessAccessToken = refreshedTokens.access_token;
+                
+                console.log(`✅ Token refreshed for ${customer.name}, retrying API call...`);
+                
+                // Retry the API call with new token
+                insightsData = await this.fetchBusinessInsightsData(
+                  oauth2Client,
+                  customer.googleBusinessProfileId,
+                  startDate,
+                  endDate,
+                  refreshedTokens.access_token
+                );
+              } catch (refreshError) {
+                console.error(`❌ Token refresh failed for ${customer.name}:`, refreshError.message);
+                
+                // Handle invalid_grant error (expired/revoked refresh token)
+                if (refreshError.response?.data?.error === 'invalid_grant' || 
+                    refreshError.message?.includes('invalid_grant')) {
+                  await User.findByIdAndUpdate(customer._id, {
+                    googleBusinessNeedsReauth: true
+                  });
+                  console.log(`⚠️ Marked ${customer.name} as needing re-authentication (refresh token expired or revoked)`);
+                }
+                
+                // Set insightsData to null to trigger error handling below
+                insightsData = null;
+              }
+            } else {
+              // Non-401 error, just log and continue
+              console.error(`❌ API error for ${customer.name}:`, apiError.message);
+              insightsData = null;
+            }
+          }
 
           if (insightsData) {
             // ✅ NEW: Log API response details
@@ -327,7 +467,7 @@ class GoogleBusinessDataRefreshService {
               errorCount++;
             }
           } else {
-            console.log(`⚠️ No data returned for ${customer.name}`);
+            console.log(`⚠️ No data returned for ${customer.name} after retry`);
             errorCount++;
           }
 
@@ -355,6 +495,12 @@ class GoogleBusinessDataRefreshService {
   static async fetchBusinessInsightsData(oauth2Client, locationId, startDate, endDate, accessToken) {
     try {
       // Convert dates to the format expected by the API
+      // Validate date format (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+        throw new Error(`Invalid date format. Expected YYYY-MM-DD, got startDate: ${startDate}, endDate: ${endDate}`);
+      }
+      
       const startDateObj = {
         year: parseInt(startDate.split('-')[0]),
         month: parseInt(startDate.split('-')[1]),
@@ -365,6 +511,20 @@ class GoogleBusinessDataRefreshService {
         month: parseInt(endDate.split('-')[1]),
         day: parseInt(endDate.split('-')[2])
       };
+      
+      // Validate parsed date values
+      if (isNaN(startDateObj.year) || isNaN(startDateObj.month) || isNaN(startDateObj.day) ||
+          isNaN(endDateObj.year) || isNaN(endDateObj.month) || isNaN(endDateObj.day)) {
+        throw new Error(`Invalid date values. startDate: ${startDate}, endDate: ${endDate}`);
+      }
+      
+      // Validate month and day ranges
+      if (startDateObj.month < 1 || startDateObj.month > 12 || endDateObj.month < 1 || endDateObj.month > 12) {
+        throw new Error(`Invalid month values. Months must be between 1-12`);
+      }
+      if (startDateObj.day < 1 || startDateObj.day > 31 || endDateObj.day < 1 || endDateObj.day > 31) {
+        throw new Error(`Invalid day values. Days must be between 1-31`);
+      }
 
       const metrics = [
         'BUSINESS_IMPRESSIONS_DESKTOP_MAPS',
@@ -401,6 +561,12 @@ class GoogleBusinessDataRefreshService {
       
       return insightsResponse.data;
     } catch (error) {
+      // ✅ FIXED: Preserve error information for 401 handling
+      if (error.response?.status === 401) {
+        console.error('❌ 401 Unauthorized error fetching business insights data:', error.message);
+        // Throw the error so caller can handle it specifically
+        throw { ...error, is401: true };
+      }
       console.error('Error fetching business insights data:', error.message);
       return null;
     }

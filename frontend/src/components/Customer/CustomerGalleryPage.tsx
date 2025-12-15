@@ -140,7 +140,8 @@ const CustomerGalleryPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+      <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
@@ -229,6 +230,7 @@ const CustomerGalleryPage: React.FC = () => {
             <p><strong>Questions?</strong> Contact your administrator if you need assistance or have questions</p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

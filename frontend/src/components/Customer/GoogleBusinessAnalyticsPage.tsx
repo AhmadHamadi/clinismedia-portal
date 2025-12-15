@@ -51,6 +51,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [customer, setCustomer] = useState<any>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     fetchGoogleBusinessData();
@@ -69,7 +70,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
     }
   }, [customStartDate, customEndDate]);
 
-  const fetchGoogleBusinessData = async () => {
+  const fetchGoogleBusinessData = async (forceRefresh: boolean = false) => {
     try {
       setStatus('loading');
       setError(null);
@@ -105,11 +106,22 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
 
       // Build URL with date range parameters
       let url = `${import.meta.env.VITE_API_BASE_URL}/google-business/business-insights/${customer._id}`;
+      const params = new URLSearchParams();
       
       if (dateRange === 'custom' && customStartDate && customEndDate) {
-        url += `?start=${customStartDate}&end=${customEndDate}`;
-      } else       if (dateRange !== 'custom') {
-        url += `?days=${dateRange}`;
+        params.append('start', customStartDate);
+        params.append('end', customEndDate);
+      } else if (dateRange !== 'custom') {
+        params.append('days', dateRange);
+      }
+      
+      // Add forceRefresh parameter to bypass cache when user clicks refresh button
+      if (forceRefresh) {
+        params.append('forceRefresh', 'true');
+      }
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
       }
 
       const response = await axios.get(url, {
@@ -126,12 +138,19 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
       if (err.response?.data?.error) {
         const backendError = err.response.data.error;
         const backendDetails = err.response.data.details;
+        const requiresReauth = err.response.data.requiresReauth;
         
         // Check if it's a missing profile/token issue
         if (backendError.includes('Missing customer') || backendError.includes('Missing') || backendError.includes('No access_token')) {
           setError('No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.');
-        } else if (backendError.includes('expired') || backendError.includes('reconnect')) {
+        } else if (backendError.includes('expired') || backendError.includes('reconnect') || requiresReauth) {
           setError('Google Business Profile connection expired. Please contact your administrator to reconnect.');
+        } else if (backendError.includes('token expired') && backendError.includes('refresh the page')) {
+          // Token was refreshed, auto-retry immediately
+          setError(null); // Clear error
+          setTimeout(() => {
+            fetchGoogleBusinessData(forceRefresh);
+          }, 1000);
         } else {
           // Show the actual backend error message
           setError(backendError + (backendDetails ? ` (${backendDetails})` : ''));
@@ -140,6 +159,28 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
         setError('No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.');
       } else if (err.response?.status === 400) {
         setError('No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.');
+      } else if (err.response?.status === 401) {
+        // Authentication error - might be token expiry
+        const backendError = err.response?.data?.error || '';
+        const requiresReauth = err.response?.data?.requiresReauth;
+        
+        if (requiresReauth || backendError.includes('expired') || backendError.includes('reconnect')) {
+          setError('Google Business Profile connection expired. Please contact your administrator to reconnect.');
+        } else if (backendError.includes('refresh the page')) {
+          // Token was refreshed, auto-retry
+          setError(null);
+          setTimeout(() => {
+            fetchGoogleBusinessData(forceRefresh);
+          }, 1000);
+        } else {
+          setError('Authentication failed. Please refresh the page and try again.');
+        }
+      } else if (err.response?.status === 500) {
+        // Server error - might be temporary
+        setError('Server error occurred. Please try again in a moment or contact support if the issue persists.');
+      } else if (!err.response) {
+        // Network error
+        setError('Network error. Please check your internet connection and try again.');
       } else {
         setError('Failed to load Google Business Profile insights. Please try again later.');
       }
@@ -272,11 +313,19 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
             </div>
             
             <button
-              onClick={fetchGoogleBusinessData}
-              className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 font-semibold text-lg border-2 border-blue-500"
+              onClick={() => {
+                setIsRefreshing(true);
+                fetchGoogleBusinessData(true).finally(() => {
+                  setIsRefreshing(false);
+                });
+              }}
+              disabled={isRefreshing || status === 'loading'}
+              className={`flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 font-semibold text-lg border-2 border-blue-500 ${
+                isRefreshing || status === 'loading' ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
-              <FaSyncAlt className="mr-2 text-lg" />
-              Refresh Data
+              <FaSyncAlt className={`mr-2 text-lg ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
             </button>
           </div>
         </div>
@@ -424,7 +473,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
         )}
 
         {/* Daily Performance Table */}
-        {insights && insights.dailyData && insights.dailyData.length > 0 && (
+        {insights && insights.dailyData && insights.dailyData.length > 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">Daily Performance</h3>
@@ -469,7 +518,24 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
               </table>
             </div>
           </div>
-        )}
+        ) : insights && insights.dailyData && insights.dailyData.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+            <div className="text-center">
+              <FaExclamationTriangle className="text-yellow-500 text-4xl mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Daily Data Available</h3>
+              <p className="text-gray-600 mb-4">
+                No daily performance data is available for the selected time period. This may be because the Google Business Profile was recently connected or there was no activity during this period.
+              </p>
+              <button
+                onClick={() => fetchGoogleBusinessData(true)}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              >
+                <FaSyncAlt className="mr-2" />
+                Refresh Data
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -754,7 +754,7 @@ const CallLogsPage: React.FC = () => {
           <div className="mb-4">
             <div className="bg-white p-3 rounded-lg shadow border-l-4 border-orange-500">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="flex-1">
                   <p className="text-xs text-gray-600 font-medium">New Patient Appointments Booked</p>
                   <p className="text-xl font-bold text-orange-600 mt-1">{stats.newPatientAppointmentsBooked || 0}</p>
                   {stats.newPatientCalls > 0 ? (
@@ -769,7 +769,7 @@ const CallLogsPage: React.FC = () => {
                     <p className="text-xs text-gray-400 mt-0.5">No appointments yet</p>
                   )}
                 </div>
-                <FaCalendarCheck className="text-orange-500 text-xl" />
+                <FaCalendarCheck className="text-orange-500 text-xl flex-shrink-0 ml-3" />
               </div>
             </div>
           </div>

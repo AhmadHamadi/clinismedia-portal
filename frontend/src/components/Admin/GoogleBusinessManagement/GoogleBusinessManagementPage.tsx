@@ -230,13 +230,23 @@ const GoogleBusinessManagementPage: React.FC = () => {
     
     if (adminOauthSuccess === 'true' && accessToken && refreshToken) {
       console.log('Processing successful admin OAuth callback');
+      // ✅ FIXED: Extract expires_in from URL parameters
+      const expiresIn = urlParams.get('expires_in');
       // Handle successful admin OAuth callback
       const tokens = {
         access_token: accessToken,
         refresh_token: refreshToken,
+        expires_in: expiresIn ? parseInt(expiresIn, 10) : 3600, // Default to 1 hour if not provided
         token_type: 'Bearer',
         scope: 'https://www.googleapis.com/auth/business.manage'
       };
+      
+      console.log('✅ OAuth tokens extracted:', {
+        hasAccessToken: !!tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
+        expiresIn: tokens.expires_in,
+        expiresInMinutes: Math.floor(tokens.expires_in / 60)
+      });
       
       setOauthTokens(tokens);
       setAdminConnected(true);

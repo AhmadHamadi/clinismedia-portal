@@ -120,7 +120,9 @@ const NotificationPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto bg-white rounded-lg shadow-md p-4 sm:p-6 md:p-8 overflow-x-hidden w-full">
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+      <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
+        <div className="max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto bg-white rounded-lg shadow-md p-4 sm:p-6 md:p-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-6">All Notifications</h1>
 
       {notifications.length === 0 ? (
@@ -147,6 +149,8 @@ const NotificationPage: React.FC = () => {
           ))}
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 };

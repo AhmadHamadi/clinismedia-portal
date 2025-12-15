@@ -284,7 +284,8 @@ const CustomerDashboard = () => {
   }
 
   return (
-    <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-5 w-full overflow-x-hidden bg-gray-50">
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+      <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
       {/* Header Section */}
       <div className="mb-3">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">Dashboard</h1>
@@ -547,6 +548,7 @@ const CustomerDashboard = () => {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

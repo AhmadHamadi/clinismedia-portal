@@ -162,7 +162,8 @@ const SharedMediaPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+      <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
@@ -307,6 +308,7 @@ const SharedMediaPage: React.FC = () => {
           <p>• <strong>Check file formats:</strong> Ensure your files are in commonly supported formats</p>
           <p>• <strong>Keep files updated:</strong> Remove old or outdated files to keep the folder organized</p>
         </div>
+      </div>
       </div>
     </div>
   );

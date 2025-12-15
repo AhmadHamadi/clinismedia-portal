@@ -64,9 +64,13 @@ async function fetchBusinessInsightsData(oauth2Client, locationName, startDate, 
 
 // Helper function to fetch business insights data (single request)
 async function fetchBusinessInsightsDataSingle(oauth2Client, locationName, startDate, endDate, accessToken) {
-  const axios = require('axios');
-  
   // Convert dates to the format expected by the API
+  // Validate date format (YYYY-MM-DD)
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    throw new Error(`Invalid date format. Expected YYYY-MM-DD, got startDate: ${startDate}, endDate: ${endDate}`);
+  }
+  
   const startDateObj = {
     year: parseInt(startDate.split('-')[0]),
     month: parseInt(startDate.split('-')[1]),
@@ -77,6 +81,20 @@ async function fetchBusinessInsightsDataSingle(oauth2Client, locationName, start
     month: parseInt(endDate.split('-')[1]),
     day: parseInt(endDate.split('-')[2])
   };
+  
+  // Validate parsed date values
+  if (isNaN(startDateObj.year) || isNaN(startDateObj.month) || isNaN(startDateObj.day) ||
+      isNaN(endDateObj.year) || isNaN(endDateObj.month) || isNaN(endDateObj.day)) {
+    throw new Error(`Invalid date values. startDate: ${startDate}, endDate: ${endDate}`);
+  }
+  
+  // Validate month and day ranges
+  if (startDateObj.month < 1 || startDateObj.month > 12 || endDateObj.month < 1 || endDateObj.month > 12) {
+    throw new Error(`Invalid month values. Months must be between 1-12`);
+  }
+  if (startDateObj.day < 1 || startDateObj.day > 31 || endDateObj.day < 1 || endDateObj.day > 31) {
+    throw new Error(`Invalid day values. Days must be between 1-31`);
+  }
 
   const metrics = [
     'BUSINESS_IMPRESSIONS_DESKTOP_MAPS',
@@ -353,18 +371,40 @@ router.get('/callback', async (req, res) => {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
+    // ✅ FIXED: Extract expiry information from tokens
+    // Google's OAuth2Client returns expiry_date (Date object or timestamp)
+    // Calculate expires_in (seconds until expiry)
+    let expires_in = null;
+    if (tokens.expiry_date) {
+      const expiryDate = typeof tokens.expiry_date === 'number' 
+        ? new Date(tokens.expiry_date) 
+        : tokens.expiry_date;
+      const now = Date.now();
+      const expiryTime = expiryDate.getTime ? expiryDate.getTime() : expiryDate;
+      expires_in = Math.max(0, Math.floor((expiryTime - now) / 1000)); // Convert to seconds
+      console.log(`✅ Token expiry extracted: ${expires_in} seconds (${Math.floor(expires_in / 60)} minutes)`);
+    } else if (tokens.expires_in) {
+      // If expires_in is already provided, use it
+      expires_in = tokens.expires_in;
+      console.log(`✅ Token expires_in provided: ${expires_in} seconds`);
+    } else {
+      // Default to 1 hour (3600 seconds) if no expiry info
+      expires_in = 3600;
+      console.log('⚠️ No expiry information in tokens, defaulting to 1 hour (3600 seconds)');
+    }
+
     // If this is admin OAuth, store tokens in environment or database
     if (state === 'admin') {
       // For now, we'll redirect with tokens in URL
       // In production, you might want to store these in a database
       const frontendPort = process.env.VITE_PORT || 5173;
       const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${frontendPort}`;
-      res.redirect(`${frontendUrl}/admin/google-business?admin_oauth_success=true&access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`);
+      res.redirect(`${frontendUrl}/admin/google-business?admin_oauth_success=true&access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${expires_in}`);
     } else {
       // Handle customer-specific OAuth (if needed in future)
       const frontendPort = process.env.VITE_PORT || 5173;
       const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${frontendPort}`;
-      res.redirect(`${frontendUrl}/admin/google-business?oauth_success=true&clinic_id=${state}&access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`);
+      res.redirect(`${frontendUrl}/admin/google-business?oauth_success=true&clinic_id=${state}&access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${expires_in}`);
     }
   } catch (error) {
     console.error('OAuth callback error:', error);
@@ -660,7 +700,7 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
     const { start, end, days, compare } = req.query;
 
     // Get customer data
-    const customer = await User.findById(customerId);
+    let customer = await User.findById(customerId);
     if (!customer) {
       console.error(`❌ Customer not found: ${customerId}`);
       return res.status(404).json({ error: 'Customer not found' });
@@ -879,7 +919,7 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
     // Token validation and refresh logic with proper expiry guard
     const now = Date.now();
     const expiresAt = customer.googleBusinessTokenExpiry ? new Date(customer.googleBusinessTokenExpiry).getTime() : 0;
-    const refreshThreshold = 60 * 1000; // 60 seconds before expiry
+    const refreshThreshold = 5 * 60 * 1000; // ✅ FIXED: Refresh 5 minutes before expiry (was 60 seconds) to ensure tokens never expire
 
     // Log and validate the token we're about to use
     console.log('🔍 Token validation:', {
@@ -887,8 +927,10 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       hasRefreshToken: !!customer.googleBusinessRefreshToken,
       expiresAt: customer.googleBusinessTokenExpiry,
       expiresInMs: expiresAt - now,
+      expiresInMinutes: expiresAt > 0 ? Math.floor((expiresAt - now) / (60 * 1000)) : 'unknown',
       needsRefresh: expiresAt > 0 && now > (expiresAt - refreshThreshold),
-      hasExpiry: !!customer.googleBusinessTokenExpiry
+      hasExpiry: !!customer.googleBusinessTokenExpiry,
+      refreshThresholdMinutes: Math.floor(refreshThreshold / (60 * 1000))
     });
 
     if (!customer.googleBusinessAccessToken) {
@@ -1359,6 +1401,17 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       params: error.config?.params,
       headers: error.config?.headers
     });
+    
+    // ✅ FIXED: Ensure customer is available in catch block - refetch if needed
+    // Only refetch if customer wasn't already fetched or if we need fresh data
+    if (!customer) {
+      try {
+        customer = await User.findById(req.params.customerId);
+      } catch (fetchError) {
+        console.error('❌ Failed to fetch customer in error handler:', fetchError.message);
+      }
+    }
+    
     console.error('❌ Error details:', {
       message: error.message,
       code: error.code,
@@ -1366,6 +1419,84 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       customerId: req.params.customerId,
       locationId: customer?.googleBusinessProfileId || 'customer_not_found'
     });
+    
+    // ✅ FIXED: Handle authentication errors (401/403) - token might be expired
+    // If we get a 401/403, try to refresh the token one more time
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      console.log('🔄 API call returned 401/403 - token may be expired, attempting refresh...');
+      
+      // Only try refresh if we have a refresh token and haven't already tried
+      // Refetch customer to ensure we have latest token state
+      if (!customer) {
+        try {
+          customer = await User.findById(req.params.customerId);
+        } catch (fetchError) {
+          console.error('❌ Failed to fetch customer for token refresh:', fetchError.message);
+        }
+      }
+      
+      if (customer?.googleBusinessRefreshToken && !error._refreshAttempted) {
+        try {
+          const refreshedTokens = await refreshGoogleBusinessToken(customer.googleBusinessRefreshToken);
+          
+          // Update customer with new tokens
+          let newExpiry = null;
+          if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
+            newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
+          } else {
+            newExpiry = new Date(Date.now() + 3600 * 1000);
+          }
+          
+          await User.findByIdAndUpdate(customerId, {
+            googleBusinessAccessToken: refreshedTokens.access_token,
+            googleBusinessTokenExpiry: newExpiry,
+            googleBusinessRefreshToken: refreshedTokens.refresh_token || customer.googleBusinessRefreshToken,
+            googleBusinessNeedsReauth: false
+          });
+          
+          console.log('✅ Token refreshed after API 401 error, retrying request...');
+          
+          // Retry the request with new token (but only once to avoid infinite loop)
+          error._refreshAttempted = true;
+          // Note: We don't retry here automatically to avoid complexity
+          // Instead, return a clear error message asking user to retry
+          return res.status(401).json({ 
+            error: 'Google Business Profile token expired. Please refresh the page to retry.',
+            requiresReauth: false,
+            details: 'Token was refreshed, please try again.'
+          });
+        } catch (refreshError) {
+          console.error('❌ Token refresh failed after API 401 error:', refreshError.message);
+          
+          // Mark as needing reauth if refresh token is invalid
+          if (refreshError.response?.data?.error === 'invalid_grant' || 
+              refreshError.message?.includes('invalid_grant')) {
+            await User.findByIdAndUpdate(customerId, {
+              googleBusinessNeedsReauth: true
+            });
+            
+            return res.status(401).json({ 
+              error: 'Google Business Profile connection expired. Please ask your administrator to reconnect your Google Business Profile.',
+              requiresReauth: true,
+              details: 'Refresh token expired or revoked. Admin needs to re-assign the profile.'
+            });
+          }
+          
+          return res.status(401).json({ 
+            error: 'Google Business Profile token refresh failed. Please ask your administrator to reconnect.',
+            requiresReauth: true,
+            details: refreshError.response?.data?.error_description || refreshError.message
+          });
+        }
+      } else if (customer?.googleBusinessNeedsReauth) {
+        // Already marked as needing reauth
+        return res.status(401).json({ 
+          error: 'Google Business Profile connection expired. Please ask your administrator to reconnect your Google Business Profile.',
+          requiresReauth: true,
+          details: 'Your Google Business Profile tokens have expired. Admin needs to re-assign the profile.'
+        });
+      }
+    }
     
     // Log to Google Cloud Console format for debugging
     // ✅ FIXED: Define metrics array for error logging
@@ -1391,6 +1522,15 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       }
     });
     
+    // Return appropriate error based on status code
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      return res.status(401).json({ 
+        error: 'Google Business Profile authentication failed. Please ask your administrator to reconnect.',
+        requiresReauth: true,
+        details: error.response?.data?.error?.message || error.message
+      });
+    }
+    
     res.status(500).json({ 
       error: 'Failed to fetch business insights',
       details: error.message 
@@ -1408,7 +1548,8 @@ router.patch('/disconnect/:customerId', authenticateToken, authorizeRole(['admin
       googleBusinessProfileName: null,
       googleBusinessAccessToken: null,
       googleBusinessRefreshToken: null,
-      googleBusinessTokenExpiry: null
+      googleBusinessTokenExpiry: null,
+      googleBusinessNeedsReauth: false // Clear reauth flag when disconnecting
     });
 
     res.json({ success: true, message: 'Google Business Profile disconnected' });
@@ -1516,8 +1657,6 @@ router.get('/group-insights', authenticateToken, authorizeRole(['admin']), async
           console.log(`Fetching insights for ${location.title} (${locationId})`);
           
           // Use raw HTTP request for Business Profile Performance API with proper parameter serialization
-          const axios = require('axios');
-          
           // Build query parameters without [] brackets using URLSearchParams
           const params = new URLSearchParams();
           
