@@ -36,37 +36,46 @@ const GoogleBusinessManagementPage: React.FC = () => {
 
   useEffect(() => {
     fetchCustomers();
-    
-    // Check if admin was previously connected
-    const storedAdminConnected = localStorage.getItem('googleBusinessAdminConnected');
-    const storedTokens = localStorage.getItem('googleBusinessAdminTokens');
-    
-    console.log('Checking stored admin connection:', {
-      storedAdminConnected,
-      hasTokens: !!storedTokens
-    });
-    
-    // Only restore if we have real tokens (not test tokens)
-    if (storedAdminConnected === 'true' && storedTokens) {
-      const tokens = JSON.parse(storedTokens);
-      // Check if these are real tokens (not test tokens)
-      if (tokens.access_token && tokens.access_token !== 'test' && tokens.refresh_token && tokens.refresh_token !== 'test') {
-        console.log('Restoring admin connection from localStorage with real tokens');
+    checkAdminConnectionStatus();
+  }, []);
+
+  // ✅ FIXED: Check admin connection status from backend (database is source of truth)
+  // Backend automatically refreshes expired tokens, so we just trust the backend
+  const checkAdminConnectionStatus = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-business/admin-connection-status`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      console.log('Admin connection status from backend:', response.data);
+      
+      if (response.data.connected) {
+        // Admin is connected in database - backend is the source of truth
         setAdminConnected(true);
-        setOauthTokens(tokens);
-        fetchAllBusinessProfiles(tokens);
+        
+        // Always fetch business profiles - backend will automatically refresh tokens if expired
+        // Pass null to indicate we want backend to use its database tokens (not localStorage)
+        await fetchAllBusinessProfiles(null);
       } else {
-        console.log('Found test tokens, clearing them');
-        // Clear test tokens
-        localStorage.removeItem('googleBusinessAdminConnected');
-        localStorage.removeItem('googleBusinessAdminTokens');
+        // Admin is not connected
+        console.log('Admin is not connected in database');
         setAdminConnected(false);
         setOauthTokens(null);
+        // Clear localStorage if it says connected but backend says not connected
+        localStorage.removeItem('googleBusinessAdminConnected');
+        localStorage.removeItem('googleBusinessAdminTokens');
       }
-    } else {
-      console.log('No stored admin connection found');
+    } catch (err) {
+      console.error('Failed to check admin connection status:', err);
+      // On error, assume not connected and clear state
+      // Don't fall back to localStorage - backend is the source of truth
+      setAdminConnected(false);
+      setOauthTokens(null);
+      localStorage.removeItem('googleBusinessAdminConnected');
+      localStorage.removeItem('googleBusinessAdminTokens');
     }
-  }, []);
+  };
 
   const fetchCustomers = async () => {
     try {
@@ -151,7 +160,7 @@ const GoogleBusinessManagementPage: React.FC = () => {
   };
 
   const handleSaveBusinessProfile = async (customer: Customer, profile: BusinessProfile) => {
-    if (!profile || !customer || !oauthTokens) return;
+    if (!profile || !customer) return;
 
     try {
       setOauthStatus('saving');
@@ -162,15 +171,25 @@ const GoogleBusinessManagementPage: React.FC = () => {
         customerId: customer._id,
         customerName: customer.name,
         businessProfileId: profile.id,
-        businessProfileName: profile.name
+        businessProfileName: profile.name,
+        hasTokens: !!oauthTokens
       });
       
-      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/google-business/save-business-profile`, {
+      // ✅ FIXED: Backend can use admin tokens from database if tokens not provided
+      // Pass tokens if available (from OAuth callback), otherwise backend will use database tokens
+      const requestBody: any = {
         customerId: customer._id,
         businessProfileId: profile.id,
-        businessProfileName: profile.name,
-        tokens: oauthTokens
-      }, {
+        businessProfileName: profile.name
+      };
+      
+      // Only include tokens if we have them (from OAuth callback)
+      // Otherwise, backend will use admin tokens from database
+      if (oauthTokens && oauthTokens.access_token && oauthTokens.refresh_token) {
+        requestBody.tokens = oauthTokens;
+      }
+      
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/google-business/save-business-profile`, requestBody, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -297,23 +316,31 @@ const GoogleBusinessManagementPage: React.FC = () => {
       setOauthError(null); // Clear any previous errors
       const token = localStorage.getItem('adminToken');
       
-      console.log('Fetching business profiles with tokens:', {
-        hasAccessToken: !!tokens?.access_token,
-        hasRefreshToken: !!tokens?.refresh_token,
-        tokenType: tokens?.token_type
-      });
+      // Build headers - if tokens provided (from OAuth callback), use them; otherwise backend will use database tokens
+      const headers: any = {
+        Authorization: `Bearer ${token}`
+      };
       
-      // Store tokens temporarily for the API call
+      // Only add X-Admin-Tokens header if tokens are explicitly provided (from OAuth callback)
+      // If tokens is null, backend will use its own database tokens and auto-refresh if expired
+      if (tokens && tokens.access_token && tokens.refresh_token) {
+        headers['X-Admin-Tokens'] = JSON.stringify(tokens);
+        console.log('Using provided tokens from OAuth callback');
+      } else {
+        console.log('Using backend database tokens (will auto-refresh if expired)');
+      }
+      
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-business/admin-business-profiles`, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'X-Admin-Tokens': JSON.stringify(tokens) // Pass tokens in header
-        }
+        headers
       });
 
       console.log('Business profiles response:', response.data);
       setAllBusinessProfiles(response.data.businessProfiles);
       setOauthStatus('profiles');
+      
+      // Update localStorage to reflect that admin is connected
+      // Backend has the tokens and will auto-refresh them, so we mark as connected
+      localStorage.setItem('googleBusinessAdminConnected', 'true');
     } catch (err: any) {
       console.error('Failed to fetch all business profiles', err);
       const errorMessage = err.response?.data?.error || 'Failed to fetch business profiles';

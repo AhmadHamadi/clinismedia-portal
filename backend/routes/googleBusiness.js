@@ -912,6 +912,61 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
   }
 });
 
+// GET /api/google-business/admin-connection-status - Check if admin Google Business Profile is connected
+router.get('/admin-connection-status', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const adminUser = await User.findOne({ role: 'admin' });
+    
+    if (!adminUser) {
+      return res.json({ 
+        connected: false, 
+        message: 'Admin user not found' 
+      });
+    }
+    
+    // Check if admin has valid tokens
+    const hasAccessToken = !!adminUser.googleBusinessAccessToken;
+    const hasRefreshToken = !!adminUser.googleBusinessRefreshToken;
+    const hasExpiry = !!adminUser.googleBusinessTokenExpiry;
+    
+    if (hasAccessToken && hasRefreshToken) {
+      // Check if token is expired
+      let isExpired = false;
+      if (hasExpiry) {
+        const expiresAt = new Date(adminUser.googleBusinessTokenExpiry).getTime();
+        const now = Date.now();
+        const refreshThreshold = 5 * 60 * 1000; // 5 minutes before expiry
+        isExpired = now > (expiresAt - refreshThreshold);
+      }
+      
+      return res.json({ 
+        connected: true,
+        hasAccessToken,
+        hasRefreshToken,
+        hasExpiry,
+        isExpired,
+        expiresAt: adminUser.googleBusinessTokenExpiry,
+        message: 'Admin Google Business Profile is connected'
+      });
+    }
+    
+    return res.json({ 
+      connected: false,
+      hasAccessToken,
+      hasRefreshToken,
+      hasExpiry,
+      message: 'Admin Google Business Profile not connected'
+    });
+  } catch (error) {
+    console.error('❌ Failed to check admin connection status:', error);
+    res.status(500).json({ 
+      connected: false,
+      error: 'Failed to check admin connection status',
+      details: error.message 
+    });
+  }
+});
+
 // POST /api/google-business/save-admin-tokens - Save admin tokens to database (optional, callback already saves)
 router.post('/save-admin-tokens', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
@@ -964,7 +1019,7 @@ router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']
       tokenKeys: tokens ? Object.keys(tokens) : null
     });
 
-    if (!customerId || !businessProfileId || !businessProfileName || !tokens) {
+    if (!customerId || !businessProfileId || !businessProfileName) {
       console.log('Missing required fields:', {
         customerId: !!customerId,
         businessProfileId: !!businessProfileId,
@@ -974,21 +1029,42 @@ router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    // ✅ FIXED: Use admin tokens from database if tokens not provided in request
+    let tokensToUse = tokens;
+    if (!tokens || !tokens.access_token || !tokens.refresh_token) {
+      console.log('⚠️ Tokens not provided in request, using admin tokens from database');
+      const adminUser = await User.findOne({ role: 'admin' });
+      if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
+        tokensToUse = {
+          access_token: adminUser.googleBusinessAccessToken,
+          refresh_token: adminUser.googleBusinessRefreshToken,
+          expires_in: adminUser.googleBusinessTokenExpiry 
+            ? Math.floor((new Date(adminUser.googleBusinessTokenExpiry).getTime() - Date.now()) / 1000)
+            : 3600
+        };
+        console.log('✅ Using admin tokens from database');
+      } else {
+        return res.status(400).json({ 
+          error: 'No tokens available. Please connect admin account first or provide tokens in request.' 
+        });
+      }
+    }
+
     // Update customer with business profile info
     const updateData = {
       googleBusinessProfileId: businessProfileId,
       googleBusinessProfileName: businessProfileName,
-      googleBusinessAccessToken: tokens.access_token,
-      googleBusinessRefreshToken: tokens.refresh_token,
+      googleBusinessAccessToken: tokensToUse.access_token,
+      googleBusinessRefreshToken: tokensToUse.refresh_token,
       googleBusinessNeedsReauth: false // ✅ FIXED: Always clear reauth flag when saving new tokens
     };
 
     // ✅ FIXED: Always set expiry - default to 1 hour if expires_in is not provided
     // OAuth tokens typically expire in 1 hour, so use that as default
     // This prevents immediate expiry checks that would incorrectly trigger reauth
-    if (tokens.expires_in && !isNaN(tokens.expires_in) && tokens.expires_in > 0) {
-      updateData.googleBusinessTokenExpiry = new Date(Date.now() + tokens.expires_in * 1000);
-      console.log(`✅ Token expiry set: ${tokens.expires_in} seconds from now`);
+    if (tokensToUse.expires_in && !isNaN(tokensToUse.expires_in) && tokensToUse.expires_in > 0) {
+      updateData.googleBusinessTokenExpiry = new Date(Date.now() + tokensToUse.expires_in * 1000);
+      console.log(`✅ Token expiry set: ${tokensToUse.expires_in} seconds from now`);
     } else {
       // Default to 1 hour (3600 seconds) if expires_in is not provided
       // This prevents the expiry check from immediately triggering a refresh
@@ -1000,10 +1076,11 @@ router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']
       customerId,
       businessProfileId,
       businessProfileName,
-      hasAccessToken: !!tokens.access_token,
-      hasRefreshToken: !!tokens.refresh_token,
+      hasAccessToken: !!tokensToUse.access_token,
+      hasRefreshToken: !!tokensToUse.refresh_token,
       tokenExpiry: updateData.googleBusinessTokenExpiry,
-      needsReauth: false
+      needsReauth: false,
+      usingAdminTokens: !tokens || !tokens.access_token
     });
 
     await User.findByIdAndUpdate(customerId, updateData);
@@ -1044,25 +1121,55 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       profileName: customer.googleBusinessProfileName
     });
 
-    // Fail fast if customer is required but missing
-    if (!customer || !customer.googleBusinessProfileId || !customer.googleBusinessAccessToken) {
+    // ✅ FIXED: Check if customer has profile assigned
+    if (!customer || !customer.googleBusinessProfileId) {
       console.error(`❌ Missing Google Business Profile data for customer ${customerId}:`, {
         customerExists: !!customer,
         hasProfileId: !!customer?.googleBusinessProfileId,
         profileId: customer?.googleBusinessProfileId,
-        hasAccessToken: !!customer?.googleBusinessAccessToken,
-        hasRefreshToken: !!customer?.googleBusinessRefreshToken,
         profileName: customer?.googleBusinessProfileName
       });
       return res.status(400).json({ 
-        error: 'Missing customer or assigned Google Business Profile location',
+        error: 'No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.',
         details: {
           customerExists: !!customer,
           hasProfileId: !!customer?.googleBusinessProfileId,
-          hasAccessToken: !!customer?.googleBusinessAccessToken,
-          message: 'Please ensure the admin has assigned a Google Business Profile and tokens were saved correctly.'
+          message: 'Please ensure the admin has assigned a Google Business Profile.'
         }
       });
+    }
+    
+    // ✅ FIXED: Use admin tokens if customer tokens are missing (fallback)
+    // Customers get admin tokens when profile is assigned, but if they expire, use admin tokens directly
+    let tokensToUse = {
+      access_token: customer.googleBusinessAccessToken,
+      refresh_token: customer.googleBusinessRefreshToken
+    };
+    let tokenExpiry = customer.googleBusinessTokenExpiry;
+    let usingAdminTokens = false;
+    
+    // If customer doesn't have tokens, try to use admin tokens
+    if (!tokensToUse.access_token || !tokensToUse.refresh_token) {
+      console.log('⚠️ Customer tokens missing, falling back to admin tokens');
+      const adminUser = await User.findOne({ role: 'admin' });
+      if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
+        tokensToUse = {
+          access_token: adminUser.googleBusinessAccessToken,
+          refresh_token: adminUser.googleBusinessRefreshToken
+        };
+        tokenExpiry = adminUser.googleBusinessTokenExpiry;
+        usingAdminTokens = true;
+        console.log('✅ Using admin tokens as fallback for customer');
+      } else {
+        return res.status(400).json({ 
+          error: 'Google Business Profile tokens not available. Please ask your administrator to reconnect.',
+          details: {
+            customerHasTokens: !!(customer.googleBusinessAccessToken && customer.googleBusinessRefreshToken),
+            adminHasTokens: !!(adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken),
+            message: 'Both customer and admin tokens are missing. Admin needs to reconnect.'
+          }
+        });
+      }
     }
 
     // Check if we have stored data for this date range first
@@ -1238,137 +1345,169 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       }
     }
 
-    // Set up OAuth client
-    oauth2Client.setCredentials({
-      access_token: customer.googleBusinessAccessToken,
-      refresh_token: customer.googleBusinessRefreshToken
-    });
-
-    // Token validation and refresh logic with proper expiry guard
+    // ✅ FIXED: Token validation and refresh logic
     const now = Date.now();
-    const expiresAt = customer.googleBusinessTokenExpiry ? new Date(customer.googleBusinessTokenExpiry).getTime() : 0;
-    const refreshThreshold = 5 * 60 * 1000; // ✅ FIXED: Refresh 5 minutes before expiry (was 60 seconds) to ensure tokens never expire
+    const expiresAt = tokenExpiry ? new Date(tokenExpiry).getTime() : 0;
+    const refreshThreshold = 5 * 60 * 1000; // Refresh 5 minutes before expiry
 
     // Log and validate the token we're about to use
     console.log('🔍 Token validation:', {
-      hasAccessToken: !!customer.googleBusinessAccessToken,
-      hasRefreshToken: !!customer.googleBusinessRefreshToken,
-      expiresAt: customer.googleBusinessTokenExpiry,
+      usingAdminTokens,
+      hasAccessToken: !!tokensToUse.access_token,
+      hasRefreshToken: !!tokensToUse.refresh_token,
+      expiresAt: tokenExpiry,
       expiresInMs: expiresAt - now,
       expiresInMinutes: expiresAt > 0 ? Math.floor((expiresAt - now) / (60 * 1000)) : 'unknown',
       needsRefresh: expiresAt > 0 && now > (expiresAt - refreshThreshold),
-      hasExpiry: !!customer.googleBusinessTokenExpiry,
+      hasExpiry: !!tokenExpiry,
       refreshThresholdMinutes: Math.floor(refreshThreshold / (60 * 1000))
     });
 
-    if (!customer.googleBusinessAccessToken) {
-      return res.status(400).json({ error: 'No access_token in store' });
-    }
-
-    // ✅ FIXED: Only refresh if we have a valid expiry date AND token expires soon
-    // If expiresAt is 0 (no expiry set), assume token is still valid and try to use it
-    // If it fails, the API call will fail and we can handle it then
+    // ✅ FIXED: Refresh tokens if they expire soon (whether customer or admin tokens)
     if (expiresAt > 0 && now > (expiresAt - refreshThreshold)) {
       console.log('🔄 Token expires soon, refreshing proactively...');
       
-      if (!customer.googleBusinessRefreshToken) {
-        console.error('❌ No refresh token available for customer');
-        await User.findByIdAndUpdate(customerId, {
-          googleBusinessNeedsReauth: true
-        });
-        return res.status(401).json({ 
-          error: 'Google Business Profile refresh token missing. Please ask your administrator to reconnect.',
-          requiresReauth: true
-        });
-      }
-      
-      try {
-        // Use direct token refresh (like Google Ads) - doesn't require redirect URI match
-        const refreshedTokens = await refreshGoogleBusinessToken(customer.googleBusinessRefreshToken);
-        
-        console.log('🔍 Refresh credentials received:', {
-          hasAccessToken: !!refreshedTokens.access_token,
-          hasRefreshToken: !!refreshedTokens.refresh_token,
-          expiresIn: refreshedTokens.expires_in
-        });
-        
-        // Update customer with new tokens and recompute expiry
-        // ✅ FIXED: Always set expiry - default to 1 hour if expires_in is not provided
-        let newExpiry = null;
-        if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
-          newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
+      if (!tokensToUse.refresh_token) {
+        console.error('❌ No refresh token available');
+        // If using admin tokens and they're expired, try to refresh admin tokens
+        if (usingAdminTokens) {
+          const adminUser = await User.findOne({ role: 'admin' });
+          if (adminUser?.googleBusinessRefreshToken) {
+            try {
+              const refreshedTokens = await refreshGoogleBusinessToken(adminUser.googleBusinessRefreshToken);
+              // Update admin tokens
+              const newExpiry = refreshedTokens.expires_in 
+                ? new Date(Date.now() + refreshedTokens.expires_in * 1000)
+                : new Date(Date.now() + 3600 * 1000);
+              
+              await User.findByIdAndUpdate(adminUser._id, {
+                googleBusinessAccessToken: refreshedTokens.access_token,
+                googleBusinessTokenExpiry: newExpiry,
+                googleBusinessRefreshToken: refreshedTokens.refresh_token || adminUser.googleBusinessRefreshToken
+              });
+              
+              // Update tokens to use
+              tokensToUse = {
+                access_token: refreshedTokens.access_token,
+                refresh_token: refreshedTokens.refresh_token || adminUser.googleBusinessRefreshToken
+              };
+              tokenExpiry = newExpiry;
+              console.log('✅ Admin tokens refreshed, using for customer');
+            } catch (refreshError) {
+              console.error('❌ Admin token refresh failed:', refreshError.message);
+              return res.status(401).json({ 
+                error: 'Google Business Profile connection expired. Please ask your administrator to reconnect.',
+                requiresReauth: true,
+                details: 'Admin tokens expired. Admin needs to reconnect their account.'
+              });
+            }
+          }
         } else {
-          // Default to 1 hour if expires_in is not provided (Google tokens typically expire in 1 hour)
-          newExpiry = new Date(Date.now() + 3600 * 1000);
-          console.log('⚠️ Token refresh did not return expires_in, defaulting to 1 hour expiry');
-        }
-        
-        const updateData = {
-          googleBusinessAccessToken: refreshedTokens.access_token,
-          googleBusinessTokenExpiry: newExpiry, // ✅ FIXED: Always set expiry
-          googleBusinessNeedsReauth: false // Clear reauth flag on successful refresh
-        };
-        
-        // Preserve refresh token (use new if provided, otherwise keep existing)
-        if (refreshedTokens.refresh_token) {
-          updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
-        }
-        
-        await User.findByIdAndUpdate(customerId, updateData);
-        
-        // Update our local OAuth client credentials for API calls
-        oauth2Client.setCredentials({
-          access_token: refreshedTokens.access_token,
-          refresh_token: refreshedTokens.refresh_token || customer.googleBusinessRefreshToken
-        });
-        
-        console.log('✅ Token refreshed successfully using direct API call, new expiry:', newExpiry);
-      } catch (refreshError) {
-        console.error('❌ Token refresh failed:', refreshError.message);
-        console.error('❌ Refresh error details:', refreshError.response?.data);
-        
-        // Handle refresh token rotation (invalid_grant)
-        if (refreshError.response?.data?.error === 'invalid_grant' || 
-            refreshError.message?.includes('invalid_grant')) {
-          // Mark customer as needing re-auth
+          // Customer tokens missing, mark for reauth
           await User.findByIdAndUpdate(customerId, {
             googleBusinessNeedsReauth: true
           });
-          
-          console.error(`❌ Customer ${customerId} needs re-authentication - tokens expired`);
-          
           return res.status(401).json({ 
-            error: 'Google Business Profile connection expired. Please ask your administrator to reconnect your Google Business Profile.',
-            requiresReauth: true,
-            details: 'Refresh token expired or revoked. Admin needs to re-assign the profile.'
+            error: 'Google Business Profile refresh token missing. Please ask your administrator to reconnect.',
+            requiresReauth: true
           });
         }
-        
-        return res.status(401).json({ 
-          error: 'Google Business Profile token refresh failed. Please ask your administrator to reconnect.',
-          details: refreshError.response?.data?.error_description || refreshError.message 
-        });
+      } else {
+        // We have a refresh token, try to refresh
+        try {
+          const refreshedTokens = await refreshGoogleBusinessToken(tokensToUse.refresh_token);
+          
+          console.log('🔍 Refresh credentials received:', {
+            hasAccessToken: !!refreshedTokens.access_token,
+            hasRefreshToken: !!refreshedTokens.refresh_token,
+            expiresIn: refreshedTokens.expires_in
+          });
+          
+          // Calculate new expiry
+          const newExpiry = refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0
+            ? new Date(Date.now() + refreshedTokens.expires_in * 1000)
+            : new Date(Date.now() + 3600 * 1000);
+          
+          // Update tokens to use
+          tokensToUse = {
+            access_token: refreshedTokens.access_token,
+            refresh_token: refreshedTokens.refresh_token || tokensToUse.refresh_token
+          };
+          tokenExpiry = newExpiry;
+          
+          // Update database - if using customer tokens, update customer; if using admin, update admin
+          if (usingAdminTokens) {
+            const adminUser = await User.findOne({ role: 'admin' });
+            if (adminUser) {
+              await User.findByIdAndUpdate(adminUser._id, {
+                googleBusinessAccessToken: refreshedTokens.access_token,
+                googleBusinessTokenExpiry: newExpiry,
+                googleBusinessRefreshToken: refreshedTokens.refresh_token || adminUser.googleBusinessRefreshToken
+              });
+            }
+          } else {
+            // Update customer tokens
+            const updateData = {
+              googleBusinessAccessToken: refreshedTokens.access_token,
+              googleBusinessTokenExpiry: newExpiry,
+              googleBusinessNeedsReauth: false
+            };
+            if (refreshedTokens.refresh_token) {
+              updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
+            }
+            await User.findByIdAndUpdate(customerId, updateData);
+          }
+          
+          console.log('✅ Token refreshed successfully, new expiry:', newExpiry);
+        } catch (refreshError) {
+          console.error('❌ Token refresh failed:', refreshError.message);
+          console.error('❌ Refresh error details:', refreshError.response?.data);
+          
+          // Handle invalid_grant (token expired/revoked)
+          if (refreshError.response?.data?.error === 'invalid_grant' || 
+              refreshError.message?.includes('invalid_grant')) {
+            // If using admin tokens, admin needs to reconnect
+            if (usingAdminTokens) {
+              return res.status(401).json({ 
+                error: 'Google Business Profile connection expired. Please ask your administrator to reconnect their account.',
+                requiresReauth: true,
+                details: 'Admin tokens expired. Admin needs to reconnect.'
+              });
+            }
+            
+            // Mark customer as needing re-auth
+            await User.findByIdAndUpdate(customerId, {
+              googleBusinessNeedsReauth: true
+            });
+            
+            return res.status(401).json({ 
+              error: 'Google Business Profile connection expired. Please ask your administrator to reconnect your Google Business Profile.',
+              requiresReauth: true,
+              details: 'Refresh token expired or revoked. Admin needs to re-assign the profile.'
+            });
+          }
+          
+          return res.status(401).json({ 
+            error: 'Google Business Profile token refresh failed. Please ask your administrator to reconnect.',
+            details: refreshError.response?.data?.error_description || refreshError.message 
+          });
+        }
       }
     }
     
-    // ✅ FIXED: Check if customer was marked as needing reauth, but only if they actually have no tokens
-    // If tokens exist but flag is set, it might be a false positive - try to use the tokens first
-    if (customer.googleBusinessNeedsReauth && (!customer.googleBusinessAccessToken || !customer.googleBusinessRefreshToken)) {
-      console.error(`❌ Customer ${customerId} marked as needing re-authentication and has no valid tokens`);
-      return res.status(401).json({ 
-        error: 'Google Business Profile connection expired. Please ask your administrator to reconnect your Google Business Profile.',
-        requiresReauth: true,
-        details: 'Your Google Business Profile tokens have expired. Admin needs to re-assign the profile.'
-      });
-    } else if (customer.googleBusinessNeedsReauth) {
-      // ✅ FIXED: If flag is set but tokens exist, clear the flag and try to use tokens
-      // This handles cases where the flag was incorrectly set (e.g., during token refresh failure that was temporary)
-      console.log(`⚠️ Customer ${customerId} has reauth flag set but tokens exist - clearing flag and attempting to use tokens`);
+    // ✅ FIXED: Clear reauth flag if tokens exist and are valid
+    if (customer.googleBusinessNeedsReauth && tokensToUse.access_token && tokensToUse.refresh_token) {
+      console.log(`⚠️ Customer ${customerId} has reauth flag set but tokens are valid - clearing flag`);
       await User.findByIdAndUpdate(customerId, {
         googleBusinessNeedsReauth: false
       });
-      // Continue with the request using existing tokens
     }
+    
+    // Set up OAuth client with tokens (customer or admin)
+    oauth2Client.setCredentials({
+      access_token: tokensToUse.access_token,
+      refresh_token: tokensToUse.refresh_token
+    });
 
     // Use Business Profile Performance API (recommended by ChatGPT)
     const performance = google.businessprofileperformance({ version: 'v1', auth: oauth2Client });
@@ -1447,8 +1586,18 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
     if (new Date(startDate) > new Date(endDate)) {
       return res.status(400).json({ 
         error: 'Invalid date range: start date cannot be after end date',
-        details: { startDate, endDate }
+        details: { startDate, endDate, originalStart: start, originalEnd: end }
       });
+    }
+    
+    // ✅ FIXED: Validate that custom date range end date is not in the future
+    if (start && end) {
+      const requestedEnd = new Date(end + 'T00:00:00Z');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (requestedEnd > today) {
+        console.log(`⚠️ Custom end date ${end} is in the future, adjusted to ${endDate} (2-day buffer)`);
+      }
     }
 
     // Convert dates to the format expected by the API
@@ -1687,11 +1836,35 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       });
     }
 
+    // ✅ FIXED: Filter daily data to only include dates within the requested range
+    // The API might return data outside the requested range, so we need to filter it
+    // Use explicit date comparison to ensure accuracy (handles YYYY-MM-DD string format correctly)
+    processedData.dailyData = processedData.dailyData.filter(day => {
+      const dayDate = day.date;
+      // Ensure date is in YYYY-MM-DD format for string comparison (works correctly for ISO dates)
+      if (!dayDate || typeof dayDate !== 'string') return false;
+      // String comparison works for YYYY-MM-DD format, but be explicit about boundaries
+      return dayDate >= startDate && dayDate <= endDate;
+    });
+
     // Sort daily data by date
     processedData.dailyData.sort((a, b) => new Date(a.date) - new Date(b.date));
 
+    // ✅ FIXED: Recalculate summary totals from filtered daily data to ensure accuracy
+    // This ensures the summary matches the filtered daily data exactly
+    const recalculatedSummary = {
+      totalViews: processedData.dailyData.reduce((sum, day) => sum + (day.views || 0), 0),
+      totalSearches: processedData.dailyData.reduce((sum, day) => sum + (day.searches || 0), 0),
+      totalCalls: processedData.dailyData.reduce((sum, day) => sum + (day.calls || 0), 0),
+      totalDirections: processedData.dailyData.reduce((sum, day) => sum + (day.directions || 0), 0),
+      totalWebsiteClicks: processedData.dailyData.reduce((sum, day) => sum + (day.websiteClicks || 0), 0)
+    };
+    
+    // Update summary with recalculated values
+    processedData.summary = recalculatedSummary;
+
     // Verify day-by-day breakdown is correct
-    console.log(`✅ Processed insights: ${processedData.dailyData.length} days of data`);
+    console.log(`✅ Processed insights: ${processedData.dailyData.length} days of data (filtered to ${startDate} to ${endDate})`);
     console.log(`📅 Date range: ${startDate} to ${endDate}`);
     console.log('📊 Summary totals:', {
       totalViews: processedData.summary.totalViews,

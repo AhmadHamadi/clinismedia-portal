@@ -422,10 +422,14 @@ const GoogleAdsPage: React.FC = () => {
                   
                   let filteredEntries = allEntries;
                   if (dateRange === 'custom' && customStartDate && customEndDate) {
+                    // ✅ FIXED: Custom range filtering with proper date boundaries
                     filteredEntries = allEntries.filter(([date]) => {
                       const dateObj = new Date(date);
+                      dateObj.setHours(0, 0, 0, 0);
                       const start = new Date(customStartDate);
+                      start.setHours(0, 0, 0, 0);
                       const end = new Date(customEndDate);
+                      end.setHours(23, 59, 59, 999); // End of end date (inclusive)
                       return dateObj >= start && dateObj <= end;
                     });
                   } else if (dateRange === '90') {
@@ -651,20 +655,34 @@ const GoogleAdsPage: React.FC = () => {
                         
                         let filteredEntries = allEntries;
                         if (dateRange === 'custom' && customStartDate && customEndDate) {
-                          // Custom range: filter by actual dates
+                          // ✅ FIXED: Custom range: filter by actual dates (inclusive of both start and end)
                           filteredEntries = allEntries.filter(([date]) => {
                             const dateObj = new Date(date);
+                            dateObj.setHours(0, 0, 0, 0);
                             const start = new Date(customStartDate);
+                            start.setHours(0, 0, 0, 0);
                             const end = new Date(customEndDate);
+                            end.setHours(23, 59, 59, 999); // End of end date
                             return dateObj >= start && dateObj <= end;
                           });
                         } else if (dateRange === '7' || dateRange === '30' || dateRange === '90') {
-                          // Standard ranges: filter by date (last N days)
+                          // ✅ FIXED: Standard ranges: filter by date (last N days from today, excluding future dates)
                           const days = parseInt(dateRange);
-                          const cutoffDate = new Date(today.getTime() - days * 24 * 60 * 60 * 1000);
+                          const cutoffDate = new Date(today);
+                          cutoffDate.setDate(cutoffDate.getDate() - days);
+                          cutoffDate.setHours(0, 0, 0, 0); // Start of cutoff date
+                          
+                          // Don't exclude today - backend may return today's data if available
+                          // But exclude any future dates as a safety measure
+                          const tomorrow = new Date(today);
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          tomorrow.setHours(0, 0, 0, 0);
+                          
                           filteredEntries = allEntries.filter(([date]) => {
                             const dateObj = new Date(date);
-                            return dateObj >= cutoffDate;
+                            dateObj.setHours(0, 0, 0, 0);
+                            // Include dates from cutoffDate (inclusive) up to today (inclusive), but exclude future dates
+                            return dateObj >= cutoffDate && dateObj < tomorrow;
                           });
                         }
                         
