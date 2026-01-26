@@ -165,17 +165,20 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     selectedDate,
     selectedTime,
     isTimeModalOpen,
-    timeSlots,
-    allTimeSlots,
-    acceptedBookingsForDate,
-    notes,
-    isSubmitting,
+    timeSlots = [],
+    allTimeSlots = [],
+    acceptedBookingsForDate = [],
+    notes = '',
+    isSubmitting = false,
     error,
     success,
-    bookings,
-    isLoadingBookings,
-    hasPendingBooking,
-    blockedDates,
+    bookings = [],
+    isLoadingBookings = true,
+    hasPendingBooking = false,
+    blockedDates = [],
+    nextEligibleDate,
+    isLoadingEligibility = true,
+    canBookImmediately = true,
     handleDateSelect,
     handleTimeSelect,
     handleSubmit,
@@ -205,34 +208,8 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     fetchCustomer();
   }, []);
 
-  // Calculate next allowed booking date for the customer
-  const [nextAllowedBookingDate, setNextAllowedBookingDate] = React.useState<Date | null>(null);
-
-  React.useEffect(() => {
-    if (!customer) return;
-    // Find last accepted booking
-    const acceptedBookings = bookings.filter(b => b.status === 'accepted');
-    if (acceptedBookings.length === 0) {
-      setNextAllowedBookingDate(null); // No restriction for first booking
-      return;
-    }
-    const lastBooking = acceptedBookings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-    const interval = customer.bookingIntervalMonths || 1;
-    
-    // Calculate next allowed date by adding the interval months to the last booking date
-    // Example: If last booking is January and interval is 3 months, next booking is April (not February)
-    const lastDate = new Date(lastBooking.date);
-    let nextDate;
-    
-    // Simply add the interval months to the last booking date
-    // This ensures correct calculation: January + 3 months = April, not February
-    nextDate = new Date(lastDate);
-    nextDate.setMonth(nextDate.getMonth() + interval);
-    nextDate.setDate(1); // Set to first day of the month
-    nextDate.setHours(0, 0, 0, 0); // Reset time to start of day
-    
-    setNextAllowedBookingDate(nextDate);
-  }, [customer, bookings]);
+  // Next eligible date is now fetched from backend (source of truth)
+  // No need to calculate it in frontend - use nextEligibleDate from hook
 
   // Utility functions
   const formatDateTime = (dateString: string): string => {
@@ -254,8 +231,12 @@ const CustomerMediaDayBookingPage: React.FC = () => {
 
   // Date checking functions
   const isBlocked = (date: Date): boolean => {
+    // Safety check: ensure blockedDates is an array
+    if (!Array.isArray(blockedDates)) return false;
+    
     // Check if date is blocked
     const isDateBlocked = blockedDates.some(blocked => {
+      if (!blocked) return false;
       const blockedDate = new Date(blocked);
       return blockedDate.getFullYear() === date.getFullYear() &&
         blockedDate.getMonth() === date.getMonth() &&
@@ -265,8 +246,11 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     // If date is blocked, check if this customer has an accepted booking on this date
     // If they do, allow them to see it (but still prevent new bookings)
     if (isDateBlocked) {
+      // Safety check: ensure bookings is an array
+      if (!Array.isArray(bookings)) return isDateBlocked;
+      
       const hasOwnAcceptedBooking = bookings.some(booking => {
-        if (booking.status !== 'accepted') return false;
+        if (!booking || booking.status !== 'accepted') return false;
         const bookingDate = new Date(booking.date);
         return bookingDate.getFullYear() === date.getFullYear() &&
           bookingDate.getMonth() === date.getMonth() &&
@@ -284,8 +268,11 @@ const CustomerMediaDayBookingPage: React.FC = () => {
   };
 
   const isDeclined = (date: Date): boolean => {
+    // Safety check: ensure bookings is an array
+    if (!Array.isArray(bookings)) return false;
+    
     return bookings.some(booking => {
-      if (booking.status !== 'declined') return false;
+      if (!booking || booking.status !== 'declined') return false;
       const bookingDate = new Date(booking.date);
       return bookingDate.getFullYear() === date.getFullYear() &&
         bookingDate.getMonth() === date.getMonth() &&
@@ -294,9 +281,12 @@ const CustomerMediaDayBookingPage: React.FC = () => {
   };
 
   const isAccepted = (date: Date): boolean => {
+    // Safety check: ensure bookings is an array
+    if (!Array.isArray(bookings)) return false;
+    
     // Check if this customer has an accepted booking on this date
     const customerAccepted = bookings.some(booking => {
-      if (booking.status !== 'accepted') return false;
+      if (!booking || booking.status !== 'accepted') return false;
       const bookingDate = new Date(booking.date);
       return bookingDate.getFullYear() === date.getFullYear() &&
         bookingDate.getMonth() === date.getMonth() &&
@@ -305,7 +295,8 @@ const CustomerMediaDayBookingPage: React.FC = () => {
     
     // Also check if ANY customer has an accepted booking (from acceptedBookingsForDate)
     // This ensures we show the date as unavailable if another customer booked it
-    const anyAccepted = acceptedBookingsForDate.length > 0;
+    const safeAcceptedBookings = Array.isArray(acceptedBookingsForDate) ? acceptedBookingsForDate : [];
+    const anyAccepted = safeAcceptedBookings.length > 0;
     
     return customerAccepted || anyAccepted;
   };
@@ -316,9 +307,33 @@ const CustomerMediaDayBookingPage: React.FC = () => {
 
   // Event handlers
   const handleCalendarSelect = ({ start }: { start: Date }): void => {
+    // Safety check: ensure start is a valid date
+    if (!start || !(start instanceof Date) || isNaN(start.getTime())) {
+      console.error('Invalid date in handleCalendarSelect:', start);
+      return;
+    }
+    
+    // Check eligibility first (backend is source of truth, but check here for UX)
+    if (!canBookImmediately && nextEligibleDate && start < nextEligibleDate) {
+      const formattedDate = nextEligibleDate.toLocaleDateString('en-US', {
+        timeZone: 'America/Toronto',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      setTemporaryError(`Not eligible until ${formattedDate}. Please select a date on or after that date.`);
+      return;
+    }
+    
+    // Safety check: ensure bookings is an array
+    if (!Array.isArray(bookings)) {
+      console.error('Bookings is not an array:', bookings);
+      return;
+    }
+    
     // Check if this customer has their own accepted booking first
     const hasOwnAccepted = bookings.some(booking => {
-      if (booking.status !== 'accepted') return false;
+      if (!booking || booking.status !== 'accepted') return false;
       const bookingDate = new Date(booking.date);
       return bookingDate.getFullYear() === start.getFullYear() &&
         bookingDate.getMonth() === start.getMonth() &&
@@ -348,38 +363,77 @@ const CustomerMediaDayBookingPage: React.FC = () => {
   };
 
   // Computed values
-  const calendarEvents = useMemo(() => 
-    bookings.map(booking => {
-      const date = new Date(booking.date);
-      return {
-        id: booking._id,
-        title: booking.status === 'accepted' ? '  Media Day!' : 
-               booking.status === 'declined' ? 'Declined' : 'Pending Media Day Request',
-        start: date,
-        end: new Date(date.getTime() + 60 * 60 * 1000),
-        status: booking.status
-      };
-    }), [bookings]
-  );
+  const calendarEvents = useMemo(() => {
+    // Safety check: ensure bookings is an array
+    if (!Array.isArray(bookings)) return [];
+    return bookings
+      .filter(booking => booking && booking.date) // Filter out invalid bookings
+      .map(booking => {
+        try {
+          const date = new Date(booking.date);
+          // Validate date is not invalid
+          if (isNaN(date.getTime())) {
+            console.warn('Invalid booking date:', booking.date);
+            return null;
+          }
+          return {
+            id: booking._id,
+            title: booking.status === 'accepted' ? '  Media Day!' : 
+                   booking.status === 'declined' ? 'Declined' : 'Pending Media Day Request',
+            start: date,
+            end: new Date(date.getTime() + 60 * 60 * 1000),
+            status: booking.status
+          };
+        } catch (err) {
+          console.error('Error processing booking:', booking, err);
+          return null;
+        }
+      })
+      .filter(event => event !== null); // Remove null events
+  }, [bookings]);
 
-  const blockedDateEvents = useMemo(() => 
-    blockedDates.map(dateStr => {
-      const date = new Date(dateStr);
-      return {
-        id: `blocked-${dateStr}`,
-        title: 'Date Blocked',
-        start: date,
-        end: new Date(date.getTime() + 60 * 60 * 1000),
-        status: 'blocked',
-        isBlocked: true,
-      };
-    }), [blockedDates]
-  );
+  const blockedDateEvents = useMemo(() => {
+    // Safety check: ensure blockedDates is an array
+    if (!Array.isArray(blockedDates)) return [];
+    return blockedDates
+      .filter(dateStr => dateStr) // Filter out empty strings
+      .map(dateStr => {
+        try {
+          const date = new Date(dateStr);
+          // Validate date is not invalid
+          if (isNaN(date.getTime())) {
+            console.warn('Invalid blocked date:', dateStr);
+            return null;
+          }
+          return {
+            id: `blocked-${dateStr}`,
+            title: 'Date Blocked',
+            start: date,
+            end: new Date(date.getTime() + 60 * 60 * 1000),
+            status: 'blocked',
+            isBlocked: true,
+          };
+        } catch (err) {
+          console.error('Error processing blocked date:', dateStr, err);
+          return null;
+        }
+      })
+      .filter(event => event !== null); // Remove null events
+  }, [blockedDates]);
 
-  const combinedEvents = useMemo(() => 
-    [...calendarEvents, ...blockedDateEvents], 
-    [calendarEvents, blockedDateEvents]
-  );
+  const combinedEvents = useMemo(() => {
+    // Safety check: ensure arrays are defined and valid
+    const safeCalendarEvents = Array.isArray(calendarEvents) ? calendarEvents : [];
+    const safeBlockedDateEvents = Array.isArray(blockedDateEvents) ? blockedDateEvents : [];
+    // Ensure all events have valid start/end dates
+    const validEvents = [...safeCalendarEvents, ...safeBlockedDateEvents].filter(event => {
+      if (!event || !event.start || !event.end) return false;
+      const start = event.start instanceof Date ? event.start : new Date(event.start);
+      const end = event.end instanceof Date ? event.end : new Date(event.end);
+      return !isNaN(start.getTime()) && !isNaN(end.getTime());
+    });
+    return validEvents;
+  }, [calendarEvents, blockedDateEvents]);
 
   // Event styling
   const eventStyleGetter = (event: any) => {
@@ -413,8 +467,8 @@ const CustomerMediaDayBookingPage: React.FC = () => {
   const dayPropGetter = (date: Date) => {
     const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
     const unavailable = isDateUnavailable(date);
-    // Disable dates before nextAllowedBookingDate if set
-    const beforeNextAllowed = nextAllowedBookingDate && date < nextAllowedBookingDate;
+    // Disable dates before nextEligibleDate if set (from backend - source of truth)
+    const beforeNextAllowed = !canBookImmediately && nextEligibleDate && date < nextEligibleDate;
     return {
       className: `${isPast ? 'rbc-off-range' : ''} ${unavailable || beforeNextAllowed ? 'bg-gray-200 cursor-not-allowed' : ''}`,
       onClick: (unavailable || beforeNextAllowed) ? (e: React.MouseEvent) => e.preventDefault() : undefined
@@ -433,7 +487,14 @@ const CustomerMediaDayBookingPage: React.FC = () => {
             <div className="text-gray-500 text-sm mt-2">Loading your frequency...</div>
           ) : customer && (
             <div className="text-center mb-3 text-gray-700 font-medium">
-              Your Media Day Frequency: {customer.bookingIntervalMonths === 3 ? 'Quarterly' : 'Monthly'}
+              Your Media Day Frequency: {
+                customer.bookingIntervalMonths === 1 ? 'Monthly (12 times per year)' :
+                customer.bookingIntervalMonths === 2 ? '2 times per year (every 6 months)' :
+                customer.bookingIntervalMonths === 3 ? '3 times per year (every 4 months)' :
+                customer.bookingIntervalMonths === 4 ? '4 times per year (every 3 months)' :
+                customer.bookingIntervalMonths === 6 ? '6 times per year (every 2 months)' :
+                'Monthly'
+              }
             </div>
           )}
           <p className="text-base md:text-lg font-normal text-gray-800 max-w-xl mx-auto px-6 py-4 mt-3 rounded-2xl shadow-xl backdrop-blur-md bg-white/60 border border-transparent">
@@ -475,21 +536,30 @@ const CustomerMediaDayBookingPage: React.FC = () => {
             </div>
           </div>
           <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-bg]:transition-colors [&_.rbc-day-bg:hover]:bg-[#98c6d5] [&_.rbc-day-bg:hover]:bg-opacity-20 [&_.rbc-day-bg.rbc-off-range]:opacity-50 [&_.rbc-day-bg.rbc-off-range]:cursor-not-allowed [&_.rbc-day-bg.rbc-off-range]:hover:bg-transparent">
-            <Calendar
-              localizer={localizer}
-              events={combinedEvents}
-              startAccessor="start"
-              endAccessor="end"
-              style={{ height: 600 }}
-              onSelectSlot={handleCalendarSelect}
-              selectable
-              views={['month']}
-              className="rounded-lg"
-              components={{ toolbar: CustomToolbar }}
-              formats={{ monthHeaderFormat: () => '' }}
-              eventPropGetter={eventStyleGetter}
-              dayPropGetter={dayPropGetter}
-            />
+            {localizer && combinedEvents ? (
+              <Calendar
+                localizer={localizer}
+                events={combinedEvents || []}
+                startAccessor="start"
+                endAccessor="end"
+                style={{ height: 600 }}
+                onSelectSlot={handleCalendarSelect}
+                selectable
+                views={['month']}
+                className="rounded-lg"
+                components={{ toolbar: CustomToolbar }}
+                formats={{ monthHeaderFormat: () => '' }}
+                eventPropGetter={eventStyleGetter}
+                dayPropGetter={dayPropGetter}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-[600px]">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading calendar...</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

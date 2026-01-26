@@ -7,6 +7,21 @@ const authorizeRole = require('../middleware/authorizeRole');
 const EmailService = require('../services/emailService');
 const User = require('../models/User');
 
+// Import booking eligibility utilities with error handling
+let checkBookingEligibility, getNextEligibleDate, getFrequencyText;
+try {
+  const bookingEligibility = require('../utils/bookingEligibility');
+  checkBookingEligibility = bookingEligibility.checkBookingEligibility;
+  getNextEligibleDate = bookingEligibility.getNextEligibleDate;
+  getFrequencyText = bookingEligibility.getFrequencyText;
+} catch (error) {
+  console.error('❌ Failed to load bookingEligibility module:', error);
+  // Provide fallback functions to prevent route from crashing
+  checkBookingEligibility = async () => ({ eligible: true, nextEligibleDate: null, message: null });
+  getNextEligibleDate = async () => ({ nextEligibleDate: null, canBookImmediately: true, timesPerYear: 1, intervalMonths: 1 });
+  getFrequencyText = () => 'Monthly';
+}
+
 // Utility functions
 const checkDateAvailability = async (date) => {
   // Normalize date to start of day for comparison
@@ -55,18 +70,19 @@ const sendEmailAsync = async (emailFunction, ...args) => {
   }
 };
 
-// Calculate next allowed booking date by adding the interval months to the last booking date
-// Example: If last booking is January and interval is 3 months, next booking is April (not February)
-const getNextEligibleMonth = (lastBookingDate, interval) => {
-  const lastDate = new Date(lastBookingDate);
-  
-  // Simply add the interval months to the last booking date
-  // This ensures correct calculation: January + 3 months = April, not February
-  const next = new Date(lastDate);
-  next.setMonth(next.getMonth() + interval);
-  next.setDate(1); // Set to first day of the month
-  next.setHours(0, 0, 0, 0); // Reset time to start of day
-  return next;
+// Legacy function - now using shared eligibility calculator
+// Kept for backwards compatibility if needed elsewhere
+const getNextEligibleMonth = (lastBookingDate, timesPerYear) => {
+  try {
+    const { calculateNextEligibleDate } = require('../utils/bookingEligibility');
+    return calculateNextEligibleDate(lastBookingDate, timesPerYear);
+  } catch (error) {
+    console.error('Error in getNextEligibleMonth:', error);
+    // Fallback: return date 1 month later
+    const result = new Date(lastBookingDate);
+    result.setMonth(result.getMonth() + 1);
+    return result;
+  }
 };
 
 // Get count of pending bookings (Admin only)
@@ -122,6 +138,25 @@ router.get('/my-bookings', authenticateToken, authorizeRole('customer'), async (
   }
 });
 
+// Get next eligible booking date for customer (for frontend calendar)
+router.get('/next-eligible-date', authenticateToken, authorizeRole('customer'), async (req, res) => {
+  try {
+    const eligibilityInfo = await getNextEligibleDate(req.user._id);
+    
+    res.json({
+      nextEligibleDate: eligibilityInfo.nextEligibleDate,
+      canBookImmediately: eligibilityInfo.canBookImmediately,
+      timesPerYear: eligibilityInfo.timesPerYear,
+      intervalMonths: eligibilityInfo.intervalMonths,
+      frequencyText: getFrequencyText(eligibilityInfo.timesPerYear),
+      lastBookingDate: eligibilityInfo.lastBookingDate || null
+    });
+  } catch (error) {
+    console.error('Error fetching next eligible date:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Create a new booking
 router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) => {
   try {
@@ -129,30 +164,18 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
 
     await checkDateAvailability(date);
 
-    // Enforce booking interval with start-of-period logic
-    const customer = await User.findById(req.user._id);
-    const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 2 for bi-monthly, 3 for quarterly, 4 for 4x/year, 6 for 6x/year
-    const lastBooking = await Booking.findOne({
-      customer: req.user._id,
-      status: 'accepted'
-    }).sort({ date: -1 });
+    // Check booking eligibility using shared calculator (backend is source of truth)
+    const eligibility = await checkBookingEligibility(req.user._id, date);
     
-    if (lastBooking) {
-      const nextAllowedDate = getNextEligibleMonth(lastBooking.date, interval);
-      
-      if (new Date(date) < nextAllowedDate) {
-        let intervalText;
-        if (interval === 1) intervalText = 'month';
-        else if (interval === 2) intervalText = '2 months (bi-monthly)';
-        else if (interval === 3) intervalText = 'quarter';
-        else if (interval === 4) intervalText = '3 months (4 times/year)';
-        else if (interval === 6) intervalText = '2 months (6 times/year)';
-        else intervalText = `${interval} months`;
-        
-        return res.status(400).json({
-          message: `You can only book once every ${intervalText}. Next available booking: ${nextAllowedDate.toLocaleDateString()}`
-        });
-      }
+    if (!eligibility.eligible) {
+      // Return proper error format with next eligible date
+      return res.status(400).json({
+        error: eligibility.message,
+        nextEligibleDate: eligibility.nextEligibleDate,
+        timesPerYear: eligibility.timesPerYear,
+        intervalMonths: eligibility.intervalMonths,
+        message: eligibility.message // Also include as 'message' for backwards compatibility
+      });
     }
 
     const booking = new Booking({
@@ -190,34 +213,11 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
       return res.status(400).json({ message: 'Customer ID and date are required' });
     }
 
-    // Admin can book any date, but still enforce booking intervals
+    // Admin can book any date - bypass eligibility checks
     await checkDateAvailability(date);
     
-    // Enforce booking interval with start-of-period logic (same as customer booking)
-    const customer = await User.findById(customerId);
-    const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 2 for bi-monthly, 3 for quarterly, 4 for 4x/year, 6 for 6x/year
-    const lastBooking = await Booking.findOne({
-      customer: customerId,
-      status: 'accepted'
-    }).sort({ date: -1 });
-    
-    if (lastBooking) {
-      const nextAllowedDate = getNextEligibleMonth(lastBooking.date, interval);
-      
-      if (new Date(date) < nextAllowedDate) {
-        let intervalText;
-        if (interval === 1) intervalText = 'month';
-        else if (interval === 2) intervalText = '2 months (bi-monthly)';
-        else if (interval === 3) intervalText = 'quarter';
-        else if (interval === 4) intervalText = '3 months (4 times/year)';
-        else if (interval === 6) intervalText = '2 months (6 times/year)';
-        else intervalText = `${interval} months`;
-        
-        return res.status(400).json({
-          message: `Customer can only book once every ${intervalText}. Next available booking: ${nextAllowedDate.toLocaleDateString()}`
-        });
-      }
-    }
+    // Note: Admin override - no eligibility check enforced
+    // Admin can create bookings anytime, ignoring plan eligibility
 
     const booking = new Booking({
       customer: customerId,
@@ -266,12 +266,12 @@ router.post('/admin-create', authenticateToken, authorizeRole('admin'), async (r
     // Create blocked dates for the next few months since this is an accepted booking
     try {
       const customer = await User.findById(customerId);
-      const interval = customer.bookingIntervalMonths || 1; // 1 for monthly, 2 for bi-monthly, 3 for quarterly, 4 for 4x/year, 6 for 6x/year
+      const timesPerYear = customer.bookingIntervalMonths || 1; // Now stores times per year: 1 (monthly), 2, 3, 4, or 6
       
-      console.log(`📅 Processing admin-created booking for customer ${customer.name} with interval: ${interval} months`);
+      console.log(`📅 Processing admin-created booking for customer ${customer.name} with frequency: ${timesPerYear} times per year`);
       
-      // Only create blocked dates for quarterly clinics (interval = 3)
-      if (interval === 3) {
+      // Only create blocked dates for quarterly clinics (3 times per year)
+      if (timesPerYear === 3) {
         console.log(`🔒 Creating blocked dates for quarterly clinic - blocking entire months of August and September`);
         
         // Create blocked dates for the entire next 2 months (August and September)

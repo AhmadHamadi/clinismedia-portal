@@ -11,18 +11,11 @@ const formatDateForEmail = (date) => {
   });
 };
 
-// Calculate next allowed booking date by adding the interval months to the last booking date
-// Example: If last booking is January and interval is 3 months, next booking is April (not February)
-const getNextEligibleMonth = (lastBookingDate, interval) => {
-  const lastDate = new Date(lastBookingDate);
-  
-  // Simply add the interval months to the last booking date
-  // This ensures correct calculation: January + 3 months = April, not February
-  const next = new Date(lastDate);
-  next.setMonth(next.getMonth() + interval);
-  next.setDate(1); // Set to first day of the month
-  next.setHours(0, 0, 0, 0); // Reset time to start of day
-  return next;
+// Use shared eligibility calculator (now in utils/bookingEligibility.js)
+// This function is kept for backwards compatibility but should use the shared calculator
+const getNextEligibleMonth = (lastBookingDate, timesPerYear) => {
+  const { calculateNextEligibleDate } = require('../utils/bookingEligibility');
+  return calculateNextEligibleDate(lastBookingDate, timesPerYear);
 };
 
 const hasBookingForMonth = async (customerId, year, month) => {
@@ -176,17 +169,15 @@ class ScheduledEmailService {
   }
 
   // Get the period name for display in emails based on the eligible start date
-  static getPeriodNameFromStart(periodStart, interval) {
-    if (interval === 3) {
+  static getPeriodNameFromStart(periodStart, timesPerYear) {
+    // timesPerYear: 1 (monthly), 2, 3, 4, or 6
+    if (timesPerYear === 3) {
+      // 3 times per year - use quarter format
       const quarterNumber = Math.floor(periodStart.getMonth() / 3) + 1;
       return `Q${quarterNumber} ${periodStart.getFullYear()}`;
     }
 
-    if (interval === 4) {
-      return periodStart.toLocaleString('default', { month: 'long', year: 'numeric' });
-    }
-
-    // Default to standard month name (covers monthly, bi-monthly, 6x per year, etc.)
+    // Default to standard month name (covers monthly, 2/year, 4/year, 6/year, etc.)
     return periodStart.toLocaleString('default', { month: 'long', year: 'numeric' });
   }
 
@@ -198,7 +189,7 @@ class ScheduledEmailService {
 
       for (const customer of customers) {
         try {
-          const interval = customer.bookingIntervalMonths || 1;
+          const timesPerYear = customer.bookingIntervalMonths || 1; // Now stores times per year (1=monthly, 2, 3, 4, 6)
 
           // Only send reminders to clinics that have previously submitted at least one booking request
           const hasSubmittedBooking = await Booking.exists({ customer: customer._id });
@@ -215,12 +206,12 @@ class ScheduledEmailService {
           let periodStart;
 
           if (lastBooking) {
-            periodStart = getNextEligibleMonth(lastBooking.date, interval);
+            periodStart = getNextEligibleMonth(lastBooking.date, timesPerYear);
 
             // Ensure we always look at a future (or current upcoming) period start
             let safetyCounter = 0;
             while (periodStart.getTime() < today.getTime() && safetyCounter < 24) {
-              const nextStart = getNextEligibleMonth(periodStart, interval);
+              const nextStart = getNextEligibleMonth(periodStart, timesPerYear);
               if (nextStart.getTime() === periodStart.getTime()) {
                 break;
               }
@@ -259,22 +250,37 @@ class ScheduledEmailService {
           const periodMonth = periodStart.getMonth();
 
           const hasBookingForPeriod = async () => {
-            if (interval === 1) {
+            // timesPerYear: 1 (monthly), 2, 3, 4, or 6
+            if (timesPerYear === 1) {
+              // Monthly (12/year) - check if booked in current month
               return await hasBookingForMonth(customer._id, periodYear, periodMonth);
-            } else if (interval === 2 || interval === 6) {
+            } else if (timesPerYear === 2) {
+              // 2/year (6 months) - check if booked in 6-month period
               let booked = await hasBookingForMonth(customer._id, periodYear, periodMonth);
-
+              if (!booked) {
+                // Check next 5 months (6-month period total)
+                for (let i = 1; i <= 5; i++) {
+                  const checkMonth = new Date(periodYear, periodMonth + i, 1);
+                  booked = await hasBookingForMonth(customer._id, checkMonth.getFullYear(), checkMonth.getMonth());
+                  if (booked) break;
+                }
+              }
+              return booked;
+            } else if (timesPerYear === 6) {
+              // 6/year (2 months) - check if booked in 2-month period
+              let booked = await hasBookingForMonth(customer._id, periodYear, periodMonth);
               if (!booked) {
                 const secondMonth = new Date(periodYear, periodMonth + 1, 1);
                 booked = await hasBookingForMonth(customer._id, secondMonth.getFullYear(), secondMonth.getMonth());
               }
-
               return booked;
-            } else if (interval === 3 || interval === 4) {
+            } else if (timesPerYear === 3 || timesPerYear === 4) {
+              // For 3/year (4 months) or 4/year (3 months), check quarter
               const quarterStartMonth = Math.floor(periodMonth / 3) * 3;
               return await hasBookingForQuarter(customer._id, periodYear, quarterStartMonth);
             }
 
+            // Default: check current month
             return await hasBookingForMonth(customer._id, periodYear, periodMonth);
           };
 
@@ -282,7 +288,7 @@ class ScheduledEmailService {
             continue;
           }
 
-          const periodName = this.getPeriodNameFromStart(periodStart, interval);
+          const periodName = this.getPeriodNameFromStart(periodStart, timesPerYear);
 
           if (today.getTime() === twoWeeksBefore.getTime()) {
             await EmailService.sendProactiveBookingReminder(

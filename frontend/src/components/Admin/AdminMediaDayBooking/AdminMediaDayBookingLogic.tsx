@@ -434,24 +434,39 @@ export const useAdminMediaDayBooking = () => {
     [bookings, bookingView]
   );
 
-  const calendarEvents = useMemo(() => 
-    bookings
-      .filter(booking => booking.status !== 'declined') // Only show pending and accepted bookings
+  const calendarEvents = useMemo(() => {
+    if (!Array.isArray(bookings)) return [];
+    return bookings
+      .filter(booking => booking && booking.status !== 'declined') // Only show pending and accepted bookings
       .map(booking => {
-        const date = new Date(booking.date);
-        const hasPhotographer = booking.photographer && booking.photographer._id;
-        const cameraEmoji = hasPhotographer ? ' 📸' : '';
-        
-        return {
-          id: booking._id,
-          title: `${booking.customer.name}${cameraEmoji} - ${booking.status}`,
-          start: date,
-          end: new Date(date.getTime() + 60 * 60 * 1000), // 1 hour duration
-          status: booking.status,
-          hasPhotographer
-        };
-      }), [bookings]
-  );
+        try {
+          if (!booking.date) {
+            console.warn('Booking missing date:', booking);
+            return null;
+          }
+          const date = new Date(booking.date);
+          if (isNaN(date.getTime())) {
+            console.warn('Invalid booking date:', booking.date);
+            return null;
+          }
+          const hasPhotographer = booking.photographer && booking.photographer._id;
+          const cameraEmoji = hasPhotographer ? ' 📸' : '';
+          
+          return {
+            id: booking._id,
+            title: `${booking.customer?.name || 'Unknown'}${cameraEmoji} - ${booking.status}`,
+            start: date,
+            end: new Date(date.getTime() + 60 * 60 * 1000), // 1 hour duration
+            status: booking.status,
+            hasPhotographer
+          };
+        } catch (err) {
+          console.error('Error processing booking for calendar:', booking, err);
+          return null;
+        }
+      })
+      .filter(event => event !== null); // Remove null events
+  }, [bookings]);
 
   const customerOptions = useMemo(() => 
     customers.map(customer => ({

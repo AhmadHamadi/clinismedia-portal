@@ -148,9 +148,9 @@ const userSchema = new mongoose.Schema({
     default: null,
   },
   bookingIntervalMonths: {
-    type: Number, // 1 for monthly, 2 for bi-monthly, 3 for quarterly, 4 for 4x/year, 6 for 6x/year
-    enum: [1, 2, 3, 4, 6],
-    default: 1
+    type: Number, // Stores times per year: 1, 2, 3, 4, or 6 (maps to 12, 6, 4, 3, 2 month intervals)
+    enum: [1, 2, 3, 4, 6], // 1=12/year (monthly), 2/year, 3/year, 4/year, 6/year
+    default: 1 // Default to monthly (12 times per year)
   },
   gallery: [
     {

@@ -90,6 +90,9 @@ export const useMediaDayBooking = () => {
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
   const [acceptedBookingsForDate, setAcceptedBookingsForDate] = useState<Booking[]>([]);
+  const [nextEligibleDate, setNextEligibleDate] = useState<Date | null>(null);
+  const [isLoadingEligibility, setIsLoadingEligibility] = useState(true);
+  const [canBookImmediately, setCanBookImmediately] = useState(true);
 
   // Computed values
   const hasPendingBooking = useMemo(() => 
@@ -167,33 +170,44 @@ export const useMediaDayBooking = () => {
   // API calls
   const fetchBookings = useCallback(async () => {
     try {
-      const token = getAuthToken();
+      const token = localStorage.getItem('customerToken');
+      if (!token) {
+        setIsLoadingBookings(false);
+        return;
+      }
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/bookings/my-bookings`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      setBookings(response.data);
+      setBookings(response.data || []);
     } catch (err: any) {
+      console.error('Error fetching bookings:', err);
+      setBookings([]); // Set empty array on error
       setError(ERROR_MESSAGES.FETCH_ERROR);
     } finally {
       setIsLoadingBookings(false);
     }
-  }, [getAuthToken]);
+  }, []);
 
   const fetchBlockedDates = useCallback(async () => {
     try {
-      const token = getAuthToken();
+      const token = localStorage.getItem('customerToken');
+      if (!token) {
+        setBlockedDates([]);
+        return;
+      }
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/blocked-dates`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       // Include ALL blocked dates (both manual and automatic)
       // Automatic blocks are created when bookings are accepted (one media day per day rule)
-      const allBlockedDates = response.data.map((block: any) => block.date);
+      const allBlockedDates = Array.isArray(response.data) ? response.data.map((block: any) => block.date) : [];
       setBlockedDates(allBlockedDates);
     } catch (err) {
       // Silently fail for blocked dates as it's not critical
+      setBlockedDates([]);
     }
-  }, [getAuthToken]);
+  }, []);
 
   // Event handlers
   const handleDateSelect = useCallback((date: Date) => {
@@ -237,6 +251,42 @@ export const useMediaDayBooking = () => {
     return bookingDate;
   }, []);
 
+  // Fetch next eligible date from backend (source of truth)
+  // Moved before handleSubmit to avoid forward reference
+  const fetchNextEligibleDate = useCallback(async () => {
+    try {
+      setIsLoadingEligibility(true);
+      // Safely get token - don't throw if missing
+      const token = localStorage.getItem('customerToken');
+      if (!token) {
+        // No token, allow booking (fail open)
+        setNextEligibleDate(null);
+        setCanBookImmediately(true);
+        setIsLoadingEligibility(false);
+        return;
+      }
+      
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/bookings/next-eligible-date`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.data && response.data.nextEligibleDate) {
+        setNextEligibleDate(new Date(response.data.nextEligibleDate));
+        setCanBookImmediately(false);
+      } else {
+        setNextEligibleDate(null);
+        setCanBookImmediately(true);
+      }
+    } catch (err: any) {
+      // Silently fail - don't crash the component
+      // On error, allow booking (fail open)
+      setNextEligibleDate(null);
+      setCanBookImmediately(true);
+    } finally {
+      setIsLoadingEligibility(false);
+    }
+  }, []);
+
   const handleSubmit = useCallback(async () => {
     if (!selectedDate || !selectedTime) {
       setError(ERROR_MESSAGES.DATE_TIME_REQUIRED);
@@ -270,14 +320,29 @@ export const useMediaDayBooking = () => {
       resetForm();
       await fetchBookings();
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 
-                          err.request ? ERROR_MESSAGES.SERVER_ERROR : 
-                          err.message || ERROR_MESSAGES.CREATE_ERROR;
-      setError(errorMessage);
+      // Handle eligibility errors with next eligible date
+      if (err.response?.data?.nextEligibleDate) {
+        const nextDate = new Date(err.response.data.nextEligibleDate);
+        const formattedDate = nextDate.toLocaleDateString('en-US', {
+          timeZone: 'America/Toronto',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        setError(err.response.data.message || err.response.data.error || `Not eligible until ${formattedDate}`);
+        // Refresh eligibility info
+        await fetchNextEligibleDate();
+      } else {
+        const errorMessage = err.response?.data?.message || 
+                            err.response?.data?.error ||
+                            err.request ? ERROR_MESSAGES.SERVER_ERROR : 
+                            err.message || ERROR_MESSAGES.CREATE_ERROR;
+        setError(errorMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedDate, selectedTime, hasPendingBooking, notes, getAuthToken, parseTimeToDate, clearMessages, resetForm, fetchBookings, acceptedBookingsForDate]);
+  }, [selectedDate, selectedTime, hasPendingBooking, notes, getAuthToken, parseTimeToDate, clearMessages, resetForm, fetchBookings, acceptedBookingsForDate, fetchNextEligibleDate]);
 
   // Cancel booking function
   const cancelBooking = useCallback(async (bookingId: string) => {
@@ -302,11 +367,13 @@ export const useMediaDayBooking = () => {
 
   // Effects
   useEffect(() => {
-    fetchBookings();
-  }, [fetchBookings]);
+    // Call async functions - they handle their own errors internally
+    fetchBookings().catch(err => console.error('Error in fetchBookings:', err));
+    fetchNextEligibleDate().catch(err => console.error('Error in fetchNextEligibleDate:', err));
+  }, [fetchBookings, fetchNextEligibleDate]);
 
   useEffect(() => {
-    fetchBlockedDates();
+    fetchBlockedDates().catch(err => console.error('Error in fetchBlockedDates:', err));
   }, [fetchBlockedDates]);
 
   return {
@@ -323,6 +390,9 @@ export const useMediaDayBooking = () => {
     hasPendingBooking,
     blockedDates,
     acceptedBookingsForDate,
+    nextEligibleDate,
+    isLoadingEligibility,
+    canBookImmediately,
     
     // Constants
     timeSlots: filteredTimeSlots,

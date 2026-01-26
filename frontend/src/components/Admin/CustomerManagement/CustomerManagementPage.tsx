@@ -210,11 +210,11 @@ const CustomerManagementPage = () => {
                     onChange={handleInputChange}
                     className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black"
                   >
-                    <option value={1}>Monthly Booking (12 times/year)</option>
-                    <option value={2}>Bi-monthly Booking (6 times/year)</option>
-                    <option value={3}>Quarterly Booking (4 times/year)</option>
-                    <option value={4}>4 Times per Year</option>
-                    <option value={6}>6 Times per Year</option>
+                    <option value={1}>Monthly (12 times per year)</option>
+                    <option value={2}>2 Times per Year (every 6 months)</option>
+                    <option value={3}>3 Times per Year (every 4 months)</option>
+                    <option value={4}>4 Times per Year (every 3 months)</option>
+                    <option value={6}>6 Times per Year (every 2 months)</option>
                   </select>
                   <div className="flex justify-end space-x-4">
                     <button
@@ -295,11 +295,11 @@ const CustomerManagementPage = () => {
                     onChange={handleEditInputChange}
                     className="w-full mb-4 p-4 rounded-lg border border-gray-300 text-black"
                   >
-                    <option value={1}>Monthly Booking (12 times/year)</option>
-                    <option value={2}>Bi-monthly Booking (6 times/year)</option>
-                    <option value={3}>Quarterly Booking (4 times/year)</option>
-                    <option value={4}>4 Times per Year</option>
-                    <option value={6}>6 Times per Year</option>
+                    <option value={1}>Monthly (12 times per year)</option>
+                    <option value={2}>2 Times per Year (every 6 months)</option>
+                    <option value={3}>3 Times per Year (every 4 months)</option>
+                    <option value={4}>4 Times per Year (every 3 months)</option>
+                    <option value={6}>6 Times per Year (every 2 months)</option>
                   </select>
                   <div className="flex justify-end space-x-4">
                     <button

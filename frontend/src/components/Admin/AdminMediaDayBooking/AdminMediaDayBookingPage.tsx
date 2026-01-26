@@ -119,15 +119,15 @@ const CustomToolbar: React.FC<any> = (toolbar) => (
 
 const AdminMediaDayBookingPage: React.FC = () => {
   const {
-    bookings,
-    calendarEvents,
-    isLoading,
+    bookings = [],
+    calendarEvents = [],
+    isLoading = true,
     error,
-    isDenyModalOpen,
-    isAcceptModalOpen,
+    isDenyModalOpen = false,
+    isAcceptModalOpen = false,
     selectedBooking,
     setSelectedBooking,
-    adminMessage,
+    adminMessage = '',
     setAdminMessage,
     handleAcceptRequest,
     handleDenyRequest,
@@ -135,18 +135,18 @@ const AdminMediaDayBookingPage: React.FC = () => {
     openAcceptModal,
     setIsDenyModalOpen,
     setIsAcceptModalOpen,
-    showPriorRequests,
+    showPriorRequests = false,
     setShowPriorRequests,
-    blockedDatesEvents,
+    blockedDatesEvents = [],
     addBlockedDates,
-    customers,
-    isCreatingBooking,
+    customers = [],
+    isCreatingBooking = false,
     createBookingForCustomer,
-    isUnblockModalOpen,
+    isUnblockModalOpen = false,
     setIsUnblockModalOpen,
-    selectedBlockedDates,
+    selectedBlockedDates = [],
     setSelectedBlockedDates,
-    isUnblocking,
+    isUnblocking = false,
     unblockDates,
     selectedDateForBooking,
     setSelectedDateForBooking,
@@ -154,20 +154,20 @@ const AdminMediaDayBookingPage: React.FC = () => {
     setSelectedCustomerForBooking,
     selectedTimeForBooking,
     setSelectedTimeForBooking,
-    timeSlots,
-    allTimeSlots,
-    bookingView,
+    timeSlots = [],
+    allTimeSlots = [],
+    bookingView = 'pending',
     setBookingView,
-    employees,
-    isEditPhotographyModalOpen,
+    employees = [],
+    isEditPhotographyModalOpen = false,
     setIsEditPhotographyModalOpen,
     selectedBookingForEdit,
     setSelectedBookingForEdit,
     selectedPhotographerId,
     setSelectedPhotographerId,
-    editEmployeeMessage,
+    editEmployeeMessage = '',
     setEditEmployeeMessage,
-    isUpdatingPhotography,
+    isUpdatingPhotography = false,
     updatePhotographyAssignment,
     openEditPhotographyModal,
   } = useAdminMediaDayBooking();
@@ -192,33 +192,78 @@ const AdminMediaDayBookingPage: React.FC = () => {
     })), [customers]
   );
 
-  const combinedEvents = useMemo(() => [
-    ...calendarEvents.map(event => ({
-      ...event,
-      title: event.title.split(' - ')[0], // Remove status, keep only customer name
-    })),
-    ...blockedDatesEvents.map(block => ({
-      id: `blocked-${block.id}`,
-      title: 'Date Blocked',
-      start: new Date(block.date),
-      end: new Date(new Date(block.date).getTime() + 60 * 60 * 1000),
-      status: 'blocked',
-      isBlocked: true,
-    })),
-  ], [calendarEvents, blockedDatesEvents]);
+  const combinedEvents = useMemo(() => {
+    // Safety check: ensure calendarEvents and blockedDatesEvents are arrays
+    const safeCalendarEvents = Array.isArray(calendarEvents) ? calendarEvents : [];
+    const safeBlockedDatesEvents = Array.isArray(blockedDatesEvents) ? blockedDatesEvents : [];
+    
+    const validCalendarEvents = safeCalendarEvents
+      .filter(event => event && event.start && event.end)
+      .map(event => {
+        try {
+          const start = event.start instanceof Date ? event.start : new Date(event.start);
+          const end = event.end instanceof Date ? event.end : new Date(event.end);
+          if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            console.warn('Invalid calendar event date:', event);
+            return null;
+          }
+          return {
+            ...event,
+            start,
+            end,
+            title: event.title ? event.title.split(' - ')[0] : '', // Remove status, keep only customer name
+          };
+        } catch (err) {
+          console.error('Error processing calendar event:', event, err);
+          return null;
+        }
+      })
+      .filter(event => event !== null);
+
+    const validBlockedEvents = safeBlockedDatesEvents
+      .filter(block => block && block.date)
+      .map(block => {
+        try {
+          const start = new Date(block.date);
+          if (isNaN(start.getTime())) {
+            console.warn('Invalid blocked date:', block.date);
+            return null;
+          }
+          return {
+            id: `blocked-${block.id}`,
+            title: 'Date Blocked',
+            start,
+            end: new Date(start.getTime() + 60 * 60 * 1000),
+            status: 'blocked',
+            isBlocked: true,
+          };
+        } catch (err) {
+          console.error('Error processing blocked date:', block, err);
+          return null;
+        }
+      })
+      .filter(event => event !== null);
+    
+    return [...validCalendarEvents, ...validBlockedEvents];
+  }, [calendarEvents, blockedDatesEvents]);
 
 
 
   const isDateAvailableForBooking = (date: Date, blockedDatesEvents: any[], bookings: any[]): boolean => {
-    const isBlocked = blockedDatesEvents.some(block => {
+    // Safety checks: ensure arrays are defined
+    const safeBlockedDatesEvents = Array.isArray(blockedDatesEvents) ? blockedDatesEvents : [];
+    const safeBookings = Array.isArray(bookings) ? bookings : [];
+    
+    const isBlocked = safeBlockedDatesEvents.some(block => {
+      if (!block || !block.date) return false;
       const blockDate = new Date(block.date);
       return blockDate.getFullYear() === date.getFullYear() &&
         blockDate.getMonth() === date.getMonth() &&
         blockDate.getDate() === date.getDate();
     });
 
-    const hasAcceptedBooking = bookings.some(booking => {
-      if (booking.status !== 'accepted') return false;
+    const hasAcceptedBooking = safeBookings.some(booking => {
+      if (!booking || booking.status !== 'accepted') return false;
       const bookingDate = new Date(booking.date);
       return bookingDate.getFullYear() === date.getFullYear() &&
         bookingDate.getMonth() === date.getMonth() &&
@@ -230,7 +275,10 @@ const AdminMediaDayBookingPage: React.FC = () => {
 
   // Event handlers
   const handleCalendarSelect = ({ start }: { start: Date }): void => {
-    if (isDateAvailableForBooking(start, blockedDatesEvents, bookings)) {
+    // Safety check: ensure arrays are defined before checking
+    const safeBlockedDatesEvents = Array.isArray(blockedDatesEvents) ? blockedDatesEvents : [];
+    const safeBookings = Array.isArray(bookings) ? bookings : [];
+    if (isDateAvailableForBooking(start, safeBlockedDatesEvents, safeBookings)) {
       setSelectedDateForBooking(start);
       setIsCreateBookingModalOpen(true);
     }
@@ -534,24 +582,33 @@ const AdminMediaDayBookingPage: React.FC = () => {
           </div>
 
           <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-slot]:cursor-pointer [&_.rbc-day-slot:hover]:bg-blue-50 [&_.rbc-day-slot.rbc-off-range]:cursor-default [&_.rbc-day-slot.rbc-off-range:hover]:bg-transparent">
-            <Calendar
-              localizer={localizer}
-              events={combinedEvents}
-              startAccessor="start"
-              endAccessor="end"
-              style={{ height: 600 }}
-              views={['month']}
-              className="rounded-lg"
-              selectable={true}
-              components={{
-                toolbar: CustomToolbar
-              }}
-              formats={{
-                monthHeaderFormat: () => '' // Hide default month header
-              }}
-              eventPropGetter={eventStyleGetter}
-              onSelectSlot={handleCalendarSelect}
-            />
+            {localizer && Array.isArray(combinedEvents) ? (
+              <Calendar
+                localizer={localizer}
+                events={combinedEvents || []}
+                startAccessor="start"
+                endAccessor="end"
+                style={{ height: 600 }}
+                views={['month']}
+                className="rounded-lg"
+                selectable={true}
+                components={{
+                  toolbar: CustomToolbar
+                }}
+                formats={{
+                  monthHeaderFormat: () => '' // Hide default month header
+                }}
+                eventPropGetter={eventStyleGetter}
+                onSelectSlot={handleCalendarSelect}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-[600px]">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading calendar...</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

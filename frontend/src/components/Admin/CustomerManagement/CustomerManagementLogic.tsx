@@ -60,7 +60,7 @@ export function useCustomerManagement() {
     password: "",
     location: "",
     address: "",
-    bookingIntervalMonths: 1,
+    bookingIntervalMonths: 1, // Default to monthly (12 times per year)
   });
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -71,7 +71,7 @@ export function useCustomerManagement() {
     password: "",
     location: "",
     address: "",
-    bookingIntervalMonths: 1,
+    bookingIntervalMonths: 1, // Default to monthly (12 times per year)
   });
 
   const fetchCustomers = async () => {
@@ -141,7 +141,7 @@ export function useCustomerManagement() {
       `Email: ${customer.email}`,
       `Location: ${customer.location || 'N/A'}`,
       `Address: ${customer.address || 'N/A'}`,
-      `Booking Interval: ${customer.bookingIntervalMonths || 1} month(s)`,
+      `Media Days per Year: ${customer.bookingIntervalMonths || 1} (${customer.bookingIntervalMonths === 1 ? 'monthly' : customer.bookingIntervalMonths === 2 ? 'every 6 months' : customer.bookingIntervalMonths === 3 ? 'every 4 months' : customer.bookingIntervalMonths === 4 ? 'every 3 months' : customer.bookingIntervalMonths === 6 ? 'every 2 months' : 'N/A'})`,
       `Customer ID: ${customer._id}`,
     ].join('\n\n');
     
