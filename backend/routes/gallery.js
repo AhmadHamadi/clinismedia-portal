@@ -133,6 +133,26 @@ router.post('/assign', authenticateToken, authorizeRole(['admin']), async (req, 
   try {
     const { clinicId, galleryItemIds } = req.body;
     
+    // ✅ FIXED: Validate inputs
+    if (!clinicId) {
+      return res.status(400).json({ error: 'clinicId is required' });
+    }
+    if (!galleryItemIds || !Array.isArray(galleryItemIds) || galleryItemIds.length === 0) {
+      return res.status(400).json({ error: 'galleryItemIds must be a non-empty array' });
+    }
+    
+    // ✅ FIXED: Verify customer exists
+    const customer = await User.findById(clinicId);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    // ✅ FIXED: Verify gallery items exist
+    const galleryItems = await GalleryItem.find({ _id: { $in: galleryItemIds } });
+    if (galleryItems.length !== galleryItemIds.length) {
+      return res.status(400).json({ error: 'One or more gallery items not found' });
+    }
+    
     // First, set all existing assignments for this clinic to not current
     await AssignedGalleryItem.updateMany(
       { clinicId },
@@ -219,7 +239,38 @@ router.get('/assignments/all', authenticateToken, authorizeRole(['admin']), asyn
       .populate('galleryItemId clinicId')
       .sort({ assignedAt: -1 });
     
-    res.json({ clinics, assignments });
+    // ✅ FIXED: Filter out assignments for deleted customers (where clinicId is null after populate)
+    // Also clean up orphaned assignments in the database
+    const validAssignments = [];
+    const orphanedAssignmentIds = [];
+    
+    for (const assignment of assignments) {
+      // If clinicId is null or undefined, the customer was deleted
+      if (!assignment.clinicId || !assignment.clinicId._id) {
+        orphanedAssignmentIds.push(assignment._id);
+      } else {
+        // ✅ FIXED: Also check if galleryItemId is valid (gallery item might be deleted)
+        if (!assignment.galleryItemId || !assignment.galleryItemId._id) {
+          // Gallery item was deleted, mark this assignment as orphaned too
+          orphanedAssignmentIds.push(assignment._id);
+        } else {
+          validAssignments.push(assignment);
+        }
+      }
+    }
+    
+    // Clean up orphaned assignments (non-blocking)
+    if (orphanedAssignmentIds.length > 0) {
+      AssignedGalleryItem.deleteMany({ _id: { $in: orphanedAssignmentIds } })
+        .then(deleted => {
+          console.log(`✅ Cleaned up ${deleted.deletedCount} orphaned gallery assignments`);
+        })
+        .catch(err => {
+          console.error('⚠️ Failed to clean up orphaned assignments:', err);
+        });
+    }
+    
+    res.json({ clinics, assignments: validAssignments });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

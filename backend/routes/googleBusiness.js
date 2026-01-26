@@ -244,7 +244,65 @@ function assertGbpCall({ locationId, start, end, metrics }) {
   }
 }
 
-// OAuth 2.0 configuration
+// Helper: Get redirect URI based on request origin (supports both localhost and production)
+function getGoogleBusinessRedirectUri(req) {
+  // Safety check: if req is null/undefined, use fallback
+  if (!req) {
+    if (process.env.GOOGLE_BUSINESS_REDIRECT_URI) {
+      return process.env.GOOGLE_BUSINESS_REDIRECT_URI;
+    }
+    const port = process.env.PORT || 5000;
+    return process.env.NODE_ENV === 'development'
+      ? `http://localhost:${port}/api/google-business/callback`
+      : 'https://api.clinimediaportal.ca/api/google-business/callback';
+  }
+  
+  // Priority 1: Explicitly set environment variable
+  if (process.env.GOOGLE_BUSINESS_REDIRECT_URI) {
+    return process.env.GOOGLE_BUSINESS_REDIRECT_URI;
+  }
+  
+  // Priority 2: Detect from request origin (supports both localhost and production)
+  const protocol = req.protocol || (req.headers?.['x-forwarded-proto'] || 'http');
+  const host = req.headers?.host || req.headers?.['x-forwarded-host'];
+  
+  if (host) {
+    // Check if it's localhost/127.0.0.1
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      const port = host.split(':')[1] || process.env.PORT || 5000;
+      return `http://localhost:${port}/api/google-business/callback`;
+    }
+    // Production domain
+    else if (host.includes('clinimediaportal.ca') || host.includes('api.clinimediaportal.ca')) {
+      return 'https://api.clinimediaportal.ca/api/google-business/callback';
+    }
+    // Railway or other hosting
+    else if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/google-business/callback`;
+    }
+    // Use the host from request
+    else {
+      return `${protocol}://${host}/api/google-business/callback`;
+    }
+  }
+  
+  // Priority 3: Fallback based on environment variables
+  let backendUrl;
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    backendUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  } else if (process.env.BACKEND_URL) {
+    backendUrl = process.env.BACKEND_URL;
+  } else if (process.env.NODE_ENV === 'development') {
+    const backendPort = process.env.PORT || 5000;
+    backendUrl = `http://localhost:${backendPort}`;
+  } else {
+    backendUrl = 'https://api.clinimediaportal.ca';
+  }
+  
+  return `${backendUrl}/api/google-business/callback`;
+}
+
+// OAuth 2.0 configuration (for service use - will be overridden per-request)
 const backendPort = process.env.PORT || 5000;
 // Priority: GOOGLE_BUSINESS_REDIRECT_URI > RAILWAY_PUBLIC_DOMAIN > BACKEND_URL > Production fallback
 let backendUrl;
@@ -259,21 +317,22 @@ if (process.env.RAILWAY_PUBLIC_DOMAIN) {
   // Production fallback
   backendUrl = 'https://api.clinimediaportal.ca';
 }
-// Ensure redirect URI is properly set - must match Google Cloud Console configuration
-const redirectUri = process.env.GOOGLE_BUSINESS_REDIRECT_URI || `${backendUrl}/api/google-business/callback`;
+// Default redirect URI (for service use - actual requests will use getGoogleBusinessRedirectUri)
+const defaultRedirectUri = process.env.GOOGLE_BUSINESS_REDIRECT_URI || `${backendUrl}/api/google-business/callback`;
 
 console.log('🔧 Google Business OAuth Configuration:', {
   backendUrl,
-  redirectUri,
+  defaultRedirectUri,
   hasClientId: !!process.env.GOOGLE_BUSINESS_CLIENT_ID,
   hasClientSecret: !!process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
   railwayDomain: process.env.RAILWAY_PUBLIC_DOMAIN
 });
 
+// Create OAuth2 client with default redirect URI (will be overridden per-request)
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_BUSINESS_CLIENT_ID,
   process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
-  redirectUri
+  defaultRedirectUri
 );
 
 // OAuth scopes for Google Business Profile
@@ -320,14 +379,28 @@ router.get('/auth/admin', authenticateToken, authorizeRole(['admin']), async (re
       return res.status(500).json({ error: 'Google Business Client Secret is not configured. Please add GOOGLE_BUSINESS_CLIENT_SECRET to environment variables.' });
     }
     
-    // Use the same redirect URI logic
-    const authUrl = oauth2Client.generateAuthUrl({
+    // ✅ FIXED: Dynamically detect redirect URI from request (supports both localhost and production)
+    const redirectUri = getGoogleBusinessRedirectUri(req);
+    
+    // Create a new OAuth2 client with the detected redirect URI for this request
+    const requestOAuth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_BUSINESS_CLIENT_ID,
+      process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
+      redirectUri
+    );
+    
+    const authUrl = requestOAuth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: SCOPES,
       state: 'admin', // Use 'admin' as state for admin OAuth
       prompt: 'consent', // Force consent screen to get refresh token
       redirect_uri: redirectUri
     });
+    
+    console.log('✅ OAuth URL generated successfully');
+    console.log('   Redirect URI:', redirectUri);
+    console.log('   Request Host:', req.headers.host);
+    console.log('   Request Protocol:', req.protocol || req.headers['x-forwarded-proto']);
 
     console.log('✅ OAuth URL generated successfully');
     res.json({ authUrl });
@@ -342,8 +415,17 @@ router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), async
   try {
     const { clinicId } = req.params;
     
-    // Use the same redirect URI logic as admin auth
-    const authUrl = oauth2Client.generateAuthUrl({
+    // ✅ FIXED: Dynamically detect redirect URI from request (supports both localhost and production)
+    const redirectUri = getGoogleBusinessRedirectUri(req);
+    
+    // Create a new OAuth2 client with the detected redirect URI for this request
+    const requestOAuth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_BUSINESS_CLIENT_ID,
+      process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
+      redirectUri
+    );
+    
+    const authUrl = requestOAuth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: SCOPES,
       state: clinicId, // Pass clinic ID in state
@@ -358,18 +440,122 @@ router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), async
   }
 });
 
+// Helper: Get frontend URL based on request origin (supports both localhost and production)
+function getFrontendUrl(req) {
+  // Safety check: if req is null/undefined, use fallback
+  if (!req) {
+    if (process.env.FRONTEND_URL) {
+      return process.env.FRONTEND_URL;
+    }
+    return process.env.NODE_ENV === 'development' 
+      ? `http://localhost:${process.env.VITE_PORT || 5173}`
+      : 'https://www.clinimediaportal.ca';
+  }
+  
+  // Priority 1: Explicitly set environment variable
+  if (process.env.FRONTEND_URL) {
+    return process.env.FRONTEND_URL;
+  }
+  
+  // Priority 2: Detect from request origin
+  const protocol = req.protocol || (req.headers?.['x-forwarded-proto'] || 'http');
+  const host = req.headers?.host || req.headers?.['x-forwarded-host'];
+  
+  if (host) {
+    // Check if it's localhost/127.0.0.1
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      const port = process.env.VITE_PORT || 5173;
+      return `http://localhost:${port}`;
+    }
+    // Production domain - use www.clinimediaportal.ca
+    else if (host.includes('clinimediaportal.ca')) {
+      return 'https://www.clinimediaportal.ca';
+    }
+    // Railway or other hosting - try to infer frontend
+    else if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      // If backend is on Railway, frontend might be on same domain or separate
+      return process.env.FRONTEND_URL || 'https://www.clinimediaportal.ca';
+    }
+  }
+  
+  // Priority 3: Fallback based on NODE_ENV
+  if (process.env.NODE_ENV === 'development') {
+    const port = process.env.VITE_PORT || 5173;
+    return `http://localhost:${port}`;
+  }
+  
+  // Priority 4: Production fallback
+  return 'https://www.clinimediaportal.ca';
+}
+
 // GET /api/google-business/callback - Handle OAuth callback
 router.get('/callback', async (req, res) => {
+  // ✅ FIXED: Dynamically detect frontend URL from request (supports both localhost and production)
+  const frontendUrl = getFrontendUrl(req);
+  
+  // ✅ FIXED: Handle OAuth errors from Google (like Google Ads does)
+  const { code, state, error: oauthError } = req.query;
+  
+  if (oauthError) {
+    console.error('❌ OAuth callback error from Google:', req.query);
+    return res.redirect(`${frontendUrl}/admin/google-business?oauth_error=true&error=${encodeURIComponent(oauthError)}`);
+  }
+  
   try {
-    const { code, state } = req.query;
-    
     if (!code || !state) {
-      return res.status(400).json({ error: 'Missing authorization code or state' });
+      console.error('❌ Missing authorization code or state:', { code: !!code, state: !!state });
+      return res.redirect(`${frontendUrl}/admin/google-business?oauth_error=true&error=missing_parameters`);
     }
 
+    // ✅ FIXED: Dynamically detect redirect URI from request (must match the one used in auth URL)
+    const redirectUri = getGoogleBusinessRedirectUri(req);
+    
+    // Create a new OAuth2 client with the detected redirect URI for this request
+    const requestOAuth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_BUSINESS_CLIENT_ID,
+      process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
+      redirectUri
+    );
+    
     // Exchange code for tokens
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
+    console.log('🔄 OAuth Callback - Token Exchange:');
+    console.log('   Redirect URI:', redirectUri);
+    console.log('   Request Host:', req.headers?.host);
+    console.log('   Request Protocol:', req.protocol || req.headers?.['x-forwarded-proto']);
+    console.log('   Code received:', code ? 'Yes' : 'No');
+    console.log('   State:', state);
+    
+    let tokens;
+    try {
+      const tokenResponse = await requestOAuth2Client.getToken(code);
+      tokens = tokenResponse.tokens;
+      requestOAuth2Client.setCredentials(tokens);
+      console.log('✅ Tokens received from Google');
+    } catch (tokenError) {
+      console.error('❌ Token exchange failed:', {
+        message: tokenError.message,
+        code: tokenError.code,
+        response: tokenError.response?.data
+      });
+      throw new Error(`Token exchange failed: ${tokenError.message}`);
+    }
+    
+    // ✅ FIXED: Validate that we received tokens
+    if (!tokens || !tokens.access_token || !tokens.refresh_token) {
+      console.error('❌ Invalid tokens received from Google:', { 
+        hasTokens: !!tokens, 
+        hasAccessToken: !!tokens?.access_token, 
+        hasRefreshToken: !!tokens?.refresh_token,
+        tokenKeys: tokens ? Object.keys(tokens) : null
+      });
+      return res.redirect(`${frontendUrl}/admin/google-business?oauth_error=true&error=invalid_tokens`);
+    }
+    
+    console.log('✅ Token validation passed:', {
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      hasExpiryDate: !!tokens.expiry_date
+    });
 
     // ✅ FIXED: Extract expiry information from tokens
     // Google's OAuth2Client returns expiry_date (Date object or timestamp)
@@ -393,55 +579,158 @@ router.get('/callback', async (req, res) => {
       console.log('⚠️ No expiry information in tokens, defaulting to 1 hour (3600 seconds)');
     }
 
-    // If this is admin OAuth, store tokens in environment or database
+    // If this is admin OAuth, store tokens in database (admin User record)
     if (state === 'admin') {
-      // For now, we'll redirect with tokens in URL
-      // In production, you might want to store these in a database
-      const frontendPort = process.env.VITE_PORT || 5173;
-      const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${frontendPort}`;
-      res.redirect(`${frontendUrl}/admin/google-business?admin_oauth_success=true&access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${expires_in}`);
+      // ✅ FIXED: Save admin tokens to database (admin User record) - NON-BLOCKING
+      // If database save fails, we still redirect successfully (original behavior)
+      // Database save is just for our new refresh service, but OAuth flow should work regardless
+      try {
+        const adminUser = await User.findOne({ role: 'admin' });
+        if (adminUser) {
+          // Calculate expiry date
+          const tokenExpiry = expires_in 
+            ? new Date(Date.now() + expires_in * 1000)
+            : new Date(Date.now() + 3600 * 1000); // Default to 1 hour if not provided
+          
+          // Save tokens to admin user record
+          adminUser.googleBusinessAccessToken = tokens.access_token;
+          adminUser.googleBusinessRefreshToken = tokens.refresh_token;
+          adminUser.googleBusinessTokenExpiry = tokenExpiry;
+          await adminUser.save();
+          
+          console.log('✅ Admin Google Business Profile tokens saved to database');
+          console.log(`   Token expiry: ${tokenExpiry.toISOString()}`);
+        } else {
+          console.warn('⚠️ Admin user not found - tokens will not be saved to database, but OAuth will still succeed');
+        }
+      } catch (dbError) {
+        // Don't fail OAuth flow if database save fails - original code didn't save to DB
+        console.error('⚠️ Failed to save tokens to database (non-critical):', dbError.message);
+        console.log('   OAuth will still succeed - tokens are in redirect URL');
+      }
+      
+      // Always redirect successfully with tokens in URL (original behavior)
+      // ✅ FIXED: URL encode tokens to handle special characters
+      const encodedAccessToken = encodeURIComponent(tokens.access_token);
+      const encodedRefreshToken = encodeURIComponent(tokens.refresh_token);
+      res.redirect(`${frontendUrl}/admin/google-business?admin_oauth_success=true&access_token=${encodedAccessToken}&refresh_token=${encodedRefreshToken}&expires_in=${expires_in}`);
     } else {
       // Handle customer-specific OAuth (if needed in future)
-      const frontendPort = process.env.VITE_PORT || 5173;
-      const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${frontendPort}`;
-      res.redirect(`${frontendUrl}/admin/google-business?oauth_success=true&clinic_id=${state}&access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${expires_in}`);
+      const encodedAccessToken = encodeURIComponent(tokens.access_token);
+      const encodedRefreshToken = encodeURIComponent(tokens.refresh_token);
+      res.redirect(`${frontendUrl}/admin/google-business?oauth_success=true&clinic_id=${state}&access_token=${encodedAccessToken}&refresh_token=${encodedRefreshToken}&expires_in=${expires_in}`);
     }
   } catch (error) {
-    console.error('OAuth callback error:', error);
+    console.error('❌ OAuth callback error:', error);
+    console.error('   Error details:', {
+      name: error?.name,
+      message: error?.message,
+      stack: error?.stack,
+      response: error?.response?.data
+    });
     // Redirect to frontend with error
-    const frontendPort = process.env.VITE_PORT || 5173;
-    const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${frontendPort}`;
-    res.redirect(`${frontendUrl}/admin/google-business?oauth_error=true`);
+    const errorMessage = error?.message || 'Unknown error';
+    res.redirect(`${frontendUrl}/admin/google-business?oauth_error=true&error=${encodeURIComponent(errorMessage)}`);
   }
 });
 
 // GET /api/google-business/admin-business-profiles - Get all business profiles from admin account
 router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    // Get tokens from header or environment
+    // ✅ FIXED: Get admin tokens from database first (with fallback to header/env)
     let adminTokens;
+    let adminUser = await User.findOne({ role: 'admin' });
     
-    if (req.headers['x-admin-tokens']) {
-      // Use tokens passed from frontend
+    // Priority 1: Database (most reliable, persistent)
+    if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
+      adminTokens = {
+        access_token: adminUser.googleBusinessAccessToken,
+        refresh_token: adminUser.googleBusinessRefreshToken
+      };
+      console.log('[Google Business] Using admin tokens from database');
+    } 
+    // Priority 2: Header (from frontend, temporary)
+    else if (req.headers['x-admin-tokens']) {
       adminTokens = JSON.parse(req.headers['x-admin-tokens']);
-    } else {
-      // Fallback to environment variables
+      console.log('[Google Business] Using admin tokens from header');
+    } 
+    // Priority 3: Environment variables (fallback)
+    else {
       adminTokens = {
         access_token: process.env.GOOGLE_BUSINESS_ADMIN_ACCESS_TOKEN,
         refresh_token: process.env.GOOGLE_BUSINESS_ADMIN_REFRESH_TOKEN
       };
+      console.log('[Google Business] Using admin tokens from environment variables');
     }
 
     if (!adminTokens.access_token) {
       return res.status(400).json({ error: 'Admin Google Business Profile not connected. Please connect first.' });
     }
 
+    // ✅ FIXED: Check if token needs refresh and refresh if needed
+    if (adminUser) {
+      const now = Date.now();
+      const expiresAt = adminUser.googleBusinessTokenExpiry ? new Date(adminUser.googleBusinessTokenExpiry).getTime() : 0;
+      const refreshThreshold = 5 * 60 * 1000; // Refresh 5 minutes before expiry
+      
+      if (expiresAt > 0 && now > (expiresAt - refreshThreshold)) {
+        console.log('[Google Business] Admin token expires soon, refreshing proactively...');
+        
+        if (!adminUser.googleBusinessRefreshToken) {
+          return res.status(401).json({ 
+            error: 'Admin Google Business Profile refresh token missing. Please reconnect.',
+            requiresReauth: true
+          });
+        }
+        
+        try {
+          const refreshedTokens = await refreshGoogleBusinessToken(adminUser.googleBusinessRefreshToken);
+          
+          // Calculate new expiry
+          let newExpiry = null;
+          if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
+            newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
+          } else {
+            newExpiry = new Date(Date.now() + 3600 * 1000);
+          }
+          
+          const updateData = {
+            googleBusinessAccessToken: refreshedTokens.access_token,
+            googleBusinessTokenExpiry: newExpiry
+          };
+          
+          if (refreshedTokens.refresh_token) {
+            updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
+          }
+          
+          await User.findByIdAndUpdate(adminUser._id, updateData);
+          
+          // Update tokens for this request
+          adminTokens.access_token = refreshedTokens.access_token;
+          if (refreshedTokens.refresh_token) {
+            adminTokens.refresh_token = refreshedTokens.refresh_token;
+          }
+          
+          console.log('[Google Business] ✅ Admin token refreshed successfully');
+        } catch (refreshError) {
+          console.error('[Google Business] ❌ Admin token refresh failed:', refreshError.message);
+          
+          if (refreshError.response?.data?.error === 'invalid_grant' || 
+              refreshError.message?.includes('invalid_grant')) {
+            return res.status(401).json({ 
+              error: 'Admin Google Business Profile refresh token expired. Please reconnect.',
+              requiresReauth: true,
+              details: 'Token has been expired or revoked. Click "Reconnect" to authorize again.'
+            });
+          }
+          
+          // Continue with existing token if refresh fails (might still work)
+        }
+      }
+    }
+
     // Set up OAuth client with admin tokens
     oauth2Client.setCredentials(adminTokens);
-
-    // Only refresh if access token is actually expired or missing
-    // The OAuth2Client will automatically refresh when making API calls if needed
-    // We don't need to proactively refresh here - it happens on-demand during API calls
 
     // Use the correct Google Business Profile API approach
     // First, get all accounts the user has access to
@@ -620,6 +909,45 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
       error: 'Failed to fetch business profiles',
       details: error.message 
     });
+  }
+});
+
+// POST /api/google-business/save-admin-tokens - Save admin tokens to database (optional, callback already saves)
+router.post('/save-admin-tokens', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { access_token, refresh_token, expires_in } = req.body;
+    
+    if (!access_token || !refresh_token) {
+      return res.status(400).json({ error: 'access_token and refresh_token are required' });
+    }
+    
+    const adminUser = await User.findOne({ role: 'admin' });
+    if (!adminUser) {
+      return res.status(404).json({ error: 'Admin user not found' });
+    }
+    
+    // Calculate expiry date
+    const tokenExpiry = expires_in 
+      ? new Date(Date.now() + expires_in * 1000)
+      : new Date(Date.now() + 3600 * 1000); // Default to 1 hour if not provided
+    
+    // Save tokens to admin user record
+    adminUser.googleBusinessAccessToken = access_token;
+    adminUser.googleBusinessRefreshToken = refresh_token;
+    adminUser.googleBusinessTokenExpiry = tokenExpiry;
+    await adminUser.save();
+    
+    console.log('✅ Admin Google Business Profile tokens saved to database (from frontend)');
+    console.log(`   Token expiry: ${tokenExpiry.toISOString()}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Admin tokens saved successfully',
+      expiresAt: tokenExpiry
+    });
+  } catch (error) {
+    console.error('❌ Failed to save admin tokens:', error);
+    res.status(500).json({ error: 'Failed to save admin tokens', details: error.message });
   }
 });
 
@@ -1564,20 +1892,96 @@ router.get('/group-insights', authenticateToken, authorizeRole(['admin']), async
   try {
     const { days = 30 } = req.query;
     
-    // Get tokens from header or environment
+    // ✅ FIXED: Get admin tokens from database first (with fallback to header/env)
     let adminTokens;
+    let adminUser = await User.findOne({ role: 'admin' });
     
-    if (req.headers['x-admin-tokens']) {
+    // Priority 1: Database (most reliable, persistent)
+    if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
+      adminTokens = {
+        access_token: adminUser.googleBusinessAccessToken,
+        refresh_token: adminUser.googleBusinessRefreshToken
+      };
+      console.log('[Google Business] Using admin tokens from database (group-insights)');
+    } 
+    // Priority 2: Header (from frontend, temporary)
+    else if (req.headers['x-admin-tokens']) {
       adminTokens = JSON.parse(req.headers['x-admin-tokens']);
-    } else {
+      console.log('[Google Business] Using admin tokens from header (group-insights)');
+    } 
+    // Priority 3: Environment variables (fallback)
+    else {
       adminTokens = {
         access_token: process.env.GOOGLE_BUSINESS_ADMIN_ACCESS_TOKEN,
         refresh_token: process.env.GOOGLE_BUSINESS_ADMIN_REFRESH_TOKEN
       };
+      console.log('[Google Business] Using admin tokens from environment variables (group-insights)');
     }
 
     if (!adminTokens.access_token) {
       return res.status(400).json({ error: 'Admin Google Business Profile not connected. Please connect first.' });
+    }
+
+    // ✅ FIXED: Check if token needs refresh and refresh if needed
+    if (adminUser) {
+      const now = Date.now();
+      const expiresAt = adminUser.googleBusinessTokenExpiry ? new Date(adminUser.googleBusinessTokenExpiry).getTime() : 0;
+      const refreshThreshold = 5 * 60 * 1000; // Refresh 5 minutes before expiry
+      
+      if (expiresAt > 0 && now > (expiresAt - refreshThreshold)) {
+        console.log('[Google Business] Admin token expires soon, refreshing proactively (group-insights)...');
+        
+        if (!adminUser.googleBusinessRefreshToken) {
+          return res.status(401).json({ 
+            error: 'Admin Google Business Profile refresh token missing. Please reconnect.',
+            requiresReauth: true
+          });
+        }
+        
+        try {
+          const refreshedTokens = await refreshGoogleBusinessToken(adminUser.googleBusinessRefreshToken);
+          
+          // Calculate new expiry
+          let newExpiry = null;
+          if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
+            newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
+          } else {
+            newExpiry = new Date(Date.now() + 3600 * 1000);
+          }
+          
+          const updateData = {
+            googleBusinessAccessToken: refreshedTokens.access_token,
+            googleBusinessTokenExpiry: newExpiry
+          };
+          
+          if (refreshedTokens.refresh_token) {
+            updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
+          }
+          
+          await User.findByIdAndUpdate(adminUser._id, updateData);
+          
+          // Update tokens for this request
+          adminTokens.access_token = refreshedTokens.access_token;
+          if (refreshedTokens.refresh_token) {
+            adminTokens.refresh_token = refreshedTokens.refresh_token;
+          }
+          
+          console.log('[Google Business] ✅ Admin token refreshed successfully (group-insights)');
+        } catch (refreshError) {
+          console.error('[Google Business] ❌ Admin token refresh failed (group-insights):', refreshError.message);
+          
+          if (refreshError.response?.data?.error === 'invalid_grant' || 
+              refreshError.message?.includes('invalid_grant')) {
+            return res.status(401).json({ 
+              error: 'Admin Google Business Profile refresh token expired. Please reconnect.',
+              requiresReauth: true,
+              details: 'Token has been expired or revoked. Click "Reconnect" to authorize again.'
+            });
+          }
+          
+          // Continue with existing token if refresh fails (might still work)
+        }
+      }
     }
 
     // Set up OAuth client with admin tokens

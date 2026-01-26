@@ -38,9 +38,15 @@ const ScheduledEmailService = require("./services/scheduledEmailService");
 const GoogleBusinessDataRefreshService = require("./services/googleBusinessDataRefreshService");
 const metaLeadsEmailService = require("./services/metaLeadsEmailService");
 const QuickBooksTokenRefreshService = require("./services/quickbooksTokenRefreshService");
+const GoogleAdsTokenRefreshService = require("./services/googleAdsTokenRefreshService");
+const GoogleBusinessAdminTokenRefreshService = require("./services/googleBusinessAdminTokenRefreshService");
 const { sessionManager } = require("./middleware/sessionManager");
 
 const app = express();
+
+// ✅ FIXED: Trust proxy for correct protocol/host detection in production (Railway, nginx, etc.)
+// This ensures req.protocol and req.headers.host are correct when behind a reverse proxy
+app.set('trust proxy', true);
 
 // Enable CORS for your frontend origin
 app.use(cors({
@@ -166,5 +172,27 @@ app.listen(PORT, () => {
   } catch (error) {
     console.error('[Server] ❌ Failed to start QuickBooks token refresh service:', error);
     console.error('[Server] ❌ Token refresh will NOT work until this is fixed!');
+  }
+  
+  // Start Google Ads token refresh service (runs every 30 seconds - FULLY AUTOMATIC)
+  // This ensures admin Google Ads tokens are always fresh without any manual intervention
+  console.log('[Server] Starting Google Ads token refresh service...');
+  try {
+    GoogleAdsTokenRefreshService.start();
+    console.log('[Server] ✅ Google Ads token refresh service started successfully');
+  } catch (error) {
+    console.error('[Server] ❌ Failed to start Google Ads token refresh service:', error);
+    console.error('[Server] ❌ Google Ads token refresh will NOT work until this is fixed!');
+  }
+  
+  // Start Google Business Profile admin token refresh service (runs every 30 seconds - FULLY AUTOMATIC)
+  // This ensures admin Google Business Profile tokens are always fresh without any manual intervention
+  console.log('[Server] Starting Google Business Profile admin token refresh service...');
+  try {
+    GoogleBusinessAdminTokenRefreshService.start();
+    console.log('[Server] ✅ Google Business Profile admin token refresh service started successfully');
+  } catch (error) {
+    console.error('[Server] ❌ Failed to start Google Business Profile admin token refresh service:', error);
+    console.error('[Server] ❌ Google Business Profile admin token refresh will NOT work until this is fixed!');
   }
 });

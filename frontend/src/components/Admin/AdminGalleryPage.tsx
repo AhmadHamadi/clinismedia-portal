@@ -48,8 +48,16 @@ const AdminGalleryPage: React.FC = () => {
       });
 
       // Build customer media list with current assignments
+      // ✅ FIXED: Filter out assignments with null/undefined clinicId (deleted customers)
+      const validAssignments = (assignmentsRes.data.assignments || []).filter((a: any) => {
+        // Safety check: skip assignments where clinicId is null/undefined (deleted customer)
+        if (!a.clinicId) return false;
+        const clinicId = typeof a.clinicId === 'string' ? a.clinicId : a.clinicId._id;
+        return clinicId && clinicId !== null && clinicId !== undefined;
+      });
+      
       const mediaList: CustomerMedia[] = clinicsRes.data.map((clinic: Clinic) => {
-        const currentAssignment = assignmentsRes.data.assignments.find((a: any) => {
+        const currentAssignment = validAssignments.find((a: any) => {
           const clinicId = typeof a.clinicId === 'string' ? a.clinicId : a.clinicId._id;
           return clinicId === clinic._id && a.isCurrent;
         });
@@ -58,6 +66,19 @@ const AdminGalleryPage: React.FC = () => {
           const galleryItem = typeof currentAssignment.galleryItemId === 'string' 
             ? null 
             : currentAssignment.galleryItemId;
+          
+          // ✅ FIXED: Handle case where galleryItemId might be null (deleted gallery item)
+          if (!galleryItem) {
+            // Gallery item was deleted, show as not set
+            return {
+              clinicId: clinic._id,
+              clinicName: clinic.name,
+              clinicEmail: clinic.email,
+              mediaName: '',
+              mediaUrl: '',
+              assignedAt: ''
+            };
+          }
           
           return {
             clinicId: clinic._id,
@@ -80,8 +101,19 @@ const AdminGalleryPage: React.FC = () => {
       });
 
       setCustomerMedia(mediaList);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching data:', error);
+      // Show user-friendly error message
+      if (error.response?.status === 401) {
+        alert('❌ Authentication failed. Please log in again.');
+      } else if (error.response?.status === 403) {
+        alert('❌ You do not have permission to access this page.');
+      } else {
+        alert('❌ Failed to load gallery data. Please refresh the page.');
+      }
+      // Set empty arrays to prevent crashes
+      setClinics([]);
+      setCustomerMedia([]);
     } finally {
       setLoading(false);
     }

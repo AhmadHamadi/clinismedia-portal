@@ -230,12 +230,13 @@ const GoogleBusinessManagementPage: React.FC = () => {
     
     if (adminOauthSuccess === 'true' && accessToken && refreshToken) {
       console.log('Processing successful admin OAuth callback');
-      // ✅ FIXED: Extract expires_in from URL parameters
+      // ✅ FIXED: Extract expires_in from URL parameters and decode tokens (they're URL encoded)
       const expiresIn = urlParams.get('expires_in');
       // Handle successful admin OAuth callback
+      // Tokens are URL encoded in the redirect, so decode them
       const tokens = {
-        access_token: accessToken,
-        refresh_token: refreshToken,
+        access_token: decodeURIComponent(accessToken),
+        refresh_token: decodeURIComponent(refreshToken),
         expires_in: expiresIn ? parseInt(expiresIn, 10) : 3600, // Default to 1 hour if not provided
         token_type: 'Bearer',
         scope: 'https://www.googleapis.com/auth/business.manage'
@@ -256,6 +257,26 @@ const GoogleBusinessManagementPage: React.FC = () => {
       localStorage.setItem('googleBusinessAdminTokens', JSON.stringify(tokens));
       
       console.log('Stored admin connection in localStorage');
+      
+      // ✅ FIXED: Also save tokens to backend database (redundancy - callback already saves, but this ensures sync)
+      // Create async function and call it since useEffect callback cannot be async
+      const saveTokensToBackend = async () => {
+        try {
+          const token = localStorage.getItem('adminToken');
+          await axios.post(`${import.meta.env.VITE_API_BASE_URL}/google-business/save-admin-tokens`, {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            expires_in: tokens.expires_in
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          console.log('✅ Admin tokens also saved to backend database');
+        } catch (err) {
+          console.warn('⚠️ Failed to save admin tokens to backend (tokens already saved by callback):', err);
+          // Don't fail the flow - callback already saved tokens
+        }
+      };
+      saveTokensToBackend();
       
       fetchAllBusinessProfiles(tokens);
       

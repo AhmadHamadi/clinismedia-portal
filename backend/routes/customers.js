@@ -128,10 +128,64 @@ router.post('/', uploadLogo.single('logo'), async (req, res) => {
 // DELETE a customer by ID
 router.delete("/:id", authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    const customer = await User.findByIdAndDelete(req.params.id);
+    const customerId = req.params.id;
+    const customer = await User.findByIdAndDelete(customerId);
     if (!customer) {
       return res.status(404).json({ error: "Customer not found" });
     }
+    
+    // ✅ FIXED: Clean up all related data when deleting a customer
+    try {
+      // Delete all assigned gallery items for this customer
+      const AssignedGalleryItem = require('../models/AssignedGalleryItem');
+      const deletedAssignments = await AssignedGalleryItem.deleteMany({ clinicId: customerId });
+      console.log(`✅ Deleted ${deletedAssignments.deletedCount} assigned gallery items for customer ${customerId}`);
+      
+      // Delete customer notifications
+      const CustomerNotification = require('../models/CustomerNotification');
+      await CustomerNotification.deleteMany({ customerId });
+      console.log(`✅ Deleted customer notifications for customer ${customerId}`);
+      
+      // Delete client notes
+      const ClientNote = require('../models/ClientNote');
+      await ClientNote.deleteMany({ customerId });
+      console.log(`✅ Deleted client notes for customer ${customerId}`);
+      
+      // Delete bookings
+      const Booking = require('../models/Booking');
+      await Booking.deleteMany({ customerId });
+      console.log(`✅ Deleted bookings for customer ${customerId}`);
+      
+      // Delete blocked dates
+      const BlockedDate = require('../models/BlockedDate');
+      await BlockedDate.deleteMany({ customerId });
+      console.log(`✅ Deleted blocked dates for customer ${customerId}`);
+      
+      // Delete onboarding tasks
+      const AssignedOnboardingTask = require('../models/AssignedOnboardingTask');
+      await AssignedOnboardingTask.deleteMany({ customerId });
+      console.log(`✅ Deleted onboarding tasks for customer ${customerId}`);
+      
+      // Delete invoices
+      const Invoice = require('../models/Invoice');
+      await Invoice.deleteMany({ customerId });
+      console.log(`✅ Deleted invoices for customer ${customerId}`);
+      
+      // Delete assigned invoices
+      const AssignedInvoice = require('../models/AssignedInvoice');
+      await AssignedInvoice.deleteMany({ customerId });
+      console.log(`✅ Deleted assigned invoices for customer ${customerId}`);
+      
+      // Delete email notification settings
+      const EmailNotificationSettings = require('../models/EmailNotificationSettings');
+      await EmailNotificationSettings.deleteMany({ customerId });
+      console.log(`✅ Deleted email notification settings for customer ${customerId}`);
+      
+    } catch (cleanupError) {
+      console.error('⚠️ Error during customer cleanup (non-critical):', cleanupError);
+      // Don't fail the deletion if cleanup fails - customer is already deleted
+    }
+    
     res.status(200).json({ message: "Customer deleted successfully" });
   } catch (err) {
     console.error("❌ Failed to delete customer:", err.message);

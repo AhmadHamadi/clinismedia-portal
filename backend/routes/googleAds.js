@@ -37,26 +37,127 @@ router.get('/health', (req, res) => {
 // OAuth Implementation
 // ============================================
 
+// Helper: Get frontend URL based on request origin (supports both localhost and production)
+function getFrontendUrl(req) {
+  // Safety check: if req is null/undefined, use fallback
+  if (!req) {
+    if (process.env.FRONTEND_URL) {
+      return process.env.FRONTEND_URL;
+    }
+    return process.env.NODE_ENV === 'development' 
+      ? `http://localhost:${process.env.VITE_PORT || 5173}`
+      : 'https://www.clinimediaportal.ca';
+  }
+  
+  // Priority 1: Explicitly set environment variable
+  if (process.env.FRONTEND_URL) {
+    return process.env.FRONTEND_URL;
+  }
+  
+  // Priority 2: Detect from request origin
+  const protocol = req.protocol || (req.headers?.['x-forwarded-proto'] || 'http');
+  const host = req.headers?.host || req.headers?.['x-forwarded-host'];
+  
+  if (host) {
+    // Check if it's localhost/127.0.0.1
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      const port = process.env.VITE_PORT || 5173;
+      return `http://localhost:${port}`;
+    }
+    // Production domain - use www.clinimediaportal.ca
+    else if (host.includes('clinimediaportal.ca')) {
+      return 'https://www.clinimediaportal.ca';
+    }
+    // Railway or other hosting - try to infer frontend
+    else if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      // If backend is on Railway, frontend might be on same domain or separate
+      return process.env.FRONTEND_URL || 'https://www.clinimediaportal.ca';
+    }
+  }
+  
+  // Priority 3: Fallback based on NODE_ENV
+  if (process.env.NODE_ENV === 'development') {
+    const port = process.env.VITE_PORT || 5173;
+    return `http://localhost:${port}`;
+  }
+  
+  // Priority 4: Production fallback
+  return 'https://www.clinimediaportal.ca';
+}
+
+// Helper: Get redirect URI based on request origin (supports both localhost and production)
+function getGoogleAdsRedirectUri(req) {
+  // Safety check: if req is null/undefined, use fallback
+  if (!req) {
+    if (process.env.GOOGLE_ADS_REDIRECT_URI) {
+      return process.env.GOOGLE_ADS_REDIRECT_URI;
+    }
+    const port = process.env.PORT || 3000;
+    return process.env.NODE_ENV === 'development'
+      ? `http://localhost:${port}/api/google-ads/callback`
+      : 'https://api.clinimediaportal.ca/api/google-ads/callback';
+  }
+  
+  // Priority 1: Explicitly set environment variable
+  if (process.env.GOOGLE_ADS_REDIRECT_URI) {
+    return process.env.GOOGLE_ADS_REDIRECT_URI;
+  }
+  
+  // Priority 2: Detect from request origin (supports both localhost and production)
+  const protocol = req.protocol || (req.headers?.['x-forwarded-proto'] || 'http');
+  const host = req.headers?.host || req.headers?.['x-forwarded-host'];
+  
+  if (host) {
+    // Check if it's localhost/127.0.0.1
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      const port = host.split(':')[1] || process.env.PORT || 3000;
+      return `http://localhost:${port}/api/google-ads/callback`;
+    }
+    // Production domain
+    else if (host.includes('clinimediaportal.ca') || host.includes('api.clinimediaportal.ca')) {
+      return 'https://api.clinimediaportal.ca/api/google-ads/callback';
+    }
+    // Railway or other hosting
+    else if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/google-ads/callback`;
+    }
+    // Use the host from request
+    else {
+      return `${protocol}://${host}/api/google-ads/callback`;
+    }
+  }
+  
+  // Priority 3: Fallback based on NODE_ENV
+  if (process.env.NODE_ENV === 'development') {
+    const port = process.env.PORT || 3000;
+    return `http://localhost:${port}/api/google-ads/callback`;
+  }
+  
+  // Priority 4: Production fallback
+  return 'https://api.clinimediaportal.ca/api/google-ads/callback';
+}
+
 // GET /api/google-ads/auth/admin - Start OAuth flow
 router.get('/auth/admin', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    // Sanity check: required envs
-    ['GOOGLE_ADS_CLIENT_ID', 'GOOGLE_ADS_CLIENT_SECRET', 'GOOGLE_ADS_REDIRECT_URI'].forEach(key => {
-      if (!process.env[key]) {
-        throw new Error(`Missing env: ${key}`);
-      }
-    });
+    // Sanity check: required envs (CLIENT_ID and CLIENT_SECRET are required, redirect URI is auto-detected)
+    if (!process.env.GOOGLE_ADS_CLIENT_ID || !process.env.GOOGLE_ADS_CLIENT_SECRET) {
+      throw new Error('Missing GOOGLE_ADS_CLIENT_ID or GOOGLE_ADS_CLIENT_SECRET');
+    }
 
   const adminUser = await User.findOne({ role: 'admin' });
   if (!adminUser) {
     return res.status(404).json({ error: 'Admin user not found' });
   }
   
-  const redirectUri = process.env.GOOGLE_ADS_REDIRECT_URI;
+  // ✅ FIXED: Dynamically detect redirect URI from request (supports both localhost and production)
+  const redirectUri = getGoogleAdsRedirectUri(req);
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.GOOGLE_ADS_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${SCOPES[0]}&response_type=code&state=${adminUser._id}&access_type=offline&prompt=consent`;
 
     console.log('✅ OAuth URL generated successfully');
     console.log('   Redirect URI:', redirectUri);
+    console.log('   Request Host:', req.headers.host);
+    console.log('   Request Protocol:', req.protocol || req.headers['x-forwarded-proto']);
     console.log('   Admin ID:', adminUser._id);
 
   res.json({ authUrl });
@@ -82,8 +183,7 @@ router.get('/callback', async (req, res) => {
   // Handle OAuth errors
   if (oauthError) {
     console.error('❌ OAuth callback error from Google:', req.query);
-    const frontendPort = process.env.VITE_PORT || 5173;
-    const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${frontendPort}`;
+    const frontendUrl = getFrontendUrl(req);
     return res.redirect(`${frontendUrl}/admin/google-ads?error=${oauthError}`);
   }
   
@@ -92,13 +192,23 @@ router.get('/callback', async (req, res) => {
       return res.status(400).json({ error: 'Missing code or state' });
     }
 
+    // ✅ FIXED: Dynamically detect redirect URI from request (must match the one used in auth URL)
+    const redirectUri = getGoogleAdsRedirectUri(req);
+    
+    console.log('🔄 OAuth Callback - Token Exchange:');
+    console.log('   Redirect URI:', redirectUri);
+    console.log('   Request Host:', req.headers?.host);
+    console.log('   Request Protocol:', req.protocol || req.headers?.['x-forwarded-proto']);
+    console.log('   Code received:', code ? 'Yes' : 'No');
+    console.log('   Admin User ID:', adminUserId);
+    
     // Exchange code for tokens
     const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
       client_id: process.env.GOOGLE_ADS_CLIENT_ID,
       client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
       code,
       grant_type: 'authorization_code',
-      redirect_uri: process.env.GOOGLE_ADS_REDIRECT_URI,
+      redirect_uri: redirectUri, // ✅ FIXED: Use dynamically detected redirect URI
     });
 
     const { access_token, refresh_token, expires_in } = tokenResponse.data;
@@ -117,8 +227,7 @@ router.get('/callback', async (req, res) => {
     
     console.log('✅ Google Ads OAuth successful for admin:', adminUserId);
     
-    const frontendPort = process.env.VITE_PORT || 5173;
-    const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${frontendPort}`;
+    const frontendUrl = getFrontendUrl(req);
     res.redirect(`${frontendUrl}/admin/google-ads?success=true`);
   } catch (error) {
     console.error('❌ Token exchange failed:', {
@@ -127,21 +236,63 @@ router.get('/callback', async (req, res) => {
       stack: error?.stack,
       response: error?.response?.data,
     });
-    const frontendPort = process.env.VITE_PORT || 5173;
-    const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${frontendPort}`;
+    const frontendUrl = getFrontendUrl(req);
     res.redirect(`${frontendUrl}/admin/google-ads?error=${error.message}`);
   }
 });
 
-// Helper: Get fresh access token from refresh token
-async function getAccessToken(refreshToken) {
+// Helper: Get fresh access token from refresh token (checks expiry first, saves tokens after refresh)
+// ✅ FIXED: Now checks expiry before refreshing and saves new tokens to database
+async function getAccessToken(adminUser) {
+  // Check if token is expired before refreshing
+  const now = Date.now();
+  const expiresAt = adminUser.googleAdsTokenExpiry ? new Date(adminUser.googleAdsTokenExpiry).getTime() : 0;
+  const refreshThreshold = 5 * 60 * 1000; // Refresh 5 minutes before expiry
+  
+  // If token is still valid, return it without refreshing
+  if (expiresAt > 0 && now < (expiresAt - refreshThreshold)) {
+    // ✅ SAFETY CHECK: If access token is missing even though expiry says it's valid, refresh anyway
+    if (!adminUser.googleAdsAccessToken) {
+      console.log(`[Google Ads] Token expiry says valid but access token is missing, refreshing...`);
+    } else {
+      const minutesUntilExpiry = Math.floor((expiresAt - now) / 60000);
+      console.log(`[Google Ads] Token still valid, expires in ${minutesUntilExpiry} minutes`);
+      return adminUser.googleAdsAccessToken;
+    }
+  }
+  
+  // Token expired or expiring soon - refresh it
+  console.log(`[Google Ads] Token expired or expiring soon, refreshing...`);
+  
+  if (!adminUser.googleAdsRefreshToken) {
+    throw new Error('No refresh token available for Google Ads');
+  }
+  
   const response = await axios.post('https://oauth2.googleapis.com/token', {
     client_id: process.env.GOOGLE_ADS_CLIENT_ID,
     client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
-    refresh_token: refreshToken,
+    refresh_token: adminUser.googleAdsRefreshToken,
     grant_type: 'refresh_token',
   });
-  return response.data.access_token;
+  
+  const { access_token, refresh_token, expires_in } = response.data;
+  
+  // ✅ FIXED: Save the new tokens and expiry time to database
+  const updateData = {
+    googleAdsAccessToken: access_token,
+    googleAdsTokenExpiry: new Date(Date.now() + (expires_in || 3600) * 1000)
+  };
+  
+  // ✅ FIXED: Save new refresh token if Google provides one (they may rotate it)
+  if (refresh_token) {
+    updateData.googleAdsRefreshToken = refresh_token;
+    console.log(`[Google Ads] ✅ New refresh token received and saved`);
+  }
+  
+  await User.findByIdAndUpdate(adminUser._id, updateData);
+  console.log(`[Google Ads] ✅ Token refreshed and saved. Expires in ${expires_in || 3600} seconds`);
+  
+  return access_token;
 }
 
 // Helper: Make GAQL query to Google Ads API
@@ -172,7 +323,7 @@ router.get('/accounts', authenticateToken, authorizeRole(['admin']), async (req,
       return res.status(401).json({ error: 'Admin Google Ads not connected' });
     }
 
-    const accessToken = await getAccessToken(adminUser.googleAdsRefreshToken);
+    const accessToken = await getAccessToken(adminUser);
 
     // Use customer_client hierarchy query to get all child accounts under MCC
     const gaqlQuery = `
@@ -255,7 +406,7 @@ router.get('/kpis', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'Admin Google Ads not connected' });
     }
 
-    const accessToken = await getAccessToken(adminUser.googleAdsRefreshToken);
+    const accessToken = await getAccessToken(adminUser);
 
     // Determine date range - handle custom range or use default
     let dateClause;
@@ -338,7 +489,7 @@ router.get('/daily', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'Admin Google Ads not connected' });
     }
 
-    const accessToken = await getAccessToken(adminUser.googleAdsRefreshToken);
+    const accessToken = await getAccessToken(adminUser);
 
     // Determine date range
     let dateClause;
@@ -411,7 +562,7 @@ router.get('/campaigns', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'Admin Google Ads not connected' });
     }
 
-    const accessToken = await getAccessToken(adminUser.googleAdsRefreshToken);
+    const accessToken = await getAccessToken(adminUser);
 
     // Determine date range
     let dateClause;
