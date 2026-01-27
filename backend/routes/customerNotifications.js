@@ -143,6 +143,13 @@ router.post('/mark-all-read', authenticateToken, authorizeRole(['customer', 'rec
       notification.instagramInsights.unreadCount = 0;
     }
     
+    // callLogs: set lastViewed so unread count (calls after lastViewed) resets
+    if (!notification.callLogs) {
+      notification.callLogs = { lastViewed: new Date() };
+    } else {
+      notification.callLogs.lastViewed = new Date();
+    }
+    
     // Update timestamps
     const now = new Date();
     notification.metaInsights.lastUpdated = now;

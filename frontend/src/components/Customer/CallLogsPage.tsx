@@ -698,11 +698,12 @@ const CallLogsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white p-3 rounded-lg shadow border-l-4 border-purple-500">
+            <div className="bg-white p-3 rounded-lg shadow border-l-4 border-purple-500" title="Same number with 2+ booked calls within 90 minutes (e.g. to confirm) counts as one. Next booked call &gt; 90 min later counts as a new booking.">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-gray-600">Appointments</p>
                   <p className="text-xl font-bold text-purple-600">{stats.appointmentsBooked || 0}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">same number within 90 min = 1</p>
                 </div>
                 <FaCalendarCheck className="text-purple-500 text-xl" />
               </div>
@@ -752,11 +753,12 @@ const CallLogsPage: React.FC = () => {
         {/* New Patient Appointments Booked - Only counts appointments from callers who pressed 1 */}
         {stats && (
           <div className="mb-4">
-            <div className="bg-white p-3 rounded-lg shadow border-l-4 border-orange-500">
+            <div className="bg-white p-3 rounded-lg shadow border-l-4 border-orange-500" title="Same number with 2+ booked calls within 90 minutes (e.g. to confirm) counts as one. Next booked call &gt; 90 min later counts as a new booking.">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-xs text-gray-600 font-medium">New Patient Appointments Booked</p>
                   <p className="text-xl font-bold text-orange-600 mt-1">{stats.newPatientAppointmentsBooked || 0}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">same number within 90 min = 1</p>
                   {stats.newPatientCalls > 0 ? (
                     <p className="text-xs text-gray-500 mt-0.5">
                       {Math.round((stats.newPatientAppointmentsBooked / stats.newPatientCalls) * 100)}% of new patient calls

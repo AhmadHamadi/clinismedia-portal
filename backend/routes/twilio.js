@@ -1399,12 +1399,23 @@ router.post('/voice/status-callback', async (req, res) => {
       PriceUnit
     } = req.body;
     
-    // Find which clinic this call belongs to
-    const clinic = await User.findOne({
-      twilioPhoneNumber: To,
-      role: 'customer'
+    // Find which clinic this call belongs to (same multi-format as /voice/incoming)
+    const normalizedTo = To ? To.replace(/\s/g, '').trim() : To;
+    let clinic = await User.findOne({
+      $or: [
+        { twilioPhoneNumber: normalizedTo, role: 'customer' },
+        { twilioPhoneNumber: To, role: 'customer' },
+        ...(normalizedTo ? [{ twilioPhoneNumber: normalizedTo.replace(/^\+/, ''), role: 'customer' }] : []),
+        ...(To ? [{ twilioPhoneNumber: String(To).replace(/^\+/, ''), role: 'customer' }] : [])
+      ]
     });
-    
+    if (!clinic && normalizedTo) {
+      const toWithoutCountry = normalizedTo.replace(/^\+1/, '');
+      clinic = await User.findOne({
+        twilioPhoneNumber: { $regex: toWithoutCountry, $options: 'i' },
+        role: 'customer'
+      });
+    }
     if (!clinic) {
       console.warn(`⚠️ No clinic found for phone number: ${To}`);
       res.status(200).send('OK');
@@ -2863,6 +2874,37 @@ router.get('/configuration', authenticateToken, async (req, res) => {
   }
 });
 
+// Rolling 90-minute window for "Appointments Booked" deduplication (stats only)
+const NINETY_MIN_MS = 90 * 60 * 1000;
+
+/**
+ * Count distinct booking clusters per caller: for each `from`, booked calls within
+ * 90 minutes of each other = 1 cluster. If the next booked call is > 90 min later, new cluster.
+ * @param {Array<{from: string, startedAt: Date}>} docs - from and startedAt only
+ * @returns {number}
+ */
+function countBookedClusters90Min(docs) {
+  if (!docs || docs.length === 0) return 0;
+  const byFrom = {};
+  for (const d of docs) {
+    const k = d.from;
+    if (!byFrom[k]) byFrom[k] = [];
+    const t = d.startedAt instanceof Date ? d.startedAt.getTime() : new Date(d.startedAt).getTime();
+    if (Number.isFinite(t)) byFrom[k].push(t);
+  }
+  let total = 0;
+  for (const times of Object.values(byFrom)) {
+    if (times.length === 0) continue;
+    times.sort((a, b) => a - b);
+    let clusters = 1;
+    for (let i = 1; i < times.length; i++) {
+      if (times[i] - times[i - 1] > NINETY_MIN_MS) clusters++;
+    }
+    total += clusters;
+  }
+  return total;
+}
+
 // GET /api/twilio/call-logs/stats - Get call statistics for authenticated customer
 router.get('/call-logs/stats', authenticateToken, async (req, res) => {
   try {
@@ -2919,21 +2961,22 @@ router.get('/call-logs/stats', authenticateToken, async (req, res) => {
     const newPatientCalls = await CallLog.countDocuments({ ...query, menuChoice: '1' });
     const existingPatientCalls = await CallLog.countDocuments({ ...query, menuChoice: '2' });
     
-    // Appointments Booked = Calls where appointmentBooked === true
-    const appointmentsBooked = await CallLog.countDocuments({
-      ...query,
-      appointmentBooked: true
-    });
-    console.log(`📊 Appointments booked: ${appointmentsBooked}`);
+    // Appointments Booked = rolling 90-minute deduplication per caller (from)
+    // Same from with 2+ appointmentBooked === true within 90 min = 1. Next booked call > 90 min later = new.
+    const bookedLogs = await CallLog.find({ ...query, appointmentBooked: true })
+      .select('from startedAt')
+      .sort({ from: 1, startedAt: 1 })
+      .lean();
+    const appointmentsBooked = countBookedClusters90Min(bookedLogs);
+    console.log(`📊 Appointments booked (90-min dedupe): ${appointmentsBooked}`);
     
-    // New Patient Appointments Booked = Calls where menuChoice === '1' (new patient) AND appointmentBooked === true
-    // This only counts appointments from callers who pressed "1" (new patient) before being forwarded
-    const newPatientAppointmentsBooked = await CallLog.countDocuments({
-      ...query,
-      menuChoice: '1',
-      appointmentBooked: true
-    });
-    console.log(`📊 New patient appointments booked: ${newPatientAppointmentsBooked}`);
+    // New Patient Appointments Booked = same 90-min deduplication, only menuChoice === '1'
+    const newPatientBookedLogs = await CallLog.find({ ...query, menuChoice: '1', appointmentBooked: true })
+      .select('from startedAt')
+      .sort({ from: 1, startedAt: 1 })
+      .lean();
+    const newPatientAppointmentsBooked = countBookedClusters90Min(newPatientBookedLogs);
+    console.log(`📊 New patient appointments booked (90-min dedupe): ${newPatientAppointmentsBooked}`);
     
     // Calculate total duration (in seconds) for answered calls only
     // Use the same query as answeredCalls to ensure consistency (includes backward compatibility for old calls)
@@ -2957,8 +3000,8 @@ router.get('/call-logs/stats', authenticateToken, async (req, res) => {
       missedCalls: missedCalls, // Missed = Calls forwarded but not answered
       newPatientCalls,
       existingPatientCalls,
-      appointmentsBooked, // Number of calls that led to appointment bookings
-      newPatientAppointmentsBooked, // Number of appointments booked from new patients (pressed 1)
+      appointmentsBooked, // 90-min rolling dedupe per from; 2+ booked within 90 min = 1
+      newPatientAppointmentsBooked, // Same 90-min dedupe, only menuChoice '1'
       totalDuration, // in seconds
       avgDuration, // in seconds
       totalDurationFormatted: formatDuration(totalDuration),
