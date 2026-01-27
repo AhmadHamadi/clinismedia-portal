@@ -23,8 +23,17 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ["admin", "customer", "employee"],
+    enum: ["admin", "customer", "employee", "receptionist"],
     default: "customer",
+  },
+  parentCustomerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
+  },
+  canBookMediaDay: {
+    type: Boolean,
+    default: false,
   },
   location: {
     type: String,

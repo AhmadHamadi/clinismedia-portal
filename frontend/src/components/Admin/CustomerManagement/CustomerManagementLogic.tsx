@@ -15,6 +15,15 @@ export interface Customer {
   };
 }
 
+export interface Receptionist {
+  _id: string;
+  name: string;
+  username: string;
+  email: string;
+  canBookMediaDay?: boolean;
+  createdAt?: string;
+}
+
 interface CustomerTableRowProps {
   customer: Customer;
   onEdit: (customer: Customer) => void;
@@ -71,7 +80,25 @@ export function useCustomerManagement() {
     password: "",
     location: "",
     address: "",
-    bookingIntervalMonths: 1, // Default to monthly (12 times per year)
+    bookingIntervalMonths: 1,
+  });
+  const [receptionists, setReceptionists] = useState<Receptionist[]>([]);
+  const [addReceptionistModal, setAddReceptionistModal] = useState(false);
+  const [receptionistForm, setReceptionistForm] = useState({
+    name: "",
+    username: "",
+    email: "",
+    password: "",
+    canBookMediaDay: false,
+  });
+  const [editReceptionistModal, setEditReceptionistModal] = useState(false);
+  const [editingReceptionist, setEditingReceptionist] = useState<Receptionist | null>(null);
+  const [editReceptionistForm, setEditReceptionistForm] = useState({
+    name: "",
+    username: "",
+    email: "",
+    canBookMediaDay: false,
+    password: "",
   });
 
   const fetchCustomers = async () => {
@@ -80,10 +107,22 @@ export function useCustomerManagement() {
       const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      console.log('Fetched customers data:', res.data);
       setCustomers(res.data);
     } catch (err) {
       console.error("❌ Failed to fetch customers", err);
+    }
+  };
+
+  const fetchReceptionists = async (customerId: string) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers/${customerId}/receptionists`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setReceptionists(res.data || []);
+    } catch (err) {
+      console.error("❌ Failed to fetch receptionists", err);
+      setReceptionists([]);
     }
   };
 
@@ -149,7 +188,6 @@ export function useCustomerManagement() {
   };
 
   const handleEditClick = (customer: Customer) => {
-    console.log('Editing customer data:', customer);
     setEditFormData({
       _id: customer._id,
       name: customer.name,
@@ -160,17 +198,8 @@ export function useCustomerManagement() {
       address: customer.address || "",
       bookingIntervalMonths: customer.bookingIntervalMonths || 1,
     });
-    console.log('Set edit form data:', {
-      _id: customer._id,
-      name: customer.name,
-      username: customer.username || "",
-      email: customer.email,
-      password: "",
-      location: customer.location || "",
-      address: customer.address || "",
-      bookingIntervalMonths: customer.bookingIntervalMonths || 1,
-    });
     setEditModalOpen(true);
+    fetchReceptionists(customer._id);
   };
 
   const handleEditInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -183,13 +212,82 @@ export function useCustomerManagement() {
     if (!window.confirm("Are you sure you want to save these changes?")) return;
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await axios.put(`${import.meta.env.VITE_API_BASE_URL}/customers/${editFormData._id}`, editFormData, {
+      await axios.put(`${import.meta.env.VITE_API_BASE_URL}/customers/${editFormData._id}`, editFormData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setEditModalOpen(false);
       fetchCustomers();
     } catch (err: any) {
       console.error('Edit submission error:', err);
+    }
+  };
+
+  const handleAddReceptionist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!receptionistForm.name?.trim() || !receptionistForm.username?.trim() || !receptionistForm.email?.trim() || !receptionistForm.password) {
+      alert("Name, username, email, and password are required.");
+      return;
+    }
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/customers/${editFormData._id}/receptionists`, {
+        name: receptionistForm.name.trim(),
+        username: receptionistForm.username.trim(),
+        email: receptionistForm.email.trim(),
+        password: receptionistForm.password,
+        canBookMediaDay: !!receptionistForm.canBookMediaDay,
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      setAddReceptionistModal(false);
+      setReceptionistForm({ name: "", username: "", email: "", password: "", canBookMediaDay: false });
+      fetchReceptionists(editFormData._id);
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to add receptionist.");
+    }
+  };
+
+  const handleRemoveReceptionist = async (receptionistId: string) => {
+    if (!window.confirm("Remove this receptionist? They will lose access immediately.")) return;
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/customers/${editFormData._id}/receptionists/${receptionistId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchReceptionists(editFormData._id);
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to remove receptionist.");
+    }
+  };
+
+  const handleEditReceptionistClick = (r: Receptionist) => {
+    setEditingReceptionist(r);
+    setEditReceptionistForm({ name: r.name, username: r.username, email: r.email, canBookMediaDay: !!r.canBookMediaDay, password: "" });
+    setEditReceptionistModal(true);
+  };
+
+  const handleEditReceptionistSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReceptionist) return;
+    try {
+      const token = localStorage.getItem('adminToken');
+      const body: Record<string, unknown> = {
+        name: editReceptionistForm.name,
+        username: editReceptionistForm.username,
+        email: editReceptionistForm.email,
+        canBookMediaDay: !!editReceptionistForm.canBookMediaDay,
+      };
+      if (editReceptionistForm.password && String(editReceptionistForm.password).trim() !== '') {
+        body.password = editReceptionistForm.password;
+      }
+      await axios.patch(
+        `${import.meta.env.VITE_API_BASE_URL}/customers/${editFormData._id}/receptionists/${editingReceptionist._id}`,
+        body,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setEditReceptionistModal(false);
+      setEditingReceptionist(null);
+      fetchReceptionists(editFormData._id);
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to update receptionist.");
     }
   };
 
@@ -241,5 +339,20 @@ export function useCustomerManagement() {
     filteredCustomers,
     paginatedCustomers,
     totalPages,
+    receptionists,
+    addReceptionistModal,
+    setAddReceptionistModal,
+    receptionistForm,
+    setReceptionistForm,
+    handleAddReceptionist,
+    handleRemoveReceptionist,
+    editReceptionistModal,
+    setEditReceptionistModal,
+    editingReceptionist,
+    setEditingReceptionist,
+    editReceptionistForm,
+    setEditReceptionistForm,
+    handleEditReceptionistClick,
+    handleEditReceptionistSubmit,
   };
 }

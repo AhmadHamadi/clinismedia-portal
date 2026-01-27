@@ -53,8 +53,14 @@ exports.login = async (req, res) => {
       });
     }
 
+    const jwtPayload = { id: user._id, role: user.role, name: user.name };
+    if (user.role === "receptionist") {
+      jwtPayload.parentCustomerId = user.parentCustomerId?.toString?.() || user.parentCustomerId;
+      jwtPayload.canBookMediaDay = user.canBookMediaDay === true;
+    }
+
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      jwtPayload,
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -62,16 +68,22 @@ exports.login = async (req, res) => {
     // Add session to session manager
     sessionManager.addSession(user._id.toString(), token, user.role);
 
+    const userForResponse = {
+      id: user._id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      department: user.department || null,
+    };
+    if (user.role === "receptionist") {
+      userForResponse.parentCustomerId = user.parentCustomerId?.toString?.() || user.parentCustomerId;
+      userForResponse.canBookMediaDay = user.canBookMediaDay === true;
+    }
+
     res.json({
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        department: user.department || null,
-      },
+      user: userForResponse,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

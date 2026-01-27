@@ -7,18 +7,21 @@ import { logout } from '../../utils/auth';
 
 interface CustomerSidebarProps {
   onLogout: () => void;
+  /** If set, only show nav items whose pageKey is in this list. Omit for full access (customer). */
+  allowedPages?: string[] | null;
 }
 
 interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
+  pageKey: string;
   section?: 'metaInsights' | 'gallery' | 'invoices' | 'onboarding' | 'instagramInsights' | 'metaLeads' | 'quickbooksInvoices' | 'callLogs';
-  group?: string; // For grouping items (e.g., 'tracking')
-  comingSoon?: boolean; // For items that are not yet available
+  group?: string;
+  comingSoon?: boolean;
 }
 
-const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
+const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPages }) => {
   const navigate = useNavigate();
   const [unreadCounts, setUnreadCounts] = useState({
     metaInsights: 0,
@@ -31,28 +34,31 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
   });
   const [unpaidInvoicesCount, setUnpaidInvoicesCount] = useState(0);
 
+  const filterItems = (items: NavItem[]) =>
+    allowedPages ? items.filter((i) => allowedPages.includes(i.pageKey)) : items;
+
   // MAIN ACTIONS section items
   const mainActionsItems: NavItem[] = [
-    { label: "Dashboard", path: "/customer/dashboard", icon: <FaHome /> },
-    { label: "Media Day Calendar", path: "/customer/media-day-booking", icon: <FaCalendarAlt /> },
-    { label: "Onboarding Tasks", path: "/customer/onboarding-tasks", icon: <FaTasks />, section: "onboarding" },
-    { label: "View Media", path: "/customer/gallery", icon: <FaImages />, section: "gallery" },
-    { label: "Share Your Media", path: "/customer/shared-media", icon: <FaShare /> },
-    { label: "QuickBooks Invoices", path: "/customer/quickbooks-invoices", icon: <FaDollarSign />, section: "quickbooksInvoices" },
+    { label: "Dashboard", path: "/customer/dashboard", icon: <FaHome />, pageKey: "dashboard" },
+    { label: "Media Day Calendar", path: "/customer/media-day-booking", icon: <FaCalendarAlt />, pageKey: "media-day-booking" },
+    { label: "Onboarding Tasks", path: "/customer/onboarding-tasks", icon: <FaTasks />, pageKey: "onboarding-tasks", section: "onboarding" },
+    { label: "View Media", path: "/customer/gallery", icon: <FaImages />, pageKey: "gallery", section: "gallery" },
+    { label: "Share Your Media", path: "/customer/shared-media", icon: <FaShare />, pageKey: "shared-media" },
+    { label: "QuickBooks Invoices", path: "/customer/quickbooks-invoices", icon: <FaDollarSign />, pageKey: "quickbooks-invoices", section: "quickbooksInvoices" },
   ];
 
   // MARKETING & INSIGHTS section items
   const marketingInsightsItems: NavItem[] = [
-    { label: "Meta Insights", path: "/customer/facebook-insights", icon: <FaFacebook />, section: "metaInsights" },
-    { label: "Google Ads", path: "/customer/google-ads", icon: <FaGoogle /> },
-    { label: "Google Business", path: "/customer/google-business-analytics", icon: <FaGoogle /> },
-    { label: "Instagram Insights", path: "/customer/instagram-insights", icon: <FaInstagram />, section: "instagramInsights" },
+    { label: "Meta Insights", path: "/customer/facebook-insights", icon: <FaFacebook />, pageKey: "facebook-insights", section: "metaInsights" },
+    { label: "Google Ads", path: "/customer/google-ads", icon: <FaGoogle />, pageKey: "google-ads" },
+    { label: "Google Business", path: "/customer/google-business-analytics", icon: <FaGoogle />, pageKey: "google-business-analytics" },
+    { label: "Instagram Insights", path: "/customer/instagram-insights", icon: <FaInstagram />, pageKey: "instagram-insights", section: "instagramInsights" },
   ];
 
   // TRACKING section items
   const trackingItems: NavItem[] = [
-    { label: "Call Logs", path: "/customer/call-logs", icon: <FaPhone />, group: "tracking", section: "callLogs" },
-    { label: "Meta Leads", path: "/customer/meta-leads", icon: <FaFacebook />, group: "tracking", section: "metaLeads" },
+    { label: "Call Logs", path: "/customer/call-logs", icon: <FaPhone />, pageKey: "call-logs", group: "tracking", section: "callLogs" },
+    { label: "Meta Leads", path: "/customer/meta-leads", icon: <FaFacebook />, pageKey: "meta-leads", group: "tracking", section: "metaLeads" },
   ];
 
   // Fetch unread counts
@@ -99,7 +105,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
         if (!token || !userStr) return;
 
         const user = JSON.parse(userStr);
-        const customerId = user._id || user.id;
+        const customerId = (user.role === 'receptionist' && user.parentCustomerId) ? user.parentCustomerId : (user._id || user.id);
         
         if (!customerId) return;
 
@@ -163,18 +169,19 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
           src={logo1}
           alt="CliniMedia Logo"
           className="h-10 object-contain cursor-pointer hover:opacity-90 transition-opacity"
-          onClick={() => navigate("/customer/dashboard")}
+          onClick={() => navigate(allowedPages?.length ? `/customer/${allowedPages[0]}` : "/customer/dashboard")}
         />
       </div>
       {/* Middle: Navigation */}
       <nav className="flex-1 p-2 overflow-y-auto">
         {/* MAIN ACTIONS Section */}
+        {filterItems(mainActionsItems).length > 0 && (
         <div className="mb-3">
           <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             MAIN ACTIONS
           </h3>
           <ul className="space-y-0.5">
-            {mainActionsItems.map((item) => (
+            {filterItems(mainActionsItems).map((item) => (
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
@@ -205,14 +212,16 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
             ))}
           </ul>
         </div>
+        )}
 
         {/* MARKETING & INSIGHTS Section */}
+        {filterItems(marketingInsightsItems).length > 0 && (
         <div className="mb-3">
           <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             MARKETING & INSIGHTS
           </h3>
           <ul className="space-y-0.5">
-            {marketingInsightsItems.map((item) => (
+            {filterItems(marketingInsightsItems).map((item) => (
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
@@ -237,14 +246,16 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
             ))}
           </ul>
         </div>
+        )}
 
         {/* TRACKING Section */}
+        {filterItems(trackingItems).length > 0 && (
         <div className="mb-3">
           <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             TRACKING
           </h3>
           <ul className="space-y-0.5">
-            {trackingItems.map((item) => (
+            {filterItems(trackingItems).map((item) => (
               <li key={item.path}>
                 <button
                   onClick={() => !item.comingSoon && navigate(item.path)}
@@ -278,6 +289,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout }) => {
             ))}
           </ul>
         </div>
+        )}
       </nav>
       {/* Bottom: Logout */}
       <div className="p-2 border-t border-gray-700">

@@ -1,7 +1,7 @@
 // src/components/Admin/CustomerManagement/CustomerManagementPage.tsx
 import React from "react";
 import { useCustomerManagement } from "./CustomerManagementLogic";
-import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaFilter } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaUserPlus } from "react-icons/fa";
 
 const CustomerManagementPage = () => {
   const {
@@ -26,23 +26,22 @@ const CustomerManagementPage = () => {
     handleEditSubmit,
     paginatedCustomers,
     totalPages,
+    receptionists,
+    addReceptionistModal,
+    setAddReceptionistModal,
+    receptionistForm,
+    setReceptionistForm,
+    handleAddReceptionist,
+    handleRemoveReceptionist,
+    editReceptionistModal,
+    setEditReceptionistModal,
+    editingReceptionist,
+    setEditingReceptionist,
+    editReceptionistForm,
+    setEditReceptionistForm,
+    handleEditReceptionistClick,
+    handleEditReceptionistSubmit,
   } = useCustomerManagement();
-
-  const validateForm = () => {
-    if (!formData.name || !formData.username || !formData.email || !formData.password) {
-      alert("Please fill in all required fields.");
-      return false;
-    }
-    return true;
-  };
-
-  const fetchCustomers = async () => {
-    // This function is not directly managed by useCustomerManagement,
-    // so we need to call it here or pass it down.
-    // For now, we'll assume it's handled by the backend or a separate logic.
-    // If it's meant to be part of useCustomerManagement, it should be added there.
-    // For now, we'll just re-fetch on modal close/open.
-  };
 
   return (
     <div className="min-h-screen flex bg-gray-50 font-sans w-full">
@@ -237,8 +236,8 @@ const CustomerManagementPage = () => {
           )}
 
           {editModalOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg">
+            <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-lg max-h-[90vh] overflow-y-auto">
                 <h2 className="text-2xl font-semibold mb-4">Edit Customer</h2>
                 <form onSubmit={handleEditSubmit}>
                   <input
@@ -301,6 +300,36 @@ const CustomerManagementPage = () => {
                     <option value={4}>4 Times per Year (every 3 months)</option>
                     <option value={6}>6 Times per Year (every 2 months)</option>
                   </select>
+
+                  {/* Receptionists block */}
+                  <div className="mb-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-gray-700">Receptionists</h3>
+                      <button
+                        type="button"
+                        onClick={() => { setReceptionistForm({ name: "", username: "", email: "", password: "", canBookMediaDay: false }); setAddReceptionistModal(true); }}
+                        className="flex items-center gap-1 text-sm text-[#98c6d5] hover:underline"
+                      >
+                        <FaUserPlus /> Add Receptionist
+                      </button>
+                    </div>
+                    {receptionists.length === 0 ? (
+                      <p className="text-sm text-gray-600">No receptionists. They can log in with customer portal and see Meta Leads (and Media Day if allowed).</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {receptionists.map((r) => (
+                          <li key={r._id} className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-gray-50">
+                            <span className="truncate text-gray-800">{r.name} — {r.username} · {r.canBookMediaDay ? 'Media day' : 'Leads only'}</span>
+                            <span className="flex gap-1 shrink-0">
+                              <button type="button" onClick={() => handleEditReceptionistClick(r)} className="text-blue-600 hover:underline">Edit</button>
+                              <button type="button" onClick={() => handleRemoveReceptionist(r._id)} className="text-red-600 hover:underline">Remove</button>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
                   <div className="flex justify-end space-x-4">
                     <button
                       type="button"
@@ -315,6 +344,110 @@ const CustomerManagementPage = () => {
                     >
                       Save Changes
                     </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Add Receptionist modal */}
+          {addReceptionistModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[60]">
+              <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg">
+                <h3 className="text-lg font-semibold mb-4">Add Receptionist</h3>
+                <form onSubmit={handleAddReceptionist}>
+                  <input
+                    type="text"
+                    placeholder="Name"
+                    value={receptionistForm.name}
+                    onChange={(e) => setReceptionistForm({ ...receptionistForm, name: e.target.value })}
+                    className="w-full mb-3 p-3 rounded-lg border border-gray-300 text-black"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={receptionistForm.username}
+                    onChange={(e) => setReceptionistForm({ ...receptionistForm, username: e.target.value })}
+                    className="w-full mb-3 p-3 rounded-lg border border-gray-300 text-black"
+                  />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={receptionistForm.email}
+                    onChange={(e) => setReceptionistForm({ ...receptionistForm, email: e.target.value })}
+                    className="w-full mb-3 p-3 rounded-lg border border-gray-300 text-black"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={receptionistForm.password}
+                    onChange={(e) => setReceptionistForm({ ...receptionistForm, password: e.target.value })}
+                    className="w-full mb-3 p-3 rounded-lg border border-gray-300 text-black"
+                  />
+                  <label className="flex items-center gap-2 mb-4 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={receptionistForm.canBookMediaDay}
+                      onChange={(e) => setReceptionistForm({ ...receptionistForm, canBookMediaDay: e.target.checked })}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700">Can book Media Day</span>
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setAddReceptionistModal(false)} className="px-4 py-2 rounded-lg border border-gray-400 hover:bg-gray-100 text-black">Cancel</button>
+                    <button type="submit" className="px-4 py-2 rounded-lg bg-[#98c6d5] text-white hover:bg-blue-700">Add</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Receptionist modal */}
+          {editReceptionistModal && editingReceptionist && (
+            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[60]">
+              <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg">
+                <h3 className="text-lg font-semibold mb-4">Edit Receptionist</h3>
+                <form onSubmit={handleEditReceptionistSubmit}>
+                  <input
+                    type="text"
+                    placeholder="Name"
+                    value={editReceptionistForm.name}
+                    onChange={(e) => setEditReceptionistForm({ ...editReceptionistForm, name: e.target.value })}
+                    className="w-full mb-3 p-3 rounded-lg border border-gray-300 text-black"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={editReceptionistForm.username}
+                    onChange={(e) => setEditReceptionistForm({ ...editReceptionistForm, username: e.target.value })}
+                    className="w-full mb-3 p-3 rounded-lg border border-gray-300 text-black"
+                  />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={editReceptionistForm.email}
+                    onChange={(e) => setEditReceptionistForm({ ...editReceptionistForm, email: e.target.value })}
+                    className="w-full mb-3 p-3 rounded-lg border border-gray-300 text-black"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password (leave blank to keep current)"
+                    value={editReceptionistForm.password}
+                    onChange={(e) => setEditReceptionistForm({ ...editReceptionistForm, password: e.target.value })}
+                    className="w-full mb-3 p-3 rounded-lg border border-gray-300 text-black"
+                  />
+                  <label className="flex items-center gap-2 mb-4 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editReceptionistForm.canBookMediaDay}
+                      onChange={(e) => setEditReceptionistForm({ ...editReceptionistForm, canBookMediaDay: e.target.checked })}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700">Can book Media Day</span>
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => { setEditReceptionistModal(false); setEditingReceptionist(null); }} className="px-4 py-2 rounded-lg border border-gray-400 hover:bg-gray-100 text-black">Cancel</button>
+                    <button type="submit" className="px-4 py-2 rounded-lg bg-[#98c6d5] text-white hover:bg-blue-700">Save</button>
                   </div>
                 </form>
               </div>

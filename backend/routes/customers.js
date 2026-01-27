@@ -48,14 +48,24 @@ const uploadLogo = multer({
   }
 });
 
-// GET customer profile (authenticated)
+// GET customer profile (authenticated) — customer or receptionist (receptionist gets parent's bookingIntervalMonths)
 router.get("/profile", authenticateToken, async (req, res) => {
   try {
-    const customer = await User.findById(req.user.id).select("-password");
-    if (!customer || customer.role !== "customer") {
-      return res.status(404).json({ error: "Customer not found" });
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
     }
-    res.status(200).json(customer);
+    if (user.role === "customer") {
+      return res.status(200).json(user);
+    }
+    if (user.role === "receptionist" && user.parentCustomerId) {
+      const parent = await User.findById(user.parentCustomerId).select("bookingIntervalMonths name");
+      const profile = user.toObject ? user.toObject() : { ...user };
+      profile.bookingIntervalMonths = parent?.bookingIntervalMonths;
+      profile.parentName = parent?.name;
+      return res.status(200).json(profile);
+    }
+    return res.status(404).json({ error: "Customer not found" });
   } catch (err) {
     console.error("❌ Failed to fetch customer profile:", err.message);
     res.status(500).json({ error: "Server error fetching customer profile" });
@@ -125,6 +135,130 @@ router.post('/', uploadLogo.single('logo'), async (req, res) => {
   }
 });
 
+// ========== Receptionist CRUD (admin only) — must be before DELETE /:id and PUT /:id ==========
+
+// GET receptionists for a customer
+router.get("/:customerId/receptionists", authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const parent = await User.findById(customerId);
+    if (!parent || parent.role !== "customer") {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+    const receptionists = await User.find({ parentCustomerId: customerId, role: "receptionist" })
+      .select("name username email canBookMediaDay _id createdAt");
+    res.status(200).json(receptionists);
+  } catch (err) {
+    console.error("❌ Failed to fetch receptionists:", err.message);
+    res.status(500).json({ error: "Server error fetching receptionists" });
+  }
+});
+
+// POST create receptionist for a customer
+router.post("/:customerId/receptionists", authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { name, username, email, password, canBookMediaDay } = req.body;
+
+    const parent = await User.findById(customerId);
+    if (!parent || parent.role !== "customer") {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+    if (!name || !username || !email || !password) {
+      return res.status(400).json({ error: "name, username, email, and password are required" });
+    }
+    if (!validator.isEmail(email)) {
+      return res.status(400).json({ error: "Invalid email address" });
+    }
+
+    const existing = await User.findOne({ $or: [{ email }, { username }] });
+    if (existing) {
+      if (existing.email === email) return res.status(400).json({ error: "Email already in use" });
+      if (existing.username === username) return res.status(400).json({ error: "Username already in use" });
+      return res.status(400).json({ error: "User with this email or username already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const receptionist = new User({
+      name,
+      username,
+      email,
+      password: hashedPassword,
+      role: "receptionist",
+      parentCustomerId: customerId,
+      canBookMediaDay: !!canBookMediaDay,
+    });
+    await receptionist.save();
+    const out = await User.findById(receptionist._id).select("-password");
+    res.status(201).json(out);
+  } catch (err) {
+    console.error("❌ Failed to create receptionist:", err.message);
+    res.status(500).json({ error: err.message || "Server error creating receptionist" });
+  }
+});
+
+// PATCH update receptionist
+router.patch("/:customerId/receptionists/:receptionistId", authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { customerId, receptionistId } = req.params;
+    const { name, username, email, canBookMediaDay, password } = req.body;
+
+    const parent = await User.findById(customerId);
+    if (!parent || parent.role !== "customer") {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+    const receptionist = await User.findById(receptionistId);
+    if (!receptionist || receptionist.role !== "receptionist" || receptionist.parentCustomerId?.toString() !== customerId) {
+      return res.status(404).json({ error: "Receptionist not found" });
+    }
+
+    if (username !== undefined) {
+      const existing = await User.findOne({ username, _id: { $ne: receptionistId } });
+      if (existing) return res.status(400).json({ error: "Username already in use" });
+      receptionist.username = username;
+    }
+    if (email !== undefined) {
+      if (!validator.isEmail(email)) return res.status(400).json({ error: "Invalid email address" });
+      const existing = await User.findOne({ email, _id: { $ne: receptionistId } });
+      if (existing) return res.status(400).json({ error: "Email already in use" });
+      receptionist.email = email;
+    }
+    if (name !== undefined) receptionist.name = name;
+    if (canBookMediaDay !== undefined) receptionist.canBookMediaDay = !!canBookMediaDay;
+    if (password !== undefined && password !== null && String(password).trim() !== '') {
+      receptionist.password = await bcrypt.hash(password, 10);
+    }
+
+    await receptionist.save();
+    const out = await User.findById(receptionist._id).select("-password");
+    res.status(200).json(out);
+  } catch (err) {
+    console.error("❌ Failed to update receptionist:", err.message);
+    res.status(500).json({ error: "Server error updating receptionist" });
+  }
+});
+
+// DELETE receptionist
+router.delete("/:customerId/receptionists/:receptionistId", authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { customerId, receptionistId } = req.params;
+
+    const parent = await User.findById(customerId);
+    if (!parent || parent.role !== "customer") {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+    const receptionist = await User.findById(receptionistId);
+    if (!receptionist || receptionist.role !== "receptionist" || receptionist.parentCustomerId?.toString() !== customerId) {
+      return res.status(404).json({ error: "Receptionist not found" });
+    }
+    await User.findByIdAndDelete(receptionistId);
+    res.status(200).json({ message: "Receptionist deleted successfully" });
+  } catch (err) {
+    console.error("❌ Failed to delete receptionist:", err.message);
+    res.status(500).json({ error: "Server error deleting receptionist" });
+  }
+});
+
 // DELETE a customer by ID
 router.delete("/:id", authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
@@ -151,15 +285,13 @@ router.delete("/:id", authenticateToken, authorizeRole(['admin']), async (req, r
       await ClientNote.deleteMany({ customerId });
       console.log(`✅ Deleted client notes for customer ${customerId}`);
       
-      // Delete bookings
+      // Delete bookings (Booking schema uses `customer`, not `customerId`)
       const Booking = require('../models/Booking');
-      await Booking.deleteMany({ customerId });
-      console.log(`✅ Deleted bookings for customer ${customerId}`);
+      const deletedBookings = await Booking.deleteMany({ customer: customerId });
+      console.log(`✅ Deleted ${deletedBookings.deletedCount} bookings for customer ${customerId}`);
       
-      // Delete blocked dates
-      const BlockedDate = require('../models/BlockedDate');
-      await BlockedDate.deleteMany({ customerId });
-      console.log(`✅ Deleted blocked dates for customer ${customerId}`);
+      // BlockedDate has no customerId; blocked dates are global. Optionally remove blocks
+      // whose bookingId referred to this customer's (now deleted) bookings—out of scope here.
       
       // Delete onboarding tasks
       const AssignedOnboardingTask = require('../models/AssignedOnboardingTask');
@@ -180,6 +312,10 @@ router.delete("/:id", authenticateToken, authorizeRole(['admin']), async (req, r
       const EmailNotificationSettings = require('../models/EmailNotificationSettings');
       await EmailNotificationSettings.deleteMany({ customerId });
       console.log(`✅ Deleted email notification settings for customer ${customerId}`);
+
+      // Delete receptionists linked to this customer
+      const receptionistResult = await User.deleteMany({ parentCustomerId: customerId, role: 'receptionist' });
+      console.log(`✅ Deleted ${receptionistResult.deletedCount} receptionists for customer ${customerId}`);
       
     } catch (cleanupError) {
       console.error('⚠️ Error during customer cleanup (non-critical):', cleanupError);
@@ -242,14 +378,15 @@ const handleMulterError = (err, req, res, next) => {
 router.put("/profile", authenticateToken, uploadLogo.single('logo'), handleMulterError, async (req, res) => {
   try {
     const { name, email, location, address, bookingIntervalMonths } = req.body;
+    // Receptionist cannot change location or bookingIntervalMonths (those belong to parent)
+    const isReceptionist = req.user.role === 'receptionist';
+    const baseUpdate = isReceptionist ? { name, email, address } : { name, email, location, address, bookingIntervalMonths };
     
     // Check if file was uploaded
     if (!req.file) {
-      // If no file, just update other fields
-      const updateData = { name, email, location, address, bookingIntervalMonths };
       const customer = await User.findByIdAndUpdate(
         req.user.id,
-        updateData,
+        baseUpdate,
         { new: true }
       ).select("-password");
 
@@ -261,17 +398,18 @@ router.put("/profile", authenticateToken, uploadLogo.single('logo'), handleMulte
     }
 
     const logoUrl = `/uploads/customer-logos/${req.file.filename}`;
-    const updateData = { name, email, location, address, bookingIntervalMonths };
-    
-    // Preserve existing customerSettings if they exist, or create new
-    const existingCustomer = await User.findById(req.user.id);
-    if (existingCustomer && existingCustomer.customerSettings) {
-      updateData.customerSettings = {
-        ...existingCustomer.customerSettings,
-        logoUrl: logoUrl
-      };
-    } else {
-      updateData.customerSettings = { logoUrl };
+    const updateData = { ...baseUpdate };
+    // Receptionist cannot change logo/customerSettings (restricted to name, email, address)
+    if (!isReceptionist) {
+      const existingCustomer = await User.findById(req.user.id);
+      if (existingCustomer && existingCustomer.customerSettings) {
+        updateData.customerSettings = {
+          ...existingCustomer.customerSettings,
+          logoUrl: logoUrl
+        };
+      } else {
+        updateData.customerSettings = { logoUrl };
+      }
     }
 
     const customer = await User.findByIdAndUpdate(

@@ -38,7 +38,10 @@ export const getCurrentUser = () => {
   const employeeData = localStorage.getItem('employeeData');
   
   if (adminData) return { ...JSON.parse(adminData), role: 'admin' };
-  if (customerData) return { ...JSON.parse(customerData), role: 'customer' };
+  if (customerData) {
+    const u = JSON.parse(customerData);
+    return { ...u, role: u.role || 'customer' };
+  }
   if (employeeData) return { ...JSON.parse(employeeData), role: 'employee' };
   
   return null;

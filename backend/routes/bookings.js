@@ -4,6 +4,9 @@ const Booking = require('../models/Booking');
 const BlockedDate = require('../models/BlockedDate');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
+const resolveEffectiveCustomerId = require('../middleware/resolveEffectiveCustomerId');
+const requireCanBookMediaDay = require('../middleware/requireCanBookMediaDay');
+const allowBookingAccess = require('../middleware/allowBookingAccess');
 const EmailService = require('../services/emailService');
 const User = require('../models/User');
 
@@ -124,10 +127,11 @@ router.get('/employee', authenticateToken, authorizeRole('employee'), async (req
   }
 });
 
-// Get customer's bookings
-router.get('/my-bookings', authenticateToken, authorizeRole('customer'), async (req, res) => {
+// Get customer's bookings (customer or receptionist with canBookMediaDay)
+router.get('/my-bookings', authenticateToken, authorizeRole(['customer', 'receptionist']), requireCanBookMediaDay, resolveEffectiveCustomerId, async (req, res) => {
   try {
-    const bookings = await Booking.find({ customer: req.user._id })
+    const customerId = req.effectiveCustomerId;
+    const bookings = await Booking.find({ customer: customerId })
       .populate('customer', 'name email location')
       .populate('photographer', 'name email')
       .sort({ date: 1 });
@@ -139,9 +143,10 @@ router.get('/my-bookings', authenticateToken, authorizeRole('customer'), async (
 });
 
 // Get next eligible booking date for customer (for frontend calendar)
-router.get('/next-eligible-date', authenticateToken, authorizeRole('customer'), async (req, res) => {
+router.get('/next-eligible-date', authenticateToken, authorizeRole(['customer', 'receptionist']), requireCanBookMediaDay, resolveEffectiveCustomerId, async (req, res) => {
   try {
-    const eligibilityInfo = await getNextEligibleDate(req.user._id);
+    const customerId = req.effectiveCustomerId;
+    const eligibilityInfo = await getNextEligibleDate(customerId);
     
     res.json({
       nextEligibleDate: eligibilityInfo.nextEligibleDate,
@@ -157,15 +162,16 @@ router.get('/next-eligible-date', authenticateToken, authorizeRole('customer'), 
   }
 });
 
-// Create a new booking
-router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) => {
+// Create a new booking (customer or receptionist with canBookMediaDay)
+router.post('/', authenticateToken, authorizeRole(['customer', 'receptionist']), requireCanBookMediaDay, resolveEffectiveCustomerId, async (req, res) => {
   try {
     const { date, notes } = req.body;
+    const customerId = req.effectiveCustomerId;
 
     await checkDateAvailability(date);
 
     // Check booking eligibility using shared calculator (backend is source of truth)
-    const eligibility = await checkBookingEligibility(req.user._id, date);
+    const eligibility = await checkBookingEligibility(customerId, date);
     
     if (!eligibility.eligible) {
       // Return proper error format with next eligible date
@@ -179,7 +185,7 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
     }
 
     const booking = new Booking({
-      customer: req.user._id,
+      customer: customerId,
       date,
       notes
     });
@@ -191,7 +197,7 @@ router.post('/', authenticateToken, authorizeRole('customer'), async (req, res) 
 
     // Send booking confirmation email asynchronously
     (async () => {
-      const customer = await User.findById(req.user._id);
+      const customer = await User.findById(customerId);
       const clinicName = customer.name || 'Customer';
       const requestedDate = formatDateForEmail(date);
       await sendEmailAsync(EmailService.sendBookingConfirmation, clinicName, requestedDate, customer.email);
@@ -566,8 +572,8 @@ router.patch('/:id/accept-session', authenticateToken, authorizeRole('employee')
   }
 });
 
-// Get available dates
-router.get('/available-dates', authenticateToken, authorizeRole('customer'), async (req, res) => {
+// Get available dates (customer or receptionist with canBookMediaDay; returns global unavailable dates)
+router.get('/available-dates', authenticateToken, authorizeRole(['customer', 'receptionist']), requireCanBookMediaDay, async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -601,7 +607,7 @@ router.get('/available-dates', authenticateToken, authorizeRole('customer'), asy
 });
 
 // Get all accepted bookings for a specific date (for all customers)
-router.get('/accepted', authenticateToken, async (req, res) => {
+router.get('/accepted', authenticateToken, allowBookingAccess, async (req, res) => {
   try {
     const { date } = req.query;
     if (!date) {
@@ -624,17 +630,18 @@ router.get('/accepted', authenticateToken, async (req, res) => {
   }
 });
 
-// Cancel a pending booking (Customer only)
-router.delete('/:id', authenticateToken, authorizeRole('customer'), async (req, res) => {
+// Cancel a pending booking (customer or receptionist with canBookMediaDay)
+router.delete('/:id', authenticateToken, authorizeRole(['customer', 'receptionist']), requireCanBookMediaDay, resolveEffectiveCustomerId, async (req, res) => {
   try {
+    const customerId = req.effectiveCustomerId;
     const booking = await Booking.findById(req.params.id);
     
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
     }
     
-    // Check if the booking belongs to the customer
-    if (booking.customer.toString() !== req.user._id.toString()) {
+    // Check if the booking belongs to the customer (or parent customer for receptionist)
+    if (booking.customer.toString() !== customerId.toString()) {
       return res.status(403).json({ message: 'You can only cancel your own bookings' });
     }
     

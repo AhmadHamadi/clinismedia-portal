@@ -487,7 +487,7 @@ const CustomerMediaDayBookingPage: React.FC = () => {
             <div className="text-gray-500 text-sm mt-2">Loading your frequency...</div>
           ) : customer && (
             <div className="text-center mb-3 text-gray-700 font-medium">
-              Your Media Day Frequency: {
+              {customer.parentName ? `Your clinic's (${customer.parentName})` : 'Your'} Media Day Frequency: {
                 customer.bookingIntervalMonths === 1 ? 'Monthly (12 times per year)' :
                 customer.bookingIntervalMonths === 2 ? '2 times per year (every 6 months)' :
                 customer.bookingIntervalMonths === 3 ? '3 times per year (every 4 months)' :

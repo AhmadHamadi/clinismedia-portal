@@ -4,6 +4,7 @@ const BlockedDate = require('../models/BlockedDate');
 const Booking = require('../models/Booking');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
+const allowBookingAccess = require('../middleware/allowBookingAccess');
 
 // Utility functions
 const checkDateAvailability = async (date) => {
@@ -32,9 +33,9 @@ const checkDateAvailability = async (date) => {
   }
 };
 
-// Get all blocked dates (Admin and Customer) - includes both manual and automatic blocks
+// Get all blocked dates (Admin, Customer, Employee, or Receptionist with canBookMediaDay)
 // Automatic blocks are created when bookings are accepted (one media day per day rule)
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authenticateToken, allowBookingAccess, async (req, res) => {
   try {
     // Get ALL blocked dates (both manual and automatic)
     // Automatic blocks prevent double-booking across all customers

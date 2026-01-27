@@ -8,7 +8,7 @@ class MetaLeadsController {
    */
   static async getCustomerLeads(req, res) {
     try {
-      const customerId = req.user._id || req.user.id;
+      const customerId = req.effectiveCustomerId;
       const { status, month, year, startDate, endDate, limit = 50, page = 1 } = req.query;
 
       // Build query
@@ -65,7 +65,7 @@ class MetaLeadsController {
    */
   static async getCustomerLeadStats(req, res) {
     try {
-      const customerId = req.user._id || req.user.id;
+      const customerId = req.effectiveCustomerId;
       const { month, year, startDate, endDate } = req.query;
 
       // Build date filter
@@ -161,7 +161,7 @@ class MetaLeadsController {
     try {
       const { leadId } = req.params;
       const { status, reason } = req.body;
-      const customerId = req.user._id || req.user.id;
+      const customerId = req.effectiveCustomerId;
 
       if (!['contacted', 'not_contacted'].includes(status)) {
         return res.status(400).json({ message: 'Invalid status. Must be "contacted" or "not_contacted"' });
@@ -212,7 +212,7 @@ class MetaLeadsController {
     try {
       const { leadId } = req.params;
       const { appointmentBooked, reason } = req.body;
-      const customerId = req.user._id || req.user.id;
+      const customerId = req.effectiveCustomerId;
 
       // Allow boolean or null/undefined
       if (appointmentBooked !== undefined && appointmentBooked !== null && typeof appointmentBooked !== 'boolean') {
@@ -255,7 +255,7 @@ class MetaLeadsController {
     try {
       const { leadId } = req.params;
       const { notes } = req.body;
-      const customerId = req.user._id || req.user.id;
+      const customerId = req.effectiveCustomerId;
 
       const lead = await MetaLead.findOne({ _id: leadId, customerId });
 
@@ -280,7 +280,7 @@ class MetaLeadsController {
   static async getLeadDetails(req, res) {
     try {
       const { leadId } = req.params;
-      const customerId = req.user._id || req.user.id;
+      const customerId = req.effectiveCustomerId;
 
       const lead = await MetaLead.findOne({ _id: leadId, customerId })
         .populate('customerId', 'name email');

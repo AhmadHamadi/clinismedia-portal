@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { useNavigate, Outlet, Routes, Route, useLocation } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, Routes, Route, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import CustomerSidebar from './CustomerSidebar';
 import CustomerDashboard from './CustomerDash/CustomerDashPage';
@@ -21,6 +21,50 @@ import MetaLeadsPage from './MetaLeadsPage';
 const CustomerPortalLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  // After /auth/validate, we merge role/parentCustomerId/canBookMediaDay into this; null = use localStorage
+  const [userFromValidate, setUserFromValidate] = useState<{ role?: string; canBookMediaDay?: boolean; parentCustomerId?: string } | null>(null);
+
+  // On mount: refresh customerData from /auth/validate so canBookMediaDay/parentCustomerId stay in sync (e.g. after admin edits)
+  useEffect(() => {
+    const token = localStorage.getItem('customerToken');
+    if (!token) return;
+    axios
+      .get(`${import.meta.env.VITE_API_BASE_URL}/auth/validate`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        const u = res.data?.user;
+        if (u && (u.role === 'receptionist' || u.role === 'customer')) {
+          try {
+            const stored = JSON.parse(localStorage.getItem('customerData') || '{}');
+            if (u.role) stored.role = u.role;
+            if (Object.prototype.hasOwnProperty.call(u, 'canBookMediaDay')) stored.canBookMediaDay = u.canBookMediaDay;
+            if (Object.prototype.hasOwnProperty.call(u, 'parentCustomerId')) stored.parentCustomerId = u.parentCustomerId;
+            localStorage.setItem('customerData', JSON.stringify(stored));
+          } catch (_) {}
+        }
+        setUserFromValidate(u || null);
+      })
+      .catch(() => setUserFromValidate(null));
+  }, []);
+
+  const allowedPages = useMemo(() => {
+    const u = userFromValidate ?? (() => { try { return JSON.parse(localStorage.getItem('customerData') || '{}'); } catch { return {}; } })();
+    if (u.role === 'receptionist') {
+      const pages = ['meta-leads'];
+      if (u.canBookMediaDay === true) pages.push('media-day-booking');
+      return pages;
+    }
+    return null; // customer: all pages
+  }, [userFromValidate]);
+
+  // Route guard: redirect receptionist away from pages they cannot access
+  useEffect(() => {
+    if (!allowedPages || allowedPages.length === 0) return;
+    let pageKey = location.pathname.replace(/^\/customer\/?/, '') || 'dashboard';
+    if (pageKey === '') pageKey = 'dashboard';
+    if (!allowedPages.includes(pageKey)) {
+      navigate('/customer/' + allowedPages[0], { replace: true });
+    }
+  }, [location.pathname, allowedPages, navigate]);
 
   // Auto-clear notification badges when visiting sections
   useEffect(() => {
@@ -86,7 +130,7 @@ const CustomerPortalLayout: React.FC = () => {
   return (
     <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
       {/* Sidebar - Always visible */}
-      <CustomerSidebar onLogout={handleLogout} />
+      <CustomerSidebar onLogout={handleLogout} allowedPages={allowedPages ?? undefined} />
       
       {/* Main Content */}
       <div className="flex-1 flex flex-col ml-64 overflow-x-hidden">

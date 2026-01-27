@@ -33,7 +33,14 @@ const Login = () => {
         } else if (returnUrl) {
           navigate(returnUrl);
         } else {
-          navigate("/customer/dashboard");
+          // Default: receptionist -> meta-leads; customer -> dashboard
+          const raw = localStorage.getItem("customerData");
+          const u = raw ? JSON.parse(raw) : {};
+          if (u.role === "receptionist") {
+            navigate("/customer/meta-leads");
+          } else {
+            navigate("/customer/dashboard");
+          }
         }
       }).catch(() => {
         // Token invalid, clear it and show login form
@@ -104,22 +111,19 @@ const Login = () => {
         } else {
           navigate("/admin");
         }
-      } else if (user.role === "customer") {
+      } else if (user.role === "customer" || user.role === "receptionist") {
         localStorage.setItem("customerToken", token);
         localStorage.setItem("customerData", JSON.stringify(user));
         
-        // Check for leadId query parameter - just redirect to meta leads page
         const leadId = searchParams.get('leadId');
         if (leadId) {
-          // Redirect to meta leads page
           navigate("/customer/meta-leads");
         } else {
-          // Check for returnUrl parameter
           const returnUrl = searchParams.get('returnUrl');
           if (returnUrl) {
             navigate(returnUrl);
           } else {
-            navigate("/customer/dashboard");
+            navigate(user.role === "receptionist" ? "/customer/meta-leads" : "/customer/dashboard");
           }
         }
       } else if (user.role === "employee") {

@@ -5,21 +5,23 @@ const MetaLead = require('../models/MetaLead');
 const CallLog = require('../models/CallLog');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
+const resolveEffectiveCustomerId = require('../middleware/resolveEffectiveCustomerId');
 
-// Get unread counts for a customer
-router.get('/unread-counts', authenticateToken, authorizeRole('customer'), async (req, res) => {
+// Get unread counts for a customer (customer or receptionist)
+router.get('/unread-counts', authenticateToken, authorizeRole(['customer', 'receptionist']), resolveEffectiveCustomerId, async (req, res) => {
   try {
-    let notification = await CustomerNotification.findOne({ customerId: req.user._id });
+    const customerId = req.effectiveCustomerId;
+    let notification = await CustomerNotification.findOne({ customerId });
     
     // If no notification record exists, create one with default values
     if (!notification) {
-      notification = new CustomerNotification({ customerId: req.user._id });
+      notification = new CustomerNotification({ customerId });
       await notification.save();
     }
     
     // Get count of new Meta Leads (status = 'new' - leads that haven't been managed yet)
     const newMetaLeadsCount = await MetaLead.countDocuments({
-      customerId: req.user._id,
+      customerId,
       status: 'new'
     });
     
@@ -28,13 +30,13 @@ router.get('/unread-counts', authenticateToken, authorizeRole('customer'), async
     if (notification.callLogs && notification.callLogs.lastViewed) {
       // Count calls created after the last viewed timestamp
       newCallLogsCount = await CallLog.countDocuments({
-        customerId: req.user._id,
+        customerId,
         startedAt: { $gt: notification.callLogs.lastViewed }
       });
     } else {
       // If never viewed, count all calls
       newCallLogsCount = await CallLog.countDocuments({
-        customerId: req.user._id
+        customerId
       });
     }
     
@@ -53,9 +55,10 @@ router.get('/unread-counts', authenticateToken, authorizeRole('customer'), async
   }
 });
 
-// Mark a section as read (clear unread count)
-router.post('/mark-read/:section', authenticateToken, authorizeRole('customer'), async (req, res) => {
+// Mark a section as read (clear unread count) (customer or receptionist)
+router.post('/mark-read/:section', authenticateToken, authorizeRole(['customer', 'receptionist']), resolveEffectiveCustomerId, async (req, res) => {
   try {
+    const customerId = req.effectiveCustomerId;
     const { section } = req.params;
     const validSections = ['metaInsights', 'gallery', 'invoices', 'onboarding', 'instagramInsights', 'metaLeads', 'callLogs'];
     
@@ -74,10 +77,10 @@ router.post('/mark-read/:section', authenticateToken, authorizeRole('customer'),
     
     // Handle callLogs separately - update lastViewed timestamp
     if (section === 'callLogs') {
-      let notification = await CustomerNotification.findOne({ customerId: req.user._id });
+      let notification = await CustomerNotification.findOne({ customerId });
       
       if (!notification) {
-        notification = new CustomerNotification({ customerId: req.user._id });
+        notification = new CustomerNotification({ customerId });
       }
       
       // Update lastViewed to current time
@@ -93,10 +96,10 @@ router.post('/mark-read/:section', authenticateToken, authorizeRole('customer'),
       return;
     }
     
-    let notification = await CustomerNotification.findOne({ customerId: req.user._id });
+    let notification = await CustomerNotification.findOne({ customerId });
     
     if (!notification) {
-      notification = new CustomerNotification({ customerId: req.user._id });
+      notification = new CustomerNotification({ customerId });
     }
     
     // Clear the unread count for the specified section
@@ -121,13 +124,14 @@ router.post('/mark-read/:section', authenticateToken, authorizeRole('customer'),
   }
 });
 
-// Mark all sections as read (for notifications page)
-router.post('/mark-all-read', authenticateToken, authorizeRole('customer'), async (req, res) => {
+// Mark all sections as read (for notifications page) (customer or receptionist)
+router.post('/mark-all-read', authenticateToken, authorizeRole(['customer', 'receptionist']), resolveEffectiveCustomerId, async (req, res) => {
   try {
-    let notification = await CustomerNotification.findOne({ customerId: req.user._id });
+    const customerId = req.effectiveCustomerId;
+    let notification = await CustomerNotification.findOne({ customerId });
     
     if (!notification) {
-      notification = new CustomerNotification({ customerId: req.user._id });
+      notification = new CustomerNotification({ customerId });
     }
     
     // Clear all unread counts
