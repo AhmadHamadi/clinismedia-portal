@@ -1083,10 +1083,38 @@ router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']
       usingAdminTokens: !tokens || !tokens.access_token
     });
 
-    await User.findByIdAndUpdate(customerId, updateData);
+    // ✅ FIXED: Use findByIdAndUpdate with { new: true } and verify the update
+    const updatedCustomer = await User.findByIdAndUpdate(
+      customerId, 
+      updateData,
+      { new: true, runValidators: true } // Return updated document and run validators
+    );
 
-    console.log('Successfully saved business profile for customer:', customerId);
-    res.json({ success: true, message: 'Business profile connected successfully' });
+    if (!updatedCustomer) {
+      console.error('❌ Customer not found:', customerId);
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // ✅ FIXED: Verify the data was actually saved
+    console.log('✅ Successfully saved business profile for customer:', customerId);
+    console.log('   Verified saved data:', {
+      profileId: updatedCustomer.googleBusinessProfileId,
+      profileName: updatedCustomer.googleBusinessProfileName,
+      hasAccessToken: !!updatedCustomer.googleBusinessAccessToken,
+      hasRefreshToken: !!updatedCustomer.googleBusinessRefreshToken,
+      tokenExpiry: updatedCustomer.googleBusinessTokenExpiry,
+      needsReauth: updatedCustomer.googleBusinessNeedsReauth
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Business profile connected successfully',
+      customer: {
+        _id: updatedCustomer._id,
+        googleBusinessProfileId: updatedCustomer.googleBusinessProfileId,
+        googleBusinessProfileName: updatedCustomer.googleBusinessProfileName
+      }
+    });
   } catch (error) {
     console.error('Save business profile error:', error);
     console.error('Error details:', {
@@ -1139,37 +1167,43 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       });
     }
     
-    // ✅ FIXED: Use admin tokens if customer tokens are missing (fallback)
-    // Customers get admin tokens when profile is assigned, but if they expire, use admin tokens directly
-    let tokensToUse = {
-      access_token: customer.googleBusinessAccessToken,
-      refresh_token: customer.googleBusinessRefreshToken
-    };
-    let tokenExpiry = customer.googleBusinessTokenExpiry;
+    // ✅ FIXED: Always prefer admin tokens (they're auto-refreshed) - customer tokens are just copies
+    // This ensures customers always have working tokens even if their copied tokens expire
+    let tokensToUse;
+    let tokenExpiry;
     let usingAdminTokens = false;
     
-    // If customer doesn't have tokens, try to use admin tokens
-    if (!tokensToUse.access_token || !tokensToUse.refresh_token) {
-      console.log('⚠️ Customer tokens missing, falling back to admin tokens');
-      const adminUser = await User.findOne({ role: 'admin' });
-      if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
-        tokensToUse = {
-          access_token: adminUser.googleBusinessAccessToken,
-          refresh_token: adminUser.googleBusinessRefreshToken
-        };
-        tokenExpiry = adminUser.googleBusinessTokenExpiry;
-        usingAdminTokens = true;
-        console.log('✅ Using admin tokens as fallback for customer');
-      } else {
-        return res.status(400).json({ 
-          error: 'Google Business Profile tokens not available. Please ask your administrator to reconnect.',
-          details: {
-            customerHasTokens: !!(customer.googleBusinessAccessToken && customer.googleBusinessRefreshToken),
-            adminHasTokens: !!(adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken),
-            message: 'Both customer and admin tokens are missing. Admin needs to reconnect.'
-          }
-        });
-      }
+    // Priority 1: Use admin tokens (always fresh, auto-refreshed every 30 seconds)
+    const adminUser = await User.findOne({ role: 'admin' });
+    if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
+      tokensToUse = {
+        access_token: adminUser.googleBusinessAccessToken,
+        refresh_token: adminUser.googleBusinessRefreshToken
+      };
+      tokenExpiry = adminUser.googleBusinessTokenExpiry;
+      usingAdminTokens = true;
+      console.log('✅ Using admin tokens for customer (always fresh and auto-refreshed)');
+    } 
+    // Priority 2: Fallback to customer tokens if admin tokens somehow missing
+    else if (customer.googleBusinessAccessToken && customer.googleBusinessRefreshToken) {
+      tokensToUse = {
+        access_token: customer.googleBusinessAccessToken,
+        refresh_token: customer.googleBusinessRefreshToken
+      };
+      tokenExpiry = customer.googleBusinessTokenExpiry;
+      usingAdminTokens = false;
+      console.log('⚠️ Using customer tokens (admin tokens not available)');
+    } 
+    // Priority 3: No tokens available
+    else {
+      return res.status(400).json({ 
+        error: 'Google Business Profile tokens not available. Please ask your administrator to reconnect.',
+        details: {
+          customerHasTokens: !!(customer.googleBusinessAccessToken && customer.googleBusinessRefreshToken),
+          adminHasTokens: !!(adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken),
+          message: 'Both customer and admin tokens are missing. Admin needs to reconnect.'
+        }
+      });
     }
 
     // Check if we have stored data for this date range first
@@ -1403,14 +1437,32 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
             }
           }
         } else {
-          // Customer tokens missing, mark for reauth
-          await User.findByIdAndUpdate(customerId, {
-            googleBusinessNeedsReauth: true
-          });
-          return res.status(401).json({ 
-            error: 'Google Business Profile refresh token missing. Please ask your administrator to reconnect.',
-            requiresReauth: true
-          });
+          // ✅ FIXED: This branch means refresh_token is missing from tokensToUse
+          // Since we always prefer admin tokens first, this should rarely happen
+          // But if it does, we've already tried admin tokens above, so return error
+          console.error('❌ No refresh token available in tokensToUse');
+          console.error('   Using admin tokens:', usingAdminTokens);
+          console.error('   Admin has refresh token:', !!(adminUser?.googleBusinessRefreshToken));
+          console.error('   Customer has refresh token:', !!(customer.googleBusinessRefreshToken));
+          
+          // If we're using admin tokens but they don't have refresh token, admin needs to reconnect
+          if (usingAdminTokens) {
+            return res.status(401).json({ 
+              error: 'Google Business Profile connection expired. Please ask your administrator to reconnect.',
+              requiresReauth: true,
+              details: 'Admin refresh token missing. Admin needs to reconnect their account.'
+            });
+          } else {
+            // We're using customer tokens but they don't have refresh token
+            // This shouldn't happen since we prefer admin tokens, but handle it gracefully
+            await User.findByIdAndUpdate(customerId, {
+              googleBusinessNeedsReauth: true
+            });
+            return res.status(401).json({ 
+              error: 'Google Business Profile refresh token missing. Please ask your administrator to reconnect.',
+              requiresReauth: true
+            });
+          }
         }
       } else {
         // We have a refresh token, try to refresh
@@ -1989,8 +2041,8 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
             details: refreshError.response?.data?.error_description || refreshError.message
           });
         }
-      } else if (customer?.googleBusinessNeedsReauth) {
-        // Already marked as needing reauth
+      } else if (customer?.googleBusinessNeedsReauth && !customer?.googleBusinessProfileId) {
+        // Only return error if profileId is missing - if profileId exists, we can still use admin tokens
         return res.status(401).json({ 
           error: 'Google Business Profile connection expired. Please ask your administrator to reconnect your Google Business Profile.',
           requiresReauth: true,

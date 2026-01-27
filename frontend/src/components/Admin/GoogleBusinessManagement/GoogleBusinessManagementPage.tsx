@@ -189,19 +189,32 @@ const GoogleBusinessManagementPage: React.FC = () => {
         requestBody.tokens = oauthTokens;
       }
       
-      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/google-business/save-business-profile`, requestBody, {
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/google-business/save-business-profile`, requestBody, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      console.log('Business profile saved successfully, refreshing customers...');
+      console.log('Business profile saved successfully:', response.data);
       setOauthStatus('success');
       
-      // Refresh customers list and force re-render
+      // ✅ FIXED: Immediately update local state with saved data to ensure UI reflects changes
+      if (response.data.customer) {
+        setCustomers(prev => prev.map(c => 
+          c._id === customer._id 
+            ? {
+                ...c,
+                googleBusinessProfileId: response.data.customer.googleBusinessProfileId,
+                googleBusinessProfileName: response.data.customer.googleBusinessProfileName
+              }
+            : c
+        ));
+      }
+      
+      // Refresh customers list from backend to ensure we have latest data
       await fetchCustomers();
       
-      // Force a small delay to ensure state updates
+      // Force a small delay to ensure state updates and UI re-renders
       setTimeout(async () => {
-        console.log('Second refresh after delay...');
+        console.log('Second refresh after delay to ensure persistence...');
         await fetchCustomers();
         setOauthStatus('idle');
       }, 1000);
@@ -219,11 +232,24 @@ const GoogleBusinessManagementPage: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.patch(`${import.meta.env.VITE_API_BASE_URL}/google-business/disconnect/${customer._id}`, {}, {
+      const response = await axios.patch(`${import.meta.env.VITE_API_BASE_URL}/google-business/disconnect/${customer._id}`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Refresh customers list
+      console.log('Business profile disconnected successfully:', response.data);
+      
+      // ✅ FIXED: Immediately update local state to ensure UI reflects changes
+      setCustomers(prev => prev.map(c => 
+        c._id === customer._id 
+          ? {
+              ...c,
+              googleBusinessProfileId: undefined,
+              googleBusinessProfileName: undefined
+            }
+          : c
+      ));
+
+      // Refresh customers list from backend to ensure we have latest data
       await fetchCustomers();
     } catch (err) {
       console.error('Failed to disconnect business profile', err);
