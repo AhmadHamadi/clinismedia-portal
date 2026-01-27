@@ -71,6 +71,8 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
   }, [customStartDate, customEndDate]);
 
   const fetchGoogleBusinessData = async (forceRefresh: boolean = false) => {
+    let currentCustomer = null; // ✅ FIXED: Store customer in scope accessible to catch block
+    
     try {
       setStatus('loading');
       setError(null);
@@ -89,23 +91,23 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const customer = profileResponse.data;
-      console.log('🔍 Customer profile:', customer);
-      console.log('🔍 Google Business Profile ID:', customer.googleBusinessProfileId);
-      console.log('🔍 Google Business Profile Name:', customer.googleBusinessProfileName);
-      console.log('🔍 Google Business Access Token:', customer.googleBusinessAccessToken ? 'EXISTS' : 'MISSING');
+      currentCustomer = profileResponse.data; // ✅ FIXED: Store in variable accessible to catch block
+      console.log('🔍 Customer profile:', currentCustomer);
+      console.log('🔍 Google Business Profile ID:', currentCustomer.googleBusinessProfileId);
+      console.log('🔍 Google Business Profile Name:', currentCustomer.googleBusinessProfileName);
+      console.log('🔍 Google Business Access Token:', currentCustomer.googleBusinessAccessToken ? 'EXISTS' : 'MISSING');
       
       // Store customer data for header display
-      setCustomer(customer);
+      setCustomer(currentCustomer);
       
-      if (!customer.googleBusinessProfileId) {
+      if (!currentCustomer.googleBusinessProfileId) {
         setError('No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.');
         setStatus('loaded');
         return;
       }
 
       // Build URL with date range parameters
-      let url = `${import.meta.env.VITE_API_BASE_URL}/google-business/business-insights/${customer._id}`;
+      let url = `${import.meta.env.VITE_API_BASE_URL}/google-business/business-insights/${currentCustomer._id}`;
       const params = new URLSearchParams();
       
       if (dateRange === 'custom' && customStartDate && customEndDate) {
@@ -134,16 +136,21 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
       console.error('Failed to fetch Google Business Profile insights:', err);
       console.error('Error response:', err.response?.data);
       
-      // Show more specific error messages from backend
+      // ✅ FIXED: Better error handling - distinguish between "not connected" vs "API error"
+      // Use currentCustomer (from try block) or customer state (from previous successful fetch)
+      const hasProfileId = currentCustomer?.googleBusinessProfileId || customer?.googleBusinessProfileId;
+      
       if (err.response?.data?.error) {
         const backendError = err.response.data.error;
         const backendDetails = err.response.data.details;
         const requiresReauth = err.response.data.requiresReauth;
         
-        // Check if it's a missing profile/token issue
-        if (backendError.includes('Missing customer') || backendError.includes('Missing') || backendError.includes('No access_token')) {
+        // ✅ FIXED: Only show "Not Connected" if profileId is actually missing
+        // If profileId exists but API fails, it's a different issue (token/API error)
+        if (!hasProfileId && (backendError.includes('Missing customer') || backendError.includes('No Google Business Profile connected'))) {
           setError('No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.');
         } else if (backendError.includes('expired') || backendError.includes('reconnect') || requiresReauth) {
+          // Profile is connected but tokens expired - show reconnection message
           setError('Google Business Profile connection expired. Please contact your administrator to reconnect.');
         } else if (backendError.includes('token expired') && backendError.includes('refresh the page')) {
           // Token was refreshed, auto-retry immediately
@@ -151,14 +158,28 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
           setTimeout(() => {
             fetchGoogleBusinessData(forceRefresh);
           }, 1000);
+        } else if (hasProfileId) {
+          // Profile is connected but API call failed - show generic error, not "not connected"
+          setError('Failed to load Google Business Profile data. Please try again or contact support if the issue persists.');
         } else {
           // Show the actual backend error message
           setError(backendError + (backendDetails ? ` (${backendDetails})` : ''));
         }
       } else if (err.response?.status === 404) {
-        setError('No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.');
+        // ✅ FIXED: Only show "Not Connected" if profileId is missing
+        if (!hasProfileId) {
+          setError('No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.');
+        } else {
+          setError('Failed to load Google Business Profile data. Please try again.');
+        }
       } else if (err.response?.status === 400) {
-        setError('No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.');
+        // ✅ FIXED: Check if it's actually "not connected" or just a bad request
+        const backendError = err.response?.data?.error || '';
+        if (backendError.includes('No Google Business Profile connected') || !hasProfileId) {
+          setError('No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.');
+        } else {
+          setError('Invalid request. Please try again.');
+        }
       } else if (err.response?.status === 401) {
         // Authentication error - might be token expiry
         const backendError = err.response?.data?.error || '';
@@ -182,7 +203,12 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
         // Network error
         setError('Network error. Please check your internet connection and try again.');
       } else {
-        setError('Failed to load Google Business Profile insights. Please try again later.');
+        // Generic error - don't say "not connected" if profileId exists
+        if (hasProfileId) {
+          setError('Failed to load Google Business Profile data. Please try again.');
+        } else {
+          setError('Failed to load Google Business Profile insights. Please try again later.');
+        }
       }
       setStatus('loaded');
     }
