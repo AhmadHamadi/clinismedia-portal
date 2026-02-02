@@ -5,6 +5,7 @@ const User = require('../models/User');
 const CallLog = require('../models/CallLog');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
+const resolveEffectiveCustomerId = require('../middleware/resolveEffectiveCustomerId');
 
 // ============================================
 // Voice Validation - 100% Verified Twilio Voices
@@ -2514,16 +2515,10 @@ router.get('/call-logs/:callSid/summary', authenticateToken, async (req, res) =>
   }
 });
 
-// GET /api/twilio/call-logs - Get call logs for authenticated customer
-router.get('/call-logs', authenticateToken, async (req, res) => {
+// GET /api/twilio/call-logs - Get call logs (customer or receptionist; receptionist sees parent clinic's data)
+router.get('/call-logs', authenticateToken, authorizeRole(['customer', 'receptionist']), resolveEffectiveCustomerId, async (req, res) => {
   try {
-    const customerId = req.user.id;
-    
-    // Verify user is a customer
-    const user = await User.findById(customerId);
-    if (!user || user.role !== 'customer') {
-      return res.status(403).json({ error: 'Access denied. Customers only.' });
-    }
+    const customerId = req.effectiveCustomerId;
     
     // Get query parameters for filtering
     const { limit = 100, offset = 0, startDate, endDate } = req.query;
@@ -2831,15 +2826,13 @@ router.post('/ci-status', async (req, res) => {
 });
 
 
-// GET /api/twilio/configuration - Get Twilio configuration for authenticated customer
-router.get('/configuration', authenticateToken, async (req, res) => {
+// GET /api/twilio/configuration - Get Twilio configuration (customer or receptionist; receptionist sees parent clinic's config)
+router.get('/configuration', authenticateToken, authorizeRole(['customer', 'receptionist']), resolveEffectiveCustomerId, async (req, res) => {
   try {
-    const customerId = req.user.id;
-    
-    // Verify user is a customer
+    const customerId = req.effectiveCustomerId;
     const user = await User.findById(customerId);
-    if (!user || user.role !== 'customer') {
-      return res.status(403).json({ error: 'Access denied. Customers only.' });
+    if (!user) {
+      return res.status(404).json({ error: 'Clinic not found.' });
     }
     
     // Generate default message with clinic name for display
@@ -2905,16 +2898,10 @@ function countBookedClusters90Min(docs) {
   return total;
 }
 
-// GET /api/twilio/call-logs/stats - Get call statistics for authenticated customer
-router.get('/call-logs/stats', authenticateToken, async (req, res) => {
+// GET /api/twilio/call-logs/stats - Get call statistics (customer or receptionist; receptionist sees parent clinic's stats)
+router.get('/call-logs/stats', authenticateToken, authorizeRole(['customer', 'receptionist']), resolveEffectiveCustomerId, async (req, res) => {
   try {
-    const customerId = req.user.id;
-    
-    // Verify user is a customer
-    const user = await User.findById(customerId);
-    if (!user || user.role !== 'customer') {
-      return res.status(403).json({ error: 'Access denied. Customers only.' });
-    }
+    const customerId = req.effectiveCustomerId;
     
     // Get date range (respect date filters from frontend)
     const { startDate, endDate } = req.query;

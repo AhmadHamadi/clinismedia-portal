@@ -14,6 +14,7 @@ import CustomerInvoicePage from './CustomerInvoicePage';
 import NotificationPage from './NotificationPage';
 import GoogleAdsPage from './GoogleAdsPage';
 import CallLogsPage from './CallLogsPage';
+import ReceptionistCallLogsPage from './ReceptionistCallLogsPage';
 import GoogleBusinessAnalyticsPage from './GoogleBusinessAnalyticsPage';
 import CustomerQuickBooksInvoicesPage from './CustomerQuickBooksInvoicesPage';
 import MetaLeadsPage from './MetaLeadsPage';
@@ -49,7 +50,7 @@ const CustomerPortalLayout: React.FC = () => {
   const allowedPages = useMemo(() => {
     const u = userFromValidate ?? (() => { try { return JSON.parse(localStorage.getItem('customerData') || '{}'); } catch { return {}; } })();
     if (u.role === 'receptionist') {
-      const pages = ['meta-leads'];
+      const pages = ['call-logs', 'meta-leads'];
       if (u.canBookMediaDay === true) pages.push('media-day-booking');
       return pages;
     }
@@ -99,6 +100,8 @@ const CustomerPortalLayout: React.FC = () => {
       clearNotificationBadge('onboarding');
     } else if (location.pathname === '/customer/meta-leads') {
       clearNotificationBadge('metaLeads');
+    } else if (location.pathname === '/customer/call-logs') {
+      clearNotificationBadge('callLogs');
     } else if (location.pathname === '/customer/notifications') {
       // Clear all badges when visiting notifications page
       const clearAllBadges = async () => {
@@ -149,7 +152,14 @@ const CustomerPortalLayout: React.FC = () => {
             <Route path="notifications" element={<NotificationPage />} />
             <Route path="google-ads" element={<GoogleAdsPage />} />
             <Route path="google-business-analytics" element={<GoogleBusinessAnalyticsPage />} />
-            <Route path="call-logs" element={<CallLogsPage />} />
+            <Route path="call-logs" element={(() => {
+              try {
+                const u = JSON.parse(localStorage.getItem('customerData') || '{}');
+                return u.role === 'receptionist' ? <ReceptionistCallLogsPage /> : <CallLogsPage />;
+              } catch {
+                return <CallLogsPage />;
+              }
+            })()} />
             <Route path="meta-leads" element={<MetaLeadsPage />} />
             <Route path="quickbooks-invoices" element={<CustomerQuickBooksInvoicesPage />} />
             <Route path="" element={<CustomerDashboard />} />

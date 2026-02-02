@@ -3,6 +3,7 @@ import { FaPhone, FaClock, FaCalendar, FaUser, FaCheckCircle, FaTimesCircle, FaS
 import axios from 'axios';
 import { startOfMonth, endOfMonth, subMonths, format, startOfDay, endOfDay, subDays } from 'date-fns';
 import DatePicker from 'react-multi-date-picker';
+import { formatPhoneDisplay } from '../../utils/formatPhone';
 
 interface CallLog {
   id: string;
@@ -843,7 +844,7 @@ const CallLogsPage: React.FC = () => {
                         <div className="flex flex-col">
                           <div className="flex items-center">
                             <FaPhone className="text-gray-400 mr-1.5 text-xs" />
-                            <span className="text-xs text-gray-900 font-mono">{log.from}</span>
+                            <span className="text-xs text-gray-900 font-mono">{formatPhoneDisplay(log.from)}</span>
                           </div>
                           {log.callerName && (
                             <span className="text-xs text-gray-600 mt-0.5">{log.callerName}</span>
@@ -1138,7 +1139,7 @@ const CallLogsPage: React.FC = () => {
             {/* Recording Info */}
             {selectedCall && (
               <div className="mb-4 text-sm text-gray-600">
-                <p><span className="font-medium">Call from:</span> {selectedCall.from}</p>
+                <p><span className="font-medium">Call from:</span> {formatPhoneDisplay(selectedCall.from)}</p>
                 <p><span className="font-medium">Date:</span> {formatDate(selectedCall.startedAt)}</p>
                 <p><span className="font-medium">Duration:</span> {formatDuration(selectedCall.duration)}</p>
               </div>
@@ -1225,7 +1226,7 @@ const CallLogsPage: React.FC = () => {
 
             {/* Call Info */}
             <div className="mb-4 text-sm text-gray-600">
-              <p><span className="font-medium">Call from:</span> {selectedCall.from}</p>
+              <p><span className="font-medium">Call from:</span> {formatPhoneDisplay(selectedCall.from)}</p>
               <p><span className="font-medium">Date:</span> {formatDate(selectedCall.startedAt)}</p>
               <p><span className="font-medium">Duration:</span> {formatDuration(selectedCall.duration)}</p>
             </div>
