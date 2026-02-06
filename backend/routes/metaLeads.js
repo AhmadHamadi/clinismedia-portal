@@ -45,5 +45,11 @@ router.delete('/admin/subject-mappings/:mappingId', authenticateToken, authorize
 // Manually trigger email check (admin)
 router.post('/admin/check-emails', authenticateToken, authorizeRole(['admin']), MetaLeadsController.triggerEmailCheck);
 
+// Folder mappings (admin) - map IMAP folder name to clinic (e.g. "Burlington Dental Centre" folder -> Burlington customer)
+router.get('/admin/folder-mappings', authenticateToken, authorizeRole(['admin']), MetaLeadsController.getFolderMappings);
+router.post('/admin/folder-mappings', authenticateToken, authorizeRole(['admin']), MetaLeadsController.createFolderMapping);
+router.patch('/admin/folder-mappings/:mappingId', authenticateToken, authorizeRole(['admin']), MetaLeadsController.updateFolderMapping);
+router.delete('/admin/folder-mappings/:mappingId', authenticateToken, authorizeRole(['admin']), MetaLeadsController.deleteFolderMapping);
+
 module.exports = router;
 

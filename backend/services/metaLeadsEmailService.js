@@ -1,12 +1,21 @@
+/**
+ * Meta Leads Email Service - compatible with cPanel and webmail.
+ * - Connects via IMAP (port 993, TLS) to leads@clinimedia.ca (same mailbox as webmail).
+ * - Uses getBoxes() and each folder's delimiter so folder paths match webmail (e.g. INBOX.Burlington Dental Centre or INBOX/...).
+ * - openBox(folderName) uses the same names returned by the server, so pulling works from webmail with no format mismatch.
+ * - Processes UNSEEN emails; marks as \\Seen after creating a lead (webmail shows as read).
+ * - Folder mapping first, subject line as fallback; all clinics receive their emails.
+ */
 const Imap = require('imap');
 const { simpleParser } = require('mailparser');
 const MetaLead = require('../models/MetaLead');
 const MetaLeadSubjectMapping = require('../models/MetaLeadSubjectMapping');
+const MetaLeadFolderMapping = require('../models/MetaLeadFolderMapping');
 require('dotenv').config();
 
 class MetaLeadsEmailService {
   constructor() {
-    // IMAP configuration for leads@clinimedia.ca
+    // IMAP configuration for leads@clinimedia.ca (same mailbox as cPanel webmail)
     // Uses same password as notifications email (EMAIL_PASS or EMAIL_PASSWORD)
     // Uses same host as notifications email (EMAIL_HOST)
     // But uses different user: leads@clinimedia.ca (vs notifications@clinimedia.ca)
@@ -315,13 +324,67 @@ class MetaLeadsEmailService {
   }
 
   /**
-   * Find customer by email subject
+   * Normalize email subject for matching: trim, collapse whitespace, strip control chars
+   * So "CliniMedia  -  Burlington..." or "CliniMedia - Burlington...\r" still match
+   */
+  normalizeSubject(subject) {
+    if (!subject || typeof subject !== 'string') return '';
+    return subject
+      .replace(/\r\n|\r|\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Get base folder name for matching. cPanel/webmail IMAP may return:
+   * "INBOX.Burlington Dental Centre" (dot) or "INBOX/Burlington Dental Centre" (slash) -> "Burlington Dental Centre"
+   */
+  getBaseFolderName(folderName) {
+    if (!folderName || typeof folderName !== 'string') return '';
+    const trimmed = folderName.trim();
+    const withoutInbox = trimmed.replace(/^INBOX[./\\]/i, '').trim() || trimmed;
+    const parts = withoutInbox.split(/[./\\]/);
+    const last = (parts[parts.length - 1] || withoutInbox).trim();
+    return last;
+  }
+
+  /**
+   * Find customer by IMAP folder name (e.g. "Burlington Dental Centre"). Matches full path or base name.
+   */
+  async findCustomerByFolder(folderName) {
+    try {
+      if (!folderName || typeof folderName !== 'string') return null;
+      const folderLower = folderName.toLowerCase().trim();
+      const baseLower = this.getBaseFolderName(folderName).toLowerCase();
+
+      const mappings = await MetaLeadFolderMapping.find({ isActive: true }).populate('customerId');
+      for (const map of mappings) {
+        const mapNorm = (map.folderNameLower || '').replace(/\s+/g, ' ').trim();
+        if (!mapNorm) continue;
+        // Match full path or base name (e.g. "INBOX.Burlington Dental Centre" or "Burlington Dental Centre")
+        if (folderLower === mapNorm || baseLower === mapNorm ||
+            folderLower.endsWith('.' + mapNorm) || folderLower.endsWith(mapNorm)) {
+          return map.customerId;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error finding customer by folder:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Find customer by email subject (robust to whitespace and case)
    */
   async findCustomerBySubject(subject) {
     try {
-      // Try exact match first
+      const normalized = this.normalizeSubject(subject);
+      const normalizedLower = normalized.toLowerCase();
+
+      // Try exact match first (normalized)
       let mapping = await MetaLeadSubjectMapping.findOne({
-        emailSubject: subject,
+        emailSubject: normalized,
         isActive: true
       }).populate('customerId');
 
@@ -329,9 +392,9 @@ class MetaLeadsEmailService {
         return mapping.customerId;
       }
 
-      // Try case-insensitive match
+      // Try case-insensitive match (normalized)
       mapping = await MetaLeadSubjectMapping.findOne({
-        emailSubjectLower: subject.toLowerCase(),
+        emailSubjectLower: normalizedLower,
         isActive: true
       }).populate('customerId');
 
@@ -339,17 +402,22 @@ class MetaLeadsEmailService {
         return mapping.customerId;
       }
 
-      // Try partial match (subject contains mapping)
+      // Try partial match (subject contains mapping or vice versa); normalize stored subject for whitespace
       const mappings = await MetaLeadSubjectMapping.find({ isActive: true })
         .populate('customerId');
-      
+
       for (const map of mappings) {
-        if (subject.toLowerCase().includes(map.emailSubjectLower) ||
-            map.emailSubjectLower.includes(subject.toLowerCase())) {
+        const mapNorm = (map.emailSubjectLower || '').replace(/\s+/g, ' ').trim();
+        if (!mapNorm) continue;
+        if (normalizedLower.includes(mapNorm) || mapNorm.includes(normalizedLower)) {
           return map.customerId;
         }
       }
 
+      // No mapping found - log so admin can add one or fix subject
+      if (normalized && normalized !== 'No Subject') {
+        console.warn(`[Meta Leads] No subject mapping for email subject: "${normalized.substring(0, 80)}${normalized.length > 80 ? '...' : ''}"`);
+      }
       return null;
     } catch (error) {
       console.error('Error finding customer by subject:', error);
@@ -359,18 +427,22 @@ class MetaLeadsEmailService {
 
   /**
    * Process a single email
+   * @param {Buffer} email - Raw email buffer
+   * @param {Object} [folderCustomer] - If set, customer from folder mapping (folder-based assignment); else we use subject
    */
-  async processEmail(email) {
+  async processEmail(email, folderCustomer = null) {
     try {
       const parsed = await simpleParser(email);
-      const subject = parsed.subject || 'No Subject';
+      const rawSubject = parsed.subject || 'No Subject';
+      const subject = this.normalizeSubject(rawSubject) || rawSubject;
       const messageId = parsed.messageId || null;
       const from = parsed.from ? parsed.from.text : null;
       const date = parsed.date || new Date();
 
-      // Find customer by subject
-      const customer = await this.findCustomerBySubject(subject);
-      
+      // Assignment: folder first (cPanel folder mapping), then subject as fallback.
+      // So emails in unmapped folders (e.g. Inbox) or folders with no mapping still get assigned by subject; all clinics receive their emails.
+      const customer = folderCustomer || await this.findCustomerBySubject(subject);
+
       if (!customer) {
         return null;
       }
@@ -409,6 +481,7 @@ class MetaLeadsEmailService {
       });
 
       await lead.save();
+      console.log(`[Meta Leads] Lead created for customer ${customer._id} (subject: "${subject.length > 50 ? subject.substring(0, 50) + '...' : subject}")`);
       return lead;
     } catch (error) {
       console.error('Error processing email:', error);
@@ -442,7 +515,8 @@ class MetaLeadsEmailService {
   }
 
   /**
-   * Check a specific mailbox/folder for new emails (today only)
+   * Check a specific mailbox/folder for new emails
+   * @param {number} daysBack - How many days back to look (e.g. 2 = today + yesterday so we never miss leads)
    */
   async checkFolderForEmails(folderName, daysBack, result) {
     return new Promise((resolve) => {
@@ -452,8 +526,9 @@ class MetaLeadsEmailService {
           return;
         }
 
-        // Search for unread emails from today only (not looking at previous emails)
+        // Search for unread emails since (today - daysBack) so we always catch missed emails
         const since = new Date();
+        since.setDate(since.getDate() - (daysBack || 1));
         since.setHours(0, 0, 0, 0);
 
         this.imap.search(['UNSEEN', ['SINCE', since]], async (err, results) => {
@@ -470,6 +545,9 @@ class MetaLeadsEmailService {
           }
 
           result.emailsFound += results.length;
+
+          // Resolve customer by folder first (so all emails in this folder go to this clinic)
+          const folderCustomer = await this.findCustomerByFolder(folderName);
 
           // Track processed emails so we can mark them as read
           const processedEmails = [];
@@ -491,14 +569,14 @@ class MetaLeadsEmailService {
 
                 stream.once('end', async () => {
                   const emailBuffer = Buffer.concat(buffer);
-                  const lead = await this.processEmail(emailBuffer);
+                  const lead = await this.processEmail(emailBuffer, folderCustomer);
                   result.emailsProcessed++;
                   if (lead) {
                     result.leadsCreated++;
+                    // Only mark as read when we actually created/found a lead for a clinic
+                    // So emails with no matching subject stay unread and can be retried after adding a mapping
+                    processedEmails.push(seqno);
                   }
-                  // Always track as processed - we'll mark it as read even if no lead was created
-                  // This prevents reprocessing the same emails
-                  processedEmails.push(seqno);
                   resolveEmail();
                 });
               });
@@ -578,13 +656,15 @@ class MetaLeadsEmailService {
           // List all folders
           const folderNames = [];
           
-          // Helper function to recursively get folder names
+          // Helper function to recursively get folder names (matches cPanel webmail hierarchy)
           const getFolderNames = (boxes, prefix = '') => {
             for (const name in boxes) {
-              const fullName = prefix ? `${prefix}${boxes[name].delimiter}${name}` : name;
-              folderNames.push(fullName);
-              if (boxes[name].children) {
-                getFolderNames(boxes[name].children, fullName);
+              const fullName = prefix ? `${prefix}${boxes[name].delimiter || '.'}${name}` : name;
+              if (fullName && String(fullName).trim()) {
+                folderNames.push(fullName);
+              }
+              if (boxes[name].children && typeof boxes[name].children === 'object') {
+                getFolderNames(boxes[name].children, fullName || name);
               }
             }
           };
@@ -593,19 +673,28 @@ class MetaLeadsEmailService {
 
           // Process folders sequentially to avoid connection issues
           const processFolders = async (index = 0) => {
-            if (index >= folderNames.length) {
-              // All folders processed
+            try {
+              if (index >= folderNames.length) {
+                // All folders processed
+                this.disconnect().finally(() => {
+                  this.isChecking = false;
+                  resolve(result);
+                });
+                return;
+              }
+
+              const folderName = folderNames[index];
+              await this.checkFolderForEmails(folderName, daysBack, result);
+              // Process next folder
+              processFolders(index + 1);
+            } catch (folderError) {
+              console.error(`Error processing folder at index ${index}:`, folderError);
+              result.errors.push(`Folder error: ${folderError.message}`);
               this.disconnect().finally(() => {
                 this.isChecking = false;
                 resolve(result);
               });
-              return;
             }
-
-            const folderName = folderNames[index];
-            await this.checkFolderForEmails(folderName, daysBack, result);
-            // Process next folder
-            processFolders(index + 1);
           };
 
           // Start processing folders
@@ -623,15 +712,17 @@ class MetaLeadsEmailService {
   }
 
   /**
-   * Start monitoring emails
+   * Start monitoring emails - look back 7 days so we never miss leads (e.g. server down, or emails that stayed unread)
+   * Default interval 3 minutes so portal updates soon after email arrives at leads@clinimedia.ca
    */
-  startMonitoring(intervalMinutes = 5) {
-    // Check immediately (only today's emails)
-    this.checkForNewEmails(1);
+  startMonitoring(intervalMinutes = 3) {
+    const daysBack = 7; // Look back 7 days for UNSEEN emails so all clinics get their leads (dedup by messageId prevents duplicates)
+    // Check immediately on startup
+    this.checkForNewEmails(daysBack);
 
-    // Then check periodically (only today's emails)
+    // Then check every N minutes
     this.checkInterval = setInterval(() => {
-      this.checkForNewEmails(1);
+      this.checkForNewEmails(daysBack);
     }, intervalMinutes * 60 * 1000);
   }
 

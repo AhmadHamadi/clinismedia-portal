@@ -48,9 +48,25 @@ const app = express();
 // This ensures req.protocol and req.headers.host are correct when behind a reverse proxy
 app.set('trust proxy', true);
 
-// Enable CORS for your frontend origin
+// Enable CORS: allow production frontend + localhost (so GB OAuth and API work from both)
+// If FRONTEND_URL is unset (e.g. on Railway), origin would be undefined and CORS could block production.
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://www.clinimediaportal.ca',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+].filter(Boolean);
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. same-origin, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // Allow any subdomain of clinimediaportal.ca (e.g. www, app)
+    if (origin.endsWith('.clinimediaportal.ca') || origin === 'https://clinimediaportal.ca') return callback(null, true);
+    callback(null, false); // disallow but don't 500
+  },
   credentials: true,
 }));
 
@@ -157,8 +173,8 @@ app.listen(PORT, () => {
   ScheduledEmailService.sendDailyReminders();
   ScheduledEmailService.sendProactiveBookingReminders();
   
-  // Start Meta leads email monitoring (checks every 5 minutes)
-  const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL) || 5;
+  // Start Meta leads email monitoring (checks every 3 minutes by default)
+  const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL, 10) || 3;
   metaLeadsEmailService.startMonitoring(leadsCheckInterval);
   
   // Start QuickBooks token refresh service (runs every 30 seconds - FULLY AUTOMATIC)

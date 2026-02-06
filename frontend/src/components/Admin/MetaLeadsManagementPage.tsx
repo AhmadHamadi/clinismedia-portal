@@ -16,6 +16,20 @@ interface SubjectMapping {
   updatedAt: string;
 }
 
+interface FolderMapping {
+  _id: string;
+  customerId: {
+    _id: string;
+    name: string;
+    email: string;
+    location?: string;
+  };
+  folderName: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Customer {
   _id: string;
   name: string;
@@ -26,12 +40,20 @@ interface Customer {
 const MetaLeadsManagementPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [mappings, setMappings] = useState<SubjectMapping[]>([]);
+  const [folderMappings, setFolderMappings] = useState<FolderMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingMapping, setEditingMapping] = useState<SubjectMapping | null>(null);
   const [formData, setFormData] = useState({
     customerId: '',
     emailSubject: '',
+    isActive: true
+  });
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [editingFolderMapping, setEditingFolderMapping] = useState<FolderMapping | null>(null);
+  const [folderFormData, setFolderFormData] = useState({
+    customerId: '',
+    folderName: '',
     isActive: true
   });
   const [checkingEmails, setCheckingEmails] = useState(false);
@@ -45,18 +67,22 @@ const MetaLeadsManagementPage: React.FC = () => {
       const token = localStorage.getItem('adminToken');
       if (!token) return;
 
-      // Fetch customers and mappings in parallel
-      const [customersRes, mappingsRes] = await Promise.all([
+      // Fetch customers, subject mappings, and folder mappings in parallel
+      const [customersRes, mappingsRes, folderMappingsRes] = await Promise.all([
         axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
         axios.get(`${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/subject-mappings`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/folder-mappings`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
 
       setCustomers(customersRes.data || []);
       setMappings(mappingsRes.data.mappings || []);
+      setFolderMappings(folderMappingsRes.data.folderMappings || []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -66,6 +92,69 @@ const MetaLeadsManagementPage: React.FC = () => {
 
   const getMappingsForCustomer = (customerId: string): SubjectMapping[] => {
     return mappings.filter(m => m.customerId._id === customerId && m.isActive);
+  };
+
+  const getFolderMappingsForCustomer = (customerId: string): FolderMapping[] => {
+    return folderMappings.filter(m => m.customerId._id === customerId && m.isActive);
+  };
+
+  const handleCreateFolder = () => {
+    setEditingFolderMapping(null);
+    setFolderFormData({ customerId: '', folderName: '', isActive: true });
+    setShowFolderModal(true);
+  };
+
+  const handleEditFolder = (mapping: FolderMapping) => {
+    setEditingFolderMapping(mapping);
+    setFolderFormData({
+      customerId: mapping.customerId._id,
+      folderName: mapping.folderName,
+      isActive: mapping.isActive
+    });
+    setShowFolderModal(true);
+  };
+
+  const handleSubmitFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) return;
+
+      if (editingFolderMapping) {
+        await axios.patch(
+          `${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/folder-mappings/${editingFolderMapping._id}`,
+          folderFormData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } else {
+        await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/folder-mappings`,
+          folderFormData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+
+      setShowFolderModal(false);
+      fetchData();
+    } catch (error: any) {
+      console.error('Failed to save folder mapping:', error);
+      alert(error.response?.data?.message || 'Failed to save folder mapping');
+    }
+  };
+
+  const handleDeleteFolder = async (mappingId: string) => {
+    if (!window.confirm('Delete this folder mapping? Leads in this folder will no longer be auto-assigned.')) return;
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) return;
+      await axios.delete(
+        `${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/folder-mappings/${mappingId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      fetchData();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to delete folder mapping');
+    }
   };
 
   const handleCreate = () => {
@@ -327,6 +416,66 @@ const MetaLeadsManagementPage: React.FC = () => {
           )}
         </div>
 
+        {/* Folder Mappings (cPanel) */}
+        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Folder Mappings (cPanel)</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Map IMAP folder names to clinics. When leads land in a folder (e.g. &quot;Burlington Dental Centre&quot;), they are assigned to that clinic. Use this if your leads go into per-clinic folders.
+              </p>
+            </div>
+            <button
+              onClick={handleCreateFolder}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+            >
+              <FaPlus className="mr-2" /> Add Folder Mapping
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            {folderMappings.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No folder mappings. Add one to assign leads by folder name (e.g. &quot;Burlington Dental Centre&quot;).
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folder name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clinic</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {folderMappings.map((fm) => (
+                    <tr key={fm._id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="font-mono text-sm text-gray-900">{fm.folderName}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {fm.customerId?.name} <span className="text-gray-500">({fm.customerId?.email})</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {fm.isActive ? (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded">Active</span>
+                        ) : (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">Inactive</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button onClick={() => handleEditFolder(fm)} className="text-blue-600 hover:text-blue-800 mr-3" title="Edit"><FaEdit /></button>
+                        <button onClick={() => handleDeleteFolder(fm._id)} className="text-red-600 hover:text-red-800" title="Delete"><FaTrash /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
         {/* Instructions */}
         <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-blue-900 mb-3">How it works</h3>
@@ -334,13 +483,14 @@ const MetaLeadsManagementPage: React.FC = () => {
             <p>• <strong>Add Subject Mapping:</strong> Click "Add Subject Mapping" or "Add Subject" next to a clinic to create a new mapping.</p>
             <p>• <strong>Email Subjects:</strong> When Facebook sends lead emails to leads@clinimedia.ca, the system matches the email subject to assign leads to the correct clinic.</p>
             <p>• <strong>Example:</strong> If subject is "CliniMedia-moonstone dental leads", create a mapping with that exact subject for Moonstone Dental.</p>
-            <p>• <strong>Check Emails:</strong> Use "Check Emails Now" to manually trigger email processing, or wait for automatic checks every 5 minutes.</p>
-            <p>• <strong>Edit/Delete:</strong> Use the edit/delete icons next to each subject mapping to manage them.</p>
+            <p>• <strong>Folder Mappings:</strong> If leads go into cPanel folders per clinic (e.g. &quot;Burlington Dental Centre&quot;), add a folder mapping so all emails in that folder are assigned to that clinic. Folder is checked first, then subject.</p>
+            <p>• <strong>Check Emails:</strong> Use &quot;Check Emails Now&quot; to manually trigger email processing, or wait for automatic checks every 3 minutes.</p>
+            <p>• <strong>Edit/Delete:</strong> Use the edit/delete icons next to each mapping to manage them.</p>
           </div>
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Subject Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
@@ -415,6 +565,65 @@ const MetaLeadsManagementPage: React.FC = () => {
                   onClick={() => setShowModal(false)}
                   className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
                 >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Folder Mapping Modal */}
+      {showFolderModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              {editingFolderMapping ? 'Edit Folder Mapping' : 'Add Folder Mapping'}
+            </h2>
+            <form onSubmit={handleSubmitFolder}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Clinic *</label>
+                <select
+                  value={folderFormData.customerId}
+                  onChange={(e) => setFolderFormData({ ...folderFormData, customerId: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                  required
+                  disabled={!!editingFolderMapping}
+                >
+                  <option value="">Select a clinic</option>
+                  {customers.map((c) => (
+                    <option key={c._id} value={c._id}>{c.name} ({c.email})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Folder name *</label>
+                <input
+                  type="text"
+                  value={folderFormData.folderName}
+                  onChange={(e) => setFolderFormData({ ...folderFormData, folderName: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g. Burlington Dental Centre"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Exact folder name as in cPanel (e.g. Burlington Dental Centre, Hamilton Care Dental)</p>
+              </div>
+              <div className="mb-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={folderFormData.isActive}
+                    onChange={(e) => setFolderFormData({ ...folderFormData, isActive: e.target.checked })}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Active</span>
+                </label>
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                  {editingFolderMapping ? 'Update' : 'Create'}
+                </button>
+                <button type="button" onClick={() => setShowFolderModal(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
                   Cancel
                 </button>
               </div>
