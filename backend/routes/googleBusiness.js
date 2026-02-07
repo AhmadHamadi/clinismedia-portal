@@ -452,39 +452,39 @@ function getFrontendUrl(req) {
       : 'https://www.clinimediaportal.ca';
   }
   
-  // Priority 1: Explicitly set environment variable
+  // Priority 1: Explicitly set environment variable (set FRONTEND_URL on Railway for production)
   if (process.env.FRONTEND_URL) {
     return process.env.FRONTEND_URL;
   }
-  
-  // Priority 2: Detect from request origin
+
+  // Priority 2: If production callback URI is set, we're on production backend → use production frontend
+  // Fixes OAuth on Railway when Host may be internal (e.g. *.railway.app) and not clinimediaportal.ca
+  const redirectUri = process.env.GOOGLE_BUSINESS_REDIRECT_URI || '';
+  if (redirectUri.includes('api.clinimediaportal.ca') || redirectUri.includes('clinimediaportal.ca')) {
+    return 'https://www.clinimediaportal.ca';
+  }
+
+  // Priority 3: Detect from request (trust proxy gives correct host when behind Railway/nginx)
   const protocol = req.protocol || (req.headers?.['x-forwarded-proto'] || 'http');
   const host = req.headers?.host || req.headers?.['x-forwarded-host'];
-  
+
   if (host) {
-    // Check if it's localhost/127.0.0.1
     if (host.includes('localhost') || host.includes('127.0.0.1')) {
       const port = process.env.VITE_PORT || 5173;
       return `http://localhost:${port}`;
     }
-    // Production domain - use www.clinimediaportal.ca
-    else if (host.includes('clinimediaportal.ca')) {
+    if (host.includes('clinimediaportal.ca')) {
       return 'https://www.clinimediaportal.ca';
     }
-    // Railway or other hosting - try to infer frontend
-    else if (process.env.RAILWAY_PUBLIC_DOMAIN) {
-      // If backend is on Railway, frontend might be on same domain or separate
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
       return process.env.FRONTEND_URL || 'https://www.clinimediaportal.ca';
     }
   }
-  
-  // Priority 3: Fallback based on NODE_ENV
+
+  // Priority 4: Fallback
   if (process.env.NODE_ENV === 'development') {
-    const port = process.env.VITE_PORT || 5173;
-    return `http://localhost:${port}`;
+    return `http://localhost:${process.env.VITE_PORT || 5173}`;
   }
-  
-  // Priority 4: Production fallback
   return 'https://www.clinimediaportal.ca';
 }
 
