@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FaGoogle, FaSpinner, FaSyncAlt, FaEye, FaSearch, FaPhone, FaDirections, FaMousePointer, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { FaGoogle, FaSpinner, FaSyncAlt, FaEye, FaSearch, FaPhone, FaDirections, FaMousePointer, FaCheckCircle, FaExclamationTriangle, FaLink } from 'react-icons/fa';
 import axios from 'axios';
+import { useSearchParams } from 'react-router-dom';
 
 interface ComparisonMetric {
   current: number;
@@ -44,6 +45,7 @@ interface GoogleBusinessInsights {
 }
 
 const GoogleBusinessAnalyticsPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [status, setStatus] = useState('loading');
   const [insights, setInsights] = useState<GoogleBusinessInsights | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +54,13 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
   const [customEndDate, setCustomEndDate] = useState('');
   const [customer, setCustomer] = useState<any>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [justConnected, setJustConnected] = useState(false);
 
   useEffect(() => {
+    if (searchParams.get('gbp_connected') === 'true') {
+      setJustConnected(true);
+    }
     fetchGoogleBusinessData();
   }, []);
 
@@ -69,6 +76,22 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
       fetchGoogleBusinessData();
     }
   }, [customStartDate, customEndDate]);
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      const token = localStorage.getItem('customerToken');
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-business/auth/customer-connect`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.authUrl) {
+        window.location.href = res.data.authUrl;
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to start connection. Please try again.');
+      setConnecting(false);
+    }
+  };
 
   const fetchGoogleBusinessData = async (forceRefresh: boolean = false) => {
     let currentCustomer = null; // ✅ FIXED: Store customer in scope accessible to catch block
@@ -283,22 +306,52 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
   }
 
   if (error) {
+    const isNotConnected = error.includes('No Google Business Profile connected');
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {justConnected && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+              <FaCheckCircle className="text-green-600" />
+              <span className="text-green-700 font-medium">Google Business Profile connected! Loading your data...</span>
+            </div>
+          )}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
-                <FaExclamationTriangle className="text-yellow-500 text-4xl mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Google Business Profile Not Connected</h3>
-                <p className="text-gray-600 mb-4">{error}</p>
-                <button
-                  onClick={() => fetchGoogleBusinessData()}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <FaSyncAlt className="mr-2" />
-                  Retry
-                </button>
+                {isNotConnected ? (
+                  <FaGoogle className="text-blue-500 text-4xl mx-auto mb-4" />
+                ) : (
+                  <FaExclamationTriangle className="text-yellow-500 text-4xl mx-auto mb-4" />
+                )}
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {isNotConnected ? 'Connect Your Google Business Profile' : 'Google Business Profile Issue'}
+                </h3>
+                <p className="text-gray-600 mb-4 max-w-md">
+                  {isNotConnected
+                    ? 'Connect your Google Business Profile to see your reviews, search performance, and customer interactions all in one place.'
+                    : error
+                  }
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                  {isNotConnected && (
+                    <button
+                      onClick={handleConnect}
+                      disabled={connecting}
+                      className="inline-flex items-center px-6 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 shadow-md"
+                    >
+                      <FaLink className="mr-2" />
+                      {connecting ? 'Connecting...' : 'Connect Google Business Profile'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => fetchGoogleBusinessData()}
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <FaSyncAlt className="mr-2" />
+                    Retry
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -369,19 +369,28 @@ const GoogleBusinessManagementPage: React.FC = () => {
       localStorage.setItem('googleBusinessAdminConnected', 'true');
     } catch (err: any) {
       console.error('Failed to fetch all business profiles', err);
-      const errorMessage = err.response?.data?.error || 'Failed to fetch business profiles';
-      const requiresReauth = err.response?.data?.requiresReauth;
-      
+      const data = err.response?.data;
+      const errorMessage =
+        data?.error ||
+        data?.message ||
+        (err.response?.status === 401 ? 'Session expired or unauthorized. Please log in again.' : null) ||
+        (err.response?.status ? `Request failed (${err.response.status}). Check console for details.` : null) ||
+        (err.message || 'Failed to fetch business profiles. Check your connection and try again.');
+      const details = data?.details;
+      const hint = data?.hint;
+      const requiresReauth = data?.requiresReauth;
+
       if (requiresReauth) {
-        // Clear stored tokens since they're expired
         localStorage.removeItem('googleBusinessAdminConnected');
         localStorage.removeItem('googleBusinessAdminTokens');
         setAdminConnected(false);
         setOauthTokens(null);
-        
         setOauthError('Admin Google Business Profile refresh token expired. Please reconnect using the "Reconnect" button above.');
       } else {
-        setOauthError(errorMessage);
+        let fullMessage = errorMessage;
+        if (details) fullMessage += ` — ${details}`;
+        if (hint) fullMessage += ` (${hint})`;
+        setOauthError(fullMessage);
       }
       setOauthStatus('error');
     }
@@ -494,12 +503,31 @@ const GoogleBusinessManagementPage: React.FC = () => {
           </div>
         )}
 
-        {/* OAuth Error */}
+        {/* OAuth / Fetch Error */}
         {oauthError && (
           <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-400 text-red-800 rounded">
-            <div className="flex items-center">
-              <FaExclamationTriangle className="mr-2" />
-              {oauthError}
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start">
+                <FaExclamationTriangle className="mr-2 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">{oauthError}</p>
+                  <p className="text-sm text-red-600 mt-1">
+                    If you just reconnected, wait a few seconds and click &quot;Retry fetch profiles&quot; below. If the error persists, ensure you signed in with info@clinimedia.ca and that the CliniMedia location group exists in Google Business.
+                  </p>
+                </div>
+              </div>
+              {adminConnected && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOauthError(null);
+                    fetchAllBusinessProfiles(null);
+                  }}
+                  className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700 flex-shrink-0"
+                >
+                  Retry fetch profiles
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -527,14 +555,23 @@ const GoogleBusinessManagementPage: React.FC = () => {
               </button>
             )}
             {adminConnected && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center text-green-600">
                   <FaCheckCircle className="mr-2" />
                   <span className="text-sm font-medium">Admin Connected</span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
-                    // Clear stored tokens and reconnect
+                    setOauthError(null);
+                    fetchAllBusinessProfiles(null);
+                  }}
+                  className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
+                >
+                  Retry fetch profiles
+                </button>
+                <button
+                  onClick={() => {
                     localStorage.removeItem('googleBusinessAdminConnected');
                     localStorage.removeItem('googleBusinessAdminTokens');
                     setAdminConnected(false);

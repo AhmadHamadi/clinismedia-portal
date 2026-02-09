@@ -18,6 +18,7 @@ import ReceptionistCallLogsPage from './ReceptionistCallLogsPage';
 import GoogleBusinessAnalyticsPage from './GoogleBusinessAnalyticsPage';
 import CustomerQuickBooksInvoicesPage from './CustomerQuickBooksInvoicesPage';
 import MetaLeadsPage from './MetaLeadsPage';
+import CustomerQRReviewsPage from './CustomerQRReviewsPage';
 
 const CustomerPortalLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -162,6 +163,7 @@ const CustomerPortalLayout: React.FC = () => {
             })()} />
             <Route path="meta-leads" element={<MetaLeadsPage />} />
             <Route path="quickbooks-invoices" element={<CustomerQuickBooksInvoicesPage />} />
+            <Route path="qr-reviews" element={<CustomerQRReviewsPage />} />
             <Route path="" element={<CustomerDashboard />} />
           </Routes>
         </main>

@@ -2,7 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FaHome, FaCalendarAlt, FaTasks, FaUsers, FaUserTie, FaFileInvoice, FaGoogle, FaFacebook, FaPhone, FaImages, FaFolderOpen, FaDollarSign, FaSignOutAlt, FaBars } from 'react-icons/fa';
+import { FaHome, FaCalendarAlt, FaTasks, FaUsers, FaUserTie, FaFileInvoice, FaGoogle, FaFacebook, FaPhone, FaImages, FaFolderOpen, FaDollarSign, FaSignOutAlt, FaBars, FaStar } from 'react-icons/fa';
 import logo1 from "../../assets/CliniMedia_Logo1.png";
 import { logout } from "../../utils/auth";
 
@@ -99,6 +99,7 @@ const SidebarMenu = () => {
     { label: "Manage Gallery Edits", path: "/admin/gallery", icon: <FaImages /> },
     { label: "Manage Shared Folder", path: "/admin/shared-folders", icon: <FaFolderOpen />, notificationCount: unreadNotesCount },
     { label: "Manage Meta Leads", path: "/admin/meta-leads", icon: <FaFacebook /> },
+    { label: "QR Reviews", path: "/admin/qr-reviews", icon: <FaStar /> },
   ];
 
   const handleLogout = async () => {
