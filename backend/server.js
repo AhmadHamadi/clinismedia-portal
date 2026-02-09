@@ -98,6 +98,7 @@ const googleBusinessRoutes = require('./routes/googleBusiness');
 const twilioRoutes = require('./routes/twilio');
 const metaLeadsRoutes = require('./routes/metaLeads');
 const quickbooksRoutes = require('./routes/quickbooks');
+const qrReviewsRoutes = require('./routes/qrReviews');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
@@ -120,6 +121,7 @@ app.use('/api/google-business', googleBusinessRoutes);
 app.use('/api/twilio', twilioRoutes);
 app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/api/quickbooks', quickbooksRoutes);
+app.use('/api/qr-reviews', qrReviewsRoutes);
 
 app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
 app.use('/uploads/invoices', express.static(__dirname + '/uploads/invoices'));

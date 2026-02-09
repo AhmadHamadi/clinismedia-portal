@@ -410,6 +410,36 @@ router.get('/auth/admin', authenticateToken, authorizeRole(['admin']), async (re
   }
 });
 
+// GET /api/google-business/auth/customer-connect - Initiate OAuth flow for customer self-connect
+router.get('/auth/customer-connect', authenticateToken, authorizeRole(['customer']), async (req, res) => {
+  try {
+    if (!process.env.GOOGLE_BUSINESS_CLIENT_ID || !process.env.GOOGLE_BUSINESS_CLIENT_SECRET) {
+      return res.status(500).json({ error: 'Google Business OAuth is not configured.' });
+    }
+
+    const redirectUri = getGoogleBusinessRedirectUri(req);
+    const requestOAuth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_BUSINESS_CLIENT_ID,
+      process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
+      redirectUri
+    );
+
+    const authUrl = requestOAuth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: SCOPES,
+      state: `customer_${req.user._id}`,
+      prompt: 'consent',
+      redirect_uri: redirectUri
+    });
+
+    console.log('[GBP] Customer OAuth URL generated for user:', req.user._id);
+    res.json({ authUrl });
+  } catch (error) {
+    console.error('[GBP] Customer OAuth URL error:', error);
+    res.status(500).json({ error: 'Failed to generate OAuth URL' });
+  }
+});
+
 // GET /api/google-business/auth/:clinicId - Initiate OAuth flow for individual customer
 router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
@@ -614,8 +644,29 @@ router.get('/callback', async (req, res) => {
       const encodedAccessToken = encodeURIComponent(tokens.access_token);
       const encodedRefreshToken = encodeURIComponent(tokens.refresh_token);
       res.redirect(`${frontendUrl}/admin/google-business?admin_oauth_success=true&access_token=${encodedAccessToken}&refresh_token=${encodedRefreshToken}&expires_in=${expires_in}`);
+    } else if (typeof state === 'string' && state.startsWith('customer_')) {
+      // Customer self-connect OAuth
+      const customerId = state.replace('customer_', '');
+      try {
+        const customerUser = await User.findById(customerId);
+        if (customerUser) {
+          const tokenExpiry = expires_in
+            ? new Date(Date.now() + expires_in * 1000)
+            : new Date(Date.now() + 3600 * 1000);
+
+          customerUser.googleBusinessAccessToken = tokens.access_token;
+          customerUser.googleBusinessRefreshToken = tokens.refresh_token;
+          customerUser.googleBusinessTokenExpiry = tokenExpiry;
+          customerUser.googleBusinessNeedsReauth = false;
+          await customerUser.save();
+          console.log('[GBP] Customer tokens saved for user:', customerId);
+        }
+      } catch (dbError) {
+        console.error('[GBP] Failed to save customer tokens:', dbError.message);
+      }
+      res.redirect(`${frontendUrl}/customer/google-business-analytics?gbp_connected=true`);
     } else {
-      // Handle customer-specific OAuth (if needed in future)
+      // Handle admin customer-specific OAuth (admin connecting on behalf of a customer)
       const encodedAccessToken = encodeURIComponent(tokens.access_token);
       const encodedRefreshToken = encodeURIComponent(tokens.refresh_token);
       res.redirect(`${frontendUrl}/admin/google-business?oauth_success=true&clinic_id=${state}&access_token=${encodedAccessToken}&refresh_token=${encodedRefreshToken}&expires_in=${expires_in}`);
@@ -637,6 +688,15 @@ router.get('/callback', async (req, res) => {
 // GET /api/google-business/admin-business-profiles - Get all business profiles from admin account
 router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
+    // Production must have same Google Business env as localhost, or API calls fail
+    if (!process.env.GOOGLE_BUSINESS_CLIENT_ID || !process.env.GOOGLE_BUSINESS_CLIENT_SECRET) {
+      console.error('[Google Business] Missing GOOGLE_BUSINESS_CLIENT_ID or GOOGLE_BUSINESS_CLIENT_SECRET on this server');
+      return res.status(500).json({
+        error: 'Google Business is not configured on this server.',
+        details: 'Set GOOGLE_BUSINESS_CLIENT_ID and GOOGLE_BUSINESS_CLIENT_SECRET on the production backend (same values as localhost). This is why it works on localhost but not production.'
+      });
+    }
+
     // ✅ FIXED: Get admin tokens from database first (with fallback to header/env)
     let adminTokens;
     let adminUser = await User.findOne({ role: 'admin' });
@@ -743,14 +803,22 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
       // Check if it's an invalid_grant error (expired refresh token)
       if (apiError.message?.includes('invalid_grant') || apiError.response?.data?.error === 'invalid_grant') {
         console.error('❌ Admin refresh token expired or revoked during API call');
-        return res.status(401).json({ 
+        return res.status(401).json({
           error: 'Admin Google Business Profile refresh token expired. Please reconnect.',
           requiresReauth: true,
           details: 'Token has been expired or revoked. Click "Reconnect" to authorize again.'
         });
       }
-      // If it's a different error, re-throw it
-      throw apiError;
+      // Return the actual Google/API error so we can see why production fails vs localhost
+      const googleMessage = apiError.response?.data?.error?.message || apiError.message;
+      const googleErrorCode = apiError.response?.data?.error?.code || apiError.code;
+      console.error('[Google Business] accounts.list() failed:', googleMessage, googleErrorCode, apiError.response?.data);
+      return res.status(500).json({
+        error: 'Failed to fetch business profiles',
+        details: googleMessage,
+        hint: 'On production, ensure GOOGLE_BUSINESS_CLIENT_ID and GOOGLE_BUSINESS_CLIENT_SECRET match your local .env exactly (same OAuth client). Common cause: typo (e.g. 1 vs l in 7muh3lb5).',
+        debug: { code: googleErrorCode, status: apiError.response?.status }
+      });
     }
 
     console.log('Found accounts:', accounts.length);
@@ -771,29 +839,33 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
       });
     }
 
-    // Look for the LOCATION_GROUP account (CliniMedia)
-    const groupAccount = accounts.find(acc => 
-      acc.type === 'LOCATION_GROUP' && 
-      (acc.accountName === 'CliniMedia' || acc.displayName === 'CliniMedia')
-    );
+    // Look for the LOCATION_GROUP account (CliniMedia) - case-insensitive
+    const groupNameLower = 'clinimedia';
+    const groupAccount = accounts.find(acc => {
+      if (acc.type !== 'LOCATION_GROUP') return false;
+      const accountName = (acc.accountName || '').toLowerCase();
+      const displayName = (acc.displayName || '').toLowerCase();
+      return accountName === groupNameLower || displayName === groupNameLower;
+    });
 
     if (!groupAccount) {
-      console.log('No LOCATION_GROUP found. Available accounts:', accounts.map(acc => ({
+      const accountDetails = accounts.map(acc => ({
         name: acc.name,
         accountName: acc.accountName,
         displayName: acc.displayName,
         type: acc.type
-      })));
-      return res.status(400).json({ 
+      }));
+      console.log('No LOCATION_GROUP named CliniMedia found. Available accounts:', accountDetails);
+      const locationGroups = accounts.filter(acc => acc.type === 'LOCATION_GROUP');
+      const groupNames = locationGroups.map(acc => acc.accountName || acc.displayName || acc.name).filter(Boolean);
+      return res.status(400).json({
         error: 'CliniMedia group not found. Please ensure the group exists and info@clinimedia.ca is a manager.',
+        details: groupNames.length > 0
+          ? `Found location group(s): ${groupNames.join(', ')}. Your group name must match "CliniMedia" (case-insensitive).`
+          : `Google returned ${accounts.length} account(s) but no LOCATION_GROUP. Check that info@clinimedia.ca has a Business Profile location group.`,
         debug: {
           accountsFound: accounts.length,
-          accountDetails: accounts.map(acc => ({
-            name: acc.name,
-            accountName: acc.accountName,
-            displayName: acc.displayName,
-            type: acc.type
-          }))
+          accountDetails
         }
       });
     }
@@ -868,9 +940,10 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
         code: locationError?.code
       });
       
-      return res.status(500).json({ 
+      const userMessage = locationError?.response?.data?.error?.message || locationError.message;
+      return res.status(500).json({
         error: 'Failed to fetch locations from CliniMedia group',
-        details: locationError.message,
+        details: userMessage,
         debug: {
           errors: locationError?.errors,
           response: locationError?.response?.data,
@@ -899,15 +972,13 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
 
     res.json({ businessProfiles });
   } catch (error) {
-    console.error('Admin business profiles fetch error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      status: error.status
-    });
-    res.status(500).json({ 
+    const details = error.response?.data?.error?.message || error.message;
+    console.error('Admin business profiles fetch error:', error.message);
+    console.error('Error details:', { message: error.message, code: error.code, status: error.response?.status, data: error.response?.data });
+    res.status(500).json({
       error: 'Failed to fetch business profiles',
-      details: error.message 
+      details: details,
+      hint: 'Works on localhost but not production? Check Railway env: GOOGLE_BUSINESS_CLIENT_ID and GOOGLE_BUSINESS_CLIENT_SECRET must match local .env exactly.'
     });
   }
 });
@@ -915,15 +986,23 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
 // GET /api/google-business/admin-connection-status - Check if admin Google Business Profile is connected
 router.get('/admin-connection-status', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    const adminUser = await User.findOne({ role: 'admin' });
-    
-    if (!adminUser) {
-      return res.json({ 
-        connected: false, 
-        message: 'Admin user not found' 
+    // If this server (e.g. production) has no Google Business credentials, we cannot use tokens here
+    if (!process.env.GOOGLE_BUSINESS_CLIENT_ID || !process.env.GOOGLE_BUSINESS_CLIENT_SECRET) {
+      return res.json({
+        connected: false,
+        message: 'Google Business not configured on this server (missing CLIENT_ID or CLIENT_SECRET). Set them on production to match localhost.'
       });
     }
-    
+
+    const adminUser = await User.findOne({ role: 'admin' });
+
+    if (!adminUser) {
+      return res.json({
+        connected: false,
+        message: 'Admin user not found'
+      });
+    }
+
     // Check if admin has valid tokens
     const hasAccessToken = !!adminUser.googleBusinessAccessToken;
     const hasRefreshToken = !!adminUser.googleBusinessRefreshToken;

@@ -268,6 +268,25 @@ class EmailService {
     );
   }
 
+  static async sendConcernNotification(clinicName, patientName, patientContact, concernText, adminEmail) {
+    const content = `
+      <p>Hi,</p>
+      <p>A patient has submitted a concern through the QR Review page for <strong>${clinicName}</strong>.</p>
+      <p><strong>Patient Name:</strong> ${patientName || 'Not provided'}<br/>
+      <strong>Contact:</strong> ${patientContact || 'Not provided'}</p>
+      <p><strong>Concern:</strong></p>
+      <p style="background: #f5f5f5; padding: 12px; border-left: 3px solid #98c6d5; margin: 8px 0;">${concernText}</p>
+      <p>Please follow up with the patient at your earliest convenience.</p>
+    `;
+
+    await EmailService.sendEmail(
+      `Patient Concern - ${clinicName}`,
+      content,
+      adminEmail,
+      'Failed to send concern notification email:'
+    );
+  }
+
   static async sendNewContentNotification(customerName, customerEmail, contentType, contentLink, contentName = '') {
     const content = `
       <p>Hi ${customerName},</p>
