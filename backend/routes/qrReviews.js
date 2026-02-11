@@ -289,7 +289,8 @@ router.get('/campaigns/:id/qr-code', authenticateToken, authorizeRole(['admin'])
 
     const format = req.query.format || 'png';
     const size = parseInt(req.query.size) || 300;
-    const url = `https://www.clinimediaportal.ca/r/${campaign.slug}`;
+    const baseUrl = process.env.FRONTEND_URL || 'https://www.clinimediaportal.ca';
+    const url = `${baseUrl.replace(/\/$/, '')}/r/${campaign.slug}`;
 
     if (format === 'svg') {
       const svgString = await QRCode.toString(url, { type: 'svg', width: size });
