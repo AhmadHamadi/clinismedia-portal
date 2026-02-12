@@ -1824,8 +1824,12 @@ router.post('/voice/voicemail-status', async (req, res) => {
     console.log(`📹 Voicemail recording status: CallSid=${CallSid}, Status=${RecordingStatus}, Duration=${RecordingDuration}`);
     
     if (RecordingStatus === 'completed' && RecordingSid && CallSid) {
-      // Get existing call log to check status
+      // Get existing call log (must exist - created when call came in via /voice/incoming)
       const existingLog = await CallLog.findOne({ callSid: CallSid });
+      if (!existingLog) {
+        console.warn(`⚠️ Voicemail-status: No call log found for CallSid=${CallSid}; cannot attach voicemail.`);
+        return res.status(200).send('OK');
+      }
       
       // CRITICAL: Check if call has a recording - if so, it was DEFINITELY answered
       // We use record="record-from-answer" in TwiML, which means recordings ONLY happen when the call is answered
