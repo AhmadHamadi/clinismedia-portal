@@ -7,6 +7,7 @@ import DatePicker from 'react-multi-date-picker';
 interface MetaLead {
   _id: string;
   emailSubject: string;
+  campaignName?: string | null;
   leadInfo: {
     name?: string;
     email?: string;
@@ -675,6 +676,9 @@ const MetaLeadsPage: React.FC = () => {
                       Lead Info
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[180px]">
+                      Campaign
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[180px]">
                       Status & Timestamps
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
@@ -702,7 +706,7 @@ const MetaLeadsPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col space-y-2">
-                          {lead.leadInfo.name ? (
+                          {lead.leadInfo?.name ? (
                             <div className="flex items-center">
                               <FaUser className="text-gray-400 mr-2 text-sm" />
                               <span className="text-sm text-gray-900 font-semibold">{lead.leadInfo.name}</span>
@@ -713,7 +717,7 @@ const MetaLeadsPage: React.FC = () => {
                               <span className="text-sm text-gray-400 italic">No name</span>
                             </div>
                           )}
-                          {lead.leadInfo.phone ? (
+                          {lead.leadInfo?.phone ? (
                             <div className="flex items-center">
                               <FaPhone className="text-gray-400 mr-2 text-sm" />
                               <span className="text-sm text-gray-900 font-mono">{lead.leadInfo.phone}</span>
@@ -724,7 +728,7 @@ const MetaLeadsPage: React.FC = () => {
                               <span className="text-sm text-gray-400 italic">No phone</span>
                             </div>
                           )}
-                          {lead.leadInfo.email ? (
+                          {lead.leadInfo?.email ? (
                             <div className="flex items-center">
                               <FaEnvelope className="text-gray-400 mr-2 text-sm" />
                               <span className="text-sm text-gray-900 truncate max-w-[280px]">{lead.leadInfo.email}</span>
@@ -735,12 +739,27 @@ const MetaLeadsPage: React.FC = () => {
                               <span className="text-sm text-gray-400 italic">No email</span>
                             </div>
                           )}
-                          {lead.leadInfo.fields?.city && (
+                          {lead.leadInfo?.fields?.city && (
                             <div className="flex items-center mt-1">
                               <FaMapMarkerAlt className="text-gray-400 mr-2 text-sm" />
                               <span className="text-sm text-gray-600">{lead.leadInfo.fields.city}</span>
                             </div>
                           )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <div className="max-w-[180px]">
+                          {(() => {
+                            const campaign = lead.campaignName ?? lead.leadInfo?.fields?.['campaign name'];
+                            const hasCampaign = typeof campaign === 'string' && campaign.trim() !== '';
+                            return hasCampaign ? (
+                              <span className="text-xs text-gray-700 break-words" title={campaign.trim()}>
+                                {campaign.trim()}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">—</span>
+                            );
+                          })()}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -851,6 +870,18 @@ const MetaLeadsPage: React.FC = () => {
                 <FaTimes className="text-xl" />
               </button>
             </div>
+
+            {/* Campaign Name */}
+            {(() => {
+              const campaign = selectedLead.campaignName ?? selectedLead.leadInfo?.fields?.['campaign name'];
+              const hasCampaign = typeof campaign === 'string' && campaign.trim() !== '';
+              return hasCampaign ? (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-1">Campaign Name</h3>
+                  <p className="text-base text-gray-900 font-medium break-words">{campaign.trim()}</p>
+                </div>
+              ) : null;
+            })()}
 
             {/* Status Section - Bigger */}
             {!editContactStatus && selectedLead.status !== 'new' && (

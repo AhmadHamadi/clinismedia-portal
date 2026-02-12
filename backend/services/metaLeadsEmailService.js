@@ -100,6 +100,7 @@ class MetaLeadsEmailService {
       phone: null,
       message: null,
       rawContent: null,
+      campaignName: null,
       fields: {}
     };
 
@@ -206,8 +207,8 @@ class MetaLeadsEmailService {
             // Store in fields object
             leadInfo.fields[key] = value;
             
-            // Map to specific fields if not already set
-            if (key.includes('full name') || (key.includes('name') && !key.includes('email') && !key.includes('phone'))) {
+            // Map to specific fields if not already set (exclude 'campaign name' from mapping to lead name)
+            if (key.includes('full name') || (key.includes('name') && !key.includes('email') && !key.includes('phone') && !key.includes('campaign'))) {
               if (!leadInfo.name) leadInfo.name = value;
             }
             if (key.includes('email')) {
@@ -222,6 +223,10 @@ class MetaLeadsEmailService {
             }
             if (key.includes('address')) {
               leadInfo.fields.address = value;
+            }
+            if (key.includes('campaign')) {
+              const trimmed = value.trim();
+              leadInfo.campaignName = trimmed || null;
             }
             if (key.includes('message') || key.includes('comments') || key.includes('notes')) {
               if (!leadInfo.message || leadInfo.message.length < value.length) {
@@ -458,6 +463,7 @@ class MetaLeadsEmailService {
       const lead = new MetaLead({
         customerId: customer._id,
         emailSubject: subject,
+        campaignName: (leadInfo.campaignName && leadInfo.campaignName.trim()) ? leadInfo.campaignName.trim() : null,
         leadInfo: {
           name: leadInfo.name || null,
           email: leadInfo.email || null,
