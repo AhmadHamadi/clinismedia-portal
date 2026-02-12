@@ -275,6 +275,11 @@ class MetaLeadsEmailService {
         if (jsonData.phone && !leadInfo.phone) leadInfo.phone = jsonData.phone;
         if (jsonData.phoneNumber && !leadInfo.phone) leadInfo.phone = jsonData.phoneNumber;
         if (jsonData.city) leadInfo.fields.city = jsonData.city;
+        const jsonCampaign = jsonData.campaignName || jsonData.campaign_name || jsonData['campaign name'];
+        if (jsonCampaign && typeof jsonCampaign === 'string') {
+          const t = jsonCampaign.trim();
+          if (t) leadInfo.campaignName = t;
+        }
       }
     } catch (e) {
       // Not JSON, that's fine - we already parsed key-value pairs
