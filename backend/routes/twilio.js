@@ -1670,7 +1670,8 @@ router.get('/voice/voicemail', async (req, res) => {
   // only <Hangup/> with 200 so the customer hears NOTHING. Do this first, before any async work.
   const rawStatus = (req.query.DialCallStatus || '').trim();
   const status = rawStatus.toLowerCase();
-  if (status === 'completed' || status === 'answered') {
+  const callWasConnected = ['completed', 'answered', 'connected'].includes(status);
+  if (callWasConnected) {
     console.log(`✅ Dial ended (DialCallStatus: ${rawStatus}) - returning silent Hangup, no message to caller`);
     res.type('text/xml');
     res.status(200);
