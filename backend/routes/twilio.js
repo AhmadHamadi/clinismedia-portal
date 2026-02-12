@@ -28,6 +28,33 @@ const VALID_TWILIO_VOICES = [
   TTS_VOICE
 ];
 
+// Caller ID: Twilio sends non-number values when caller blocks ID (e.g. anonymous, restricted, private).
+// Use this for display so the portal shows "Unknown number" instead of raw value.
+const UNKNOWN_CALLER_ID_VALUES = ['anonymous', 'restricted', 'private', 'unknown', 'blocked', 'unavailable'];
+function isUnknownCallerId(from) {
+  if (!from || typeof from !== 'string') return true;
+  const normalized = from.trim().toLowerCase();
+  if (UNKNOWN_CALLER_ID_VALUES.includes(normalized)) return true;
+  // Not a phone number (no significant digits) = treat as unknown
+  const digits = from.replace(/\D/g, '');
+  return digits.length < 10;
+}
+function getFromDisplay(from) {
+  return isUnknownCallerId(from) ? 'Unknown number' : from;
+}
+
+// Escape text for safe use inside TwiML (Say content and attributes)
+// Prevents "application error has occurred" when clinic name or menu message contains &, <, >, etc.
+function escapeTwiML(text) {
+  if (text == null || typeof text !== 'string') return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 // Voice validation function - ensures only valid voices are used
 const validateAndGetVoice = (requestedVoice) => {
   if (!requestedVoice) {
@@ -1165,12 +1192,11 @@ router.post('/voice/incoming', async (req, res) => {
     console.log(`[VOICE DEBUG] Clinic.twilioVoice: ${clinic.twilioVoice || 'null'} | Requested: ${requestedVoice} | Validated: ${voice}`);
     
     // Helper function to generate Say verb with proper voice attributes
+    // escapeTwiML prevents invalid XML when clinic name or menu message contains &, <, >, etc.
     const generateSayVerb = (text, voiceSetting = voice) => {
-      // Twilio requires language attribute for all voices (per official docs)
-      // FORCE the voice to be our constant - never trust the parameter
       const finalVoice = TTS_VOICE;
-      console.log(`[VOICE DEBUG] generateSayVerb called with: "${voiceSetting}" → using: "${finalVoice}"`);
-      return `<Say voice="${finalVoice}" language="en-US">${text}</Say>`;
+      const safeText = escapeTwiML(String(text));
+      return `<Say voice="${finalVoice}" language="en-US">${safeText}</Say>`;
     };
     
     // Get custom menu message or use default with clinic name
@@ -1203,11 +1229,15 @@ router.post('/voice/incoming', async (req, res) => {
       console.log(`   Menu choice: ${Digits} (${Digits === '1' ? 'New Patient' : 'Existing Patient'})`);
     }
     console.log(`   Forwarding to: ${forwardNumber}`);
+    // Caller ID: we do NOT set callerId on <Dial>. Twilio default = inbound caller's ID, so clinic sees
+    // patient's number when available, or Private/Unknown when patient blocks ID. Never override = can't mess up.
+    console.log(`   Caller ID: From="${From}" (stored in CallLog); Dial=no callerId (Twilio default: clinic sees patient number or Private/Unknown)`);
     
     let twiML;
     
     // Create or update call log entry (always, if CallSid exists)
     if (CallSid) {
+      // Store From exactly as Twilio sent it (e.g. +1..., or "anonymous" when caller blocks ID) for logs/reporting
       const logData = {
         customerId: clinic._id,
         twilioPhoneNumber: To,
@@ -1270,7 +1300,7 @@ router.post('/voice/incoming', async (req, res) => {
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial callerId="${To}" timeout="30" action="${voicemailCallback}" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial timeout="30" action="${voicemailCallback}" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1279,7 +1309,7 @@ router.post('/voice/incoming', async (req, res) => {
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial callerId="${To}" timeout="30" action="${voicemailCallback}" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial timeout="30" action="${voicemailCallback}" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1325,7 +1355,7 @@ router.post('/voice/incoming', async (req, res) => {
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial callerId="${To}" timeout="30" action="${voicemailCallback}" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial timeout="30" action="${voicemailCallback}" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1334,7 +1364,7 @@ router.post('/voice/incoming', async (req, res) => {
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial callerId="${To}" timeout="30" action="${voicemailCallback}" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial timeout="30" action="${voicemailCallback}" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1348,26 +1378,17 @@ router.post('/voice/incoming', async (req, res) => {
     console.log(`📤 TwiML Response sent:`);
     console.log(twiML);
   } catch (error) {
-    // Catch any unexpected errors and return proper TwiML
+    // Catch any unexpected errors and return proper TwiML (200 so Twilio doesn't play its generic "application error")
     console.error('❌ Error handling incoming call:', error);
     console.error('   Error stack:', error.stack);
     console.error('   Error message:', error.message);
-    // Try to get clinic for voice setting, but if error occurred before clinic lookup, use default
-    const errorVoice = validateAndGetVoice(TTS_VOICE);
-    const generateSayVerb = (text, voiceSetting = errorVoice) => {
-      // Twilio requires language attribute for all voices (per official docs)
-      // FORCE the voice to be our constant - never trust the parameter
-      const finalVoice = TTS_VOICE;
-      console.log(`[VOICE DEBUG] Error handler generateSayVerb: "${voiceSetting}" → using: "${finalVoice}"`);
-      return `<Say voice="${finalVoice}" language="en-US">${text}</Say>`;
-    };
     const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  ${generateSayVerb('Sorry, an error occurred while processing your call. Please try again later.')}
+  <Say voice="${TTS_VOICE}" language="en-US">Sorry, an error occurred while processing your call. Please try again later.</Say>
   <Hangup/>
 </Response>`;
     res.type('text/xml');
-    res.status(500).send(errorTwiML);
+    res.status(200).send(errorTwiML);
   }
 });
 
@@ -2557,6 +2578,7 @@ router.get('/call-logs', authenticateToken, authorizeRole(['customer', 'receptio
       id: log._id,
       callSid: log.callSid,
       from: log.from,
+      fromDisplay: getFromDisplay(log.from), // "Unknown number" when caller blocks ID; otherwise actual number
       to: log.to,
       status: log.status,
       duration: log.duration, // in seconds

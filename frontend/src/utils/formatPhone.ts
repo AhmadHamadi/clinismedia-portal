@@ -1,11 +1,18 @@
+/** Values Twilio may send when caller blocks ID; show as "Unknown number". */
+const UNKNOWN_CALLER_VALUES = ['anonymous', 'restricted', 'private', 'unknown', 'blocked', 'unavailable'];
+
 /**
  * Format phone for display: space after country code, dashes every 3 digits.
  * e.g. +19057451970 → +1 905-745-1970
+ * When caller blocks ID (anonymous/restricted/private), returns "Unknown number".
  */
 export function formatPhoneDisplay(phone: string): string {
-  if (!phone || typeof phone !== 'string') return phone;
+  if (phone == null || typeof phone !== 'string') return 'Unknown number';
   const s = phone.trim();
+  if (!s) return 'Unknown number';
+  if (UNKNOWN_CALLER_VALUES.includes(s.toLowerCase())) return 'Unknown number';
   const digits = s.replace(/\D/g, '');
+  if (digits.length < 10) return 'Unknown number'; // not a valid phone number
   const hasPlus = s.startsWith('+');
 
   // North American: +1 and 10 digits → +1 XXX-XXX-XXXX

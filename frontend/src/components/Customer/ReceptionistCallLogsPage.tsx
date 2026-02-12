@@ -9,6 +9,7 @@ interface CallLogRow {
   id: string;
   callSid: string;
   from: string;
+  fromDisplay?: string;
   to: string;
   status: string;
   duration: number;
@@ -377,7 +378,7 @@ const ReceptionistCallLogsPage: React.FC = () => {
                         <span className="text-base font-medium text-gray-900">{formatDate(log.startedAt)}</span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap bg-blue-50/50">
-                        <span className="text-xl font-bold font-mono text-gray-900 tracking-wide" style={{ letterSpacing: '0.05em' }}>{formatPhoneDisplay(log.from)}</span>
+                        <span className="text-xl font-bold font-mono text-gray-900 tracking-wide" style={{ letterSpacing: '0.05em' }}>{log.fromDisplay ?? formatPhoneDisplay(log.from)}</span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
