@@ -10,6 +10,7 @@ interface CallLogRow {
   callSid: string;
   from: string;
   fromDisplay?: string;
+  callerName?: string | null;
   to: string;
   status: string;
   duration: number;
@@ -367,6 +368,7 @@ const ReceptionistCallLogsPage: React.FC = () => {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date & time</th>
                     <th className="px-4 py-3 text-left text-sm font-bold text-gray-800 uppercase tracking-wider">Phone number</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Duration</th>
                   </tr>
@@ -379,6 +381,13 @@ const ReceptionistCallLogsPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap bg-blue-50/50">
                         <span className="text-xl font-bold font-mono text-gray-900 tracking-wide" style={{ letterSpacing: '0.05em' }}>{log.fromDisplay ?? formatPhoneDisplay(log.from)}</span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {log.callerName ? (
+                          <span className="text-sm font-medium text-gray-900">{log.callerName}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
