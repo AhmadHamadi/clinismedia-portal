@@ -428,6 +428,31 @@ class MetaLeadsEmailService {
       // Parse lead information (will return null values for missing fields)
       const leadInfo = this.parseLeadInfo(parsed, subject);
 
+      // Fallback dedupe: same customer + same email or phone + same day = treat as duplicate (avoid double leads from same person)
+      const emailNorm = leadInfo.email ? leadInfo.email.trim().toLowerCase() : null;
+      const phoneNorm = leadInfo.phone ? leadInfo.phone.replace(/\D/g, '').trim() : null;
+      if (emailNorm || phoneNorm) {
+        const dayStart = new Date(date);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(date);
+        dayEnd.setHours(23, 59, 59, 999);
+        const sameDayQuery = {
+          customerId: customer._id,
+          emailDate: { $gte: dayStart, $lte: dayEnd }
+        };
+        const existingSameDay = await MetaLead.find(sameDayQuery).lean();
+        for (const existing of existingSameDay) {
+          const exEmail = (existing.leadInfo && existing.leadInfo.email) ? existing.leadInfo.email.trim().toLowerCase() : null;
+          const exPhone = (existing.leadInfo && existing.leadInfo.phone) ? String(existing.leadInfo.phone).replace(/\D/g, '').trim() : null;
+          if (emailNorm && exEmail === emailNorm) {
+            return await MetaLead.findById(existing._id);
+          }
+          if (phoneNorm && exPhone && phoneNorm === exPhone) {
+            return await MetaLead.findById(existing._id);
+          }
+        }
+      }
+
       // Always create lead even if no information extracted (subject match is enough)
       // This ensures we track all leads regardless of email body content
       const lead = new MetaLead({
