@@ -1672,24 +1672,21 @@ router.get('/voice/voicemail', async (req, res) => {
     
     console.log(`📞 Voicemail triggered for CallSid: ${CallSid}, DialCallStatus: ${DialCallStatus}, DialCallDuration: ${DialCallDuration}`);
     
-    // CRITICAL: If voicemail is triggered, the call was NOT answered by a person
-    // Voicemail only triggers when Dial times out (no answer) or is not answered
-    // Even if DialCallStatus is 'completed' with duration > 0, if we're in voicemail, it means no one answered
-    
-    // Check if the call was actually answered BEFORE voicemail was triggered
-    // Only if DialCallStatus is explicitly 'answered' should we skip voicemail
+    // When the clinic hangs up, Twilio calls this action URL with DialCallStatus=completed (not "answered").
+    // We must return silent <Hangup/> so the caller hears nothing—no voicemail prompt, no error message.
     const dialDuration = DialCallDuration ? parseInt(DialCallDuration) : 0;
     const wasActuallyAnswered = DialCallStatus === 'answered';
-    
-    if (wasActuallyAnswered) {
-      // Call was actually answered - clinic ended the call, patient should not hear voicemail prompt
-      console.log(`✅ Call was actually answered (DialCallStatus: ${DialCallStatus}) - silently hanging up`);
+    const completedAfterAnswer = DialCallStatus === 'completed' && dialDuration > 0;
+
+    if (wasActuallyAnswered || completedAfterAnswer) {
+      // Call was answered (or completed after being answered—clinic hung up). Hang up silently.
+      console.log(`✅ Call ended (DialCallStatus: ${DialCallStatus}, duration: ${dialDuration}s) - silently hanging up, no message to caller`);
       const silentHangup = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Hangup/>
 </Response>`;
       res.type('text/xml');
-      return res.send(silentHangup);
+      return res.status(200).send(silentHangup);
     }
     
     // Call was NOT answered - proceed with voicemail prompt
@@ -1781,8 +1778,9 @@ router.get('/voice/voicemail', async (req, res) => {
     res.send(twiML);
   } catch (error) {
     console.error('❌ Error handling voicemail request:', error);
+    // Return 200 with Hangup so Twilio does NOT play "application error has occurred" to the caller
     res.type('text/xml');
-    res.status(500).send(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`);
+    res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`);
   }
 });
 
