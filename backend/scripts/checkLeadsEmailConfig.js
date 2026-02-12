@@ -10,7 +10,7 @@ async function checkLeadsEmailConfig() {
   try {
     console.log('🔍 Checking Leads Email IMAP Configuration...\n');
 
-    // Get configuration (same as metaLeadsEmailService)
+    // Same as metaLeadsEmailService: default leads@clinimedia.ca, password from EMAIL_PASS
     const leadsEmailUser = process.env.LEADS_EMAIL_USER || 'leads@clinimedia.ca';
     const leadsEmailPass = process.env.LEADS_EMAIL_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
     const leadsEmailHost = process.env.LEADS_EMAIL_HOST || process.env.EMAIL_HOST || 'mail.clinimedia.ca';

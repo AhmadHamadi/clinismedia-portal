@@ -15,11 +15,7 @@ require('dotenv').config();
 
 class MetaLeadsEmailService {
   constructor() {
-    // IMAP configuration for leads@clinimedia.ca (same mailbox as cPanel webmail)
-    // Uses same password as notifications email (EMAIL_PASS or EMAIL_PASSWORD)
-    // Uses same host as notifications email (EMAIL_HOST)
-    // But uses different user: leads@clinimedia.ca (vs notifications@clinimedia.ca)
-    // And uses IMAP port 993 (vs SMTP port 465)
+    // Leads inbox: default leads@clinimedia.ca, password from EMAIL_PASS. Override with LEADS_EMAIL_* in .env if needed.
     const leadsEmailUser = process.env.LEADS_EMAIL_USER || 'leads@clinimedia.ca';
     const leadsEmailPass = process.env.LEADS_EMAIL_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
     const leadsEmailHost = process.env.LEADS_EMAIL_HOST || process.env.EMAIL_HOST || 'mail.clinimedia.ca';
@@ -65,6 +61,7 @@ class MetaLeadsEmailService {
       this.imap = new Imap(this.imapConfig);
 
       this.imap.once('ready', () => {
+        console.log(`[Meta Leads] Connected to ${this.imapConfig.user} (IMAP). Checking for new lead emails...`);
         resolve(this.imap);
       });
 
@@ -426,6 +423,19 @@ class MetaLeadsEmailService {
   }
 
   /**
+   * Test which customer would get a lead for a given subject (for admin debugging).
+   * Returns { customer, normalizedSubject } or { normalizedSubject, match: false }.
+   */
+  async testSubjectMatch(subject) {
+    const normalized = this.normalizeSubject(subject || '');
+    const customer = await this.findCustomerBySubject(subject || '');
+    if (customer) {
+      return { match: true, normalizedSubject: normalized, customerId: customer._id, customerName: customer.name, customerEmail: customer.email };
+    }
+    return { match: false, normalizedSubject: normalized };
+  }
+
+  /**
    * Process a single email
    * @param {Buffer} email - Raw email buffer
    * @param {Object} [folderCustomer] - If set, customer from folder mapping (folder-based assignment); else we use subject
@@ -444,6 +454,7 @@ class MetaLeadsEmailService {
       const customer = folderCustomer || await this.findCustomerBySubject(subject);
 
       if (!customer) {
+        // Logged in findCustomerBySubject; return null so caller can track no-mapping count
         return null;
       }
 
@@ -675,7 +686,13 @@ class MetaLeadsEmailService {
           const processFolders = async (index = 0) => {
             try {
               if (index >= folderNames.length) {
-                // All folders processed
+                // All folders processed - log summary so admin can see if leads are being picked up
+                const msg = `[Meta Leads] Check done: ${result.emailsFound} email(s) found, ${result.leadsCreated} lead(s) created.`;
+                if (result.errors.length) {
+                  console.warn(msg, 'Errors:', result.errors);
+                } else {
+                  console.log(msg);
+                }
                 this.disconnect().finally(() => {
                   this.isChecking = false;
                   resolve(result);
@@ -701,7 +718,7 @@ class MetaLeadsEmailService {
           processFolders();
         });
       } catch (error) {
-        console.error('Error checking emails:', error);
+        console.error('[Meta Leads] Connection or check failed:', error.message);
         result.errors.push(`Error checking emails: ${error.message}`);
         this.disconnect().finally(() => {
           this.isChecking = false;

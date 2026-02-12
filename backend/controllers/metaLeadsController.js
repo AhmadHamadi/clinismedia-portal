@@ -3,6 +3,15 @@ const MetaLeadSubjectMapping = require('../models/MetaLeadSubjectMapping');
 const MetaLeadFolderMapping = require('../models/MetaLeadFolderMapping');
 const User = require('../models/User');
 
+/** Normalize subject the same way as metaLeadsEmailService (collapse whitespace) so stored mappings match incoming Facebook emails */
+function normalizeSubjectForMapping(subject) {
+  if (!subject || typeof subject !== 'string') return '';
+  return subject
+    .replace(/\r\n|\r|\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 class MetaLeadsController {
   /**
    * Get all leads for a customer (customer view)
@@ -379,16 +388,28 @@ class MetaLeadsController {
         return res.status(404).json({ message: 'Customer not found' });
       }
 
-      // Check if mapping already exists
-      const existing = await MetaLeadSubjectMapping.findOne({ emailSubject });
+      // Normalize subject same as incoming emails so matching works (Facebook may send different whitespace)
+      const normalizedSubject = normalizeSubjectForMapping(emailSubject);
+      if (!normalizedSubject) {
+        return res.status(400).json({ message: 'Email subject is required and cannot be blank' });
+      }
+      const subjectLower = normalizedSubject.toLowerCase();
+
+      // Check if mapping already exists (by normalized or lower)
+      const existing = await MetaLeadSubjectMapping.findOne({
+        $or: [
+          { emailSubject: normalizedSubject },
+          { emailSubjectLower: subjectLower }
+        ]
+      });
       if (existing) {
-        return res.status(400).json({ message: 'Subject mapping already exists' });
+        return res.status(400).json({ message: 'Subject mapping already exists for this subject' });
       }
 
       const mapping = new MetaLeadSubjectMapping({
         customerId,
-        emailSubject: emailSubject.trim(),
-        emailSubjectLower: emailSubject.trim().toLowerCase(),
+        emailSubject: normalizedSubject,
+        emailSubjectLower: subjectLower,
         notes: notes || null
       });
 
@@ -425,15 +446,26 @@ class MetaLeadsController {
       }
 
       if (emailSubject !== undefined) {
-        // Check if new subject already exists
-        if (emailSubject !== mapping.emailSubject) {
-          const existing = await MetaLeadSubjectMapping.findOne({ emailSubject });
+        const normalizedSubject = normalizeSubjectForMapping(emailSubject);
+        if (!normalizedSubject) {
+          return res.status(400).json({ message: 'Email subject cannot be blank' });
+        }
+        const subjectLower = normalizedSubject.toLowerCase();
+        // Check if new subject already exists (by normalized or lower)
+        if (normalizedSubject !== mapping.emailSubject && subjectLower !== (mapping.emailSubjectLower || '')) {
+          const existing = await MetaLeadSubjectMapping.findOne({
+            $or: [
+              { emailSubject: normalizedSubject },
+              { emailSubjectLower: subjectLower }
+            ],
+            _id: { $ne: mappingId }
+          });
           if (existing) {
-            return res.status(400).json({ message: 'Subject mapping already exists' });
+            return res.status(400).json({ message: 'Subject mapping already exists for this subject' });
           }
         }
-        mapping.emailSubject = emailSubject.trim();
-        mapping.emailSubjectLower = emailSubject.trim().toLowerCase();
+        mapping.emailSubject = normalizedSubject;
+        mapping.emailSubjectLower = subjectLower;
       }
 
       if (isActive !== undefined) {
@@ -594,6 +626,25 @@ class MetaLeadsController {
     } catch (error) {
       console.error('Error deleting folder mapping:', error);
       res.status(500).json({ message: 'Failed to delete folder mapping', error: error.message });
+    }
+  }
+
+  /**
+   * Test which clinic would get a lead for a given subject line (admin debug).
+   * GET /admin/test-subject?subject=...
+   */
+  static async testSubject(req, res) {
+    try {
+      const { subject } = req.query;
+      if (!subject || typeof subject !== 'string') {
+        return res.status(400).json({ message: 'Query parameter "subject" is required' });
+      }
+      const metaLeadsEmailService = require('../services/metaLeadsEmailService');
+      const result = await metaLeadsEmailService.testSubjectMatch(subject);
+      res.json(result);
+    } catch (error) {
+      console.error('Error testing subject:', error);
+      res.status(500).json({ message: 'Failed to test subject', error: error.message });
     }
   }
 

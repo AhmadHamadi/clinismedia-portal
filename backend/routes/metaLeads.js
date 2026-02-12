@@ -42,6 +42,9 @@ router.patch('/admin/subject-mappings/:mappingId', authenticateToken, authorizeR
 // Delete subject mapping (admin)
 router.delete('/admin/subject-mappings/:mappingId', authenticateToken, authorizeRole(['admin']), MetaLeadsController.deleteSubjectMapping);
 
+// Test subject line → clinic (admin debug)
+router.get('/admin/test-subject', authenticateToken, authorizeRole(['admin']), MetaLeadsController.testSubject);
+
 // Manually trigger email check (admin)
 router.post('/admin/check-emails', authenticateToken, authorizeRole(['admin']), MetaLeadsController.triggerEmailCheck);
 

@@ -57,6 +57,9 @@ const MetaLeadsManagementPage: React.FC = () => {
     isActive: true
   });
   const [checkingEmails, setCheckingEmails] = useState(false);
+  const [testSubjectInput, setTestSubjectInput] = useState('');
+  const [testSubjectResult, setTestSubjectResult] = useState<{ match: boolean; normalizedSubject?: string; customerName?: string; customerEmail?: string } | null>(null);
+  const [testingSubject, setTestingSubject] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -232,18 +235,45 @@ const MetaLeadsManagementPage: React.FC = () => {
       const token = localStorage.getItem('adminToken');
       if (!token) return;
 
-      await axios.post(
+      const res = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/check-emails`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      alert('Email check triggered successfully');
+      const result = res.data?.result || {};
+      const msg = result.errors?.length
+        ? `Check finished with errors: ${result.errors.join('; ')}. Emails found: ${result.emailsFound}, leads created: ${result.leadsCreated}.`
+        : `Check done: ${result.emailsFound} email(s) found, ${result.leadsCreated} lead(s) created.`;
+      alert(msg);
     } catch (error: any) {
       console.error('Failed to trigger email check:', error);
       alert(error.response?.data?.message || 'Failed to trigger email check');
     } finally {
       setCheckingEmails(false);
+    }
+  };
+
+  const handleTestSubject = async () => {
+    const subject = testSubjectInput.trim();
+    if (!subject) {
+      alert('Enter a subject line to test');
+      return;
+    }
+    setTestingSubject(true);
+    setTestSubjectResult(null);
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) return;
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/test-subject`,
+        { params: { subject }, headers: { Authorization: `Bearer ${token}` } }
+      );
+      setTestSubjectResult(res.data);
+    } catch (error: any) {
+      setTestSubjectResult({ match: false, normalizedSubject: subject });
+      alert(error.response?.data?.message || 'Failed to test subject');
+    } finally {
+      setTestingSubject(false);
     }
   };
 
@@ -270,7 +300,37 @@ const MetaLeadsManagementPage: React.FC = () => {
               <p className="text-gray-600">Assign email subject mappings to clinics for Facebook lead tracking</p>
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Test subject line (paste from a real lead email)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={testSubjectInput}
+                  onChange={(e) => setTestSubjectInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleTestSubject()}
+                  placeholder="e.g. CliniMedia - Burlington Dental Leads"
+                  className="px-3 py-2 border border-gray-300 rounded-lg min-w-[280px] text-gray-900"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestSubject}
+                  disabled={testingSubject || !testSubjectInput.trim()}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 disabled:opacity-50"
+                >
+                  {testingSubject ? <FaSpinner className="animate-spin" /> : 'Test'}
+                </button>
+              </div>
+              {testSubjectResult && (
+                <div className={`text-sm mt-1 px-2 py-1 rounded ${testSubjectResult.match ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                  {testSubjectResult.match ? (
+                    <>→ Matches clinic: <strong>{testSubjectResult.customerName}</strong> ({testSubjectResult.customerEmail})</>
+                  ) : (
+                    <>→ No mapping for this subject. Add a subject mapping that matches: &quot;{testSubjectResult.normalizedSubject || testSubjectInput}&quot;</>
+                  )}
+                </div>
+              )}
+            </div>
             <button
               onClick={handleTriggerEmailCheck}
               disabled={checkingEmails}
