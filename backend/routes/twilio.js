@@ -1786,13 +1786,34 @@ router.get('/voice/voicemail', async (req, res) => {
 
 // POST /api/twilio/voice/voicemail - Twilio defaults to POST for Dial action URL. We set method="GET" on <Dial> so new calls use GET; this handles any POST (e.g. in-flight calls or older config).
 router.post('/voice/voicemail', (req, res) => {
-  const rawStatus = getDialCallStatus(req);
-  const status = rawStatus.toLowerCase();
-  const callWasConnected = ['completed', 'answered', 'connected'].includes(status);
-  console.log(`📞 Voicemail POST received (DialCallStatus: ${rawStatus}) - returning silent Hangup${callWasConnected ? ' (call was connected)' : ''}`);
+  try {
+    const rawStatus = getDialCallStatus(req);
+    const status = (rawStatus && rawStatus.toLowerCase()) || '';
+    const callWasConnected = ['completed', 'answered', 'connected'].includes(status);
+    console.log(`📞 Voicemail POST received (DialCallStatus: ${rawStatus || '(empty)'}) - returning silent Hangup${callWasConnected ? ' (call was connected)' : ''}`);
+  } catch (e) {
+    console.error('❌ Error in POST /voice/voicemail:', e);
+  }
   res.type('text/xml');
   res.status(200);
   res.send(SILENT_HANGUP_TWIML);
+});
+
+// GET/POST /voice/voicemail-complete - After customer finishes voicemail recording (Record action). Prevents 404 → "application error".
+const VOICEMAIL_GOODBYE_TWIML = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="${TTS_VOICE}" language="en-US">Thank you for your message. Goodbye.</Say>
+  <Hangup/>
+</Response>`;
+router.get('/voice/voicemail-complete', (req, res) => {
+  res.type('text/xml');
+  res.status(200);
+  res.send(VOICEMAIL_GOODBYE_TWIML);
+});
+router.post('/voice/voicemail-complete', (req, res) => {
+  res.type('text/xml');
+  res.status(200);
+  res.send(VOICEMAIL_GOODBYE_TWIML);
 });
 
 // POST /api/twilio/voice/voicemail-status - Handle voicemail recording status
