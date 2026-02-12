@@ -1378,17 +1378,16 @@ router.post('/voice/incoming', async (req, res) => {
     console.log(`📤 TwiML Response sent:`);
     console.log(twiML);
   } catch (error) {
-    // Catch any unexpected errors and return proper TwiML (200 so Twilio doesn't play its generic "application error")
     console.error('❌ Error handling incoming call:', error);
     console.error('   Error stack:', error.stack);
     console.error('   Error message:', error.message);
-    const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
+    // Return silent Hangup only—no message to caller. Twilio would otherwise play "application error has occurred".
+    const silentHangup = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${TTS_VOICE}" language="en-US">Sorry, an error occurred while processing your call. Please try again later.</Say>
   <Hangup/>
 </Response>`;
     res.type('text/xml');
-    res.status(200).send(errorTwiML);
+    res.status(200).send(silentHangup);
   }
 });
 
@@ -1672,15 +1671,15 @@ router.get('/voice/voicemail', async (req, res) => {
     
     console.log(`📞 Voicemail triggered for CallSid: ${CallSid}, DialCallStatus: ${DialCallStatus}, DialCallDuration: ${DialCallDuration}`);
     
-    // When the clinic hangs up, Twilio calls this action URL with DialCallStatus=completed (not "answered").
-    // We must return silent <Hangup/> so the caller hears nothing—no voicemail prompt, no error message.
-    const dialDuration = DialCallDuration ? parseInt(DialCallDuration) : 0;
+    // When the clinic/receptionist hangs up, Twilio calls this action URL with DialCallStatus=completed.
+    // Return silent <Hangup/> so the caller hears nothing. No voicemail, no error message.
+    // 'answered' = just connected; 'completed' = call ended (either party hung up). Both = silent hangup.
     const wasActuallyAnswered = DialCallStatus === 'answered';
-    const completedAfterAnswer = DialCallStatus === 'completed' && dialDuration > 0;
+    const completed = DialCallStatus === 'completed';
 
-    if (wasActuallyAnswered || completedAfterAnswer) {
-      // Call was answered (or completed after being answered—clinic hung up). Hang up silently.
-      console.log(`✅ Call ended (DialCallStatus: ${DialCallStatus}, duration: ${dialDuration}s) - silently hanging up, no message to caller`);
+    if (wasActuallyAnswered || completed) {
+      // Call was answered or completed (receptionist hung up). Hang up silently—no message to caller.
+      console.log(`✅ Call ended (DialCallStatus: ${DialCallStatus}) - silently hanging up, no message to caller`);
       const silentHangup = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Hangup/>
