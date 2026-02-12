@@ -23,6 +23,9 @@ const resolveEffectiveCustomerId = require('../middleware/resolveEffectiveCustom
 // ✅ Single, hard-coded voice constant - NEVER use env vars for this
 const TTS_VOICE = 'Google.en-US-Chirp3-HD-Aoede';
 
+// Silent TwiML when clinic ends call or on error—no Say, no message. Caller hears nothing.
+const SILENT_HANGUP_TWIML = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Hangup/>\n</Response>';
+
 // Valid Twilio voice names (only this one voice is allowed)
 const VALID_TWILIO_VOICES = [
   TTS_VOICE
@@ -1381,13 +1384,10 @@ router.post('/voice/incoming', async (req, res) => {
     console.error('❌ Error handling incoming call:', error);
     console.error('   Error stack:', error.stack);
     console.error('   Error message:', error.message);
-    // Return silent Hangup only—no message to caller. Twilio would otherwise play "application error has occurred".
-    const silentHangup = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Hangup/>
-</Response>`;
+    // Return silent Hangup only—no Say, no message. Twilio would otherwise play "application error has occurred".
     res.type('text/xml');
-    res.status(200).send(silentHangup);
+    res.status(200);
+    res.send(SILENT_HANGUP_TWIML);
   }
 });
 
@@ -1666,28 +1666,21 @@ router.get('/voice/dial-status', (req, res) => {
 
 // GET /api/twilio/voice/voicemail - Handle voicemail recording (when dial times out or no answer)
 router.get('/voice/voicemail', async (req, res) => {
+  // CRITICAL: When clinic/receptionist ends the call, Twilio calls this URL. We must return
+  // only <Hangup/> with 200 so the customer hears NOTHING. Do this first, before any async work.
+  const rawStatus = (req.query.DialCallStatus || '').trim();
+  const status = rawStatus.toLowerCase();
+  if (status === 'completed' || status === 'answered') {
+    console.log(`✅ Dial ended (DialCallStatus: ${rawStatus}) - returning silent Hangup, no message to caller`);
+    res.type('text/xml');
+    res.status(200);
+    return res.send(SILENT_HANGUP_TWIML);
+  }
+
   try {
     const { CallSid, DialCallStatus, DialCallDuration } = req.query;
-    
     console.log(`📞 Voicemail triggered for CallSid: ${CallSid}, DialCallStatus: ${DialCallStatus}, DialCallDuration: ${DialCallDuration}`);
-    
-    // When the clinic/receptionist hangs up, Twilio calls this action URL with DialCallStatus=completed.
-    // Return silent <Hangup/> so the caller hears nothing. No voicemail, no error message.
-    // 'answered' = just connected; 'completed' = call ended (either party hung up). Both = silent hangup.
-    const wasActuallyAnswered = DialCallStatus === 'answered';
-    const completed = DialCallStatus === 'completed';
 
-    if (wasActuallyAnswered || completed) {
-      // Call was answered or completed (receptionist hung up). Hang up silently—no message to caller.
-      console.log(`✅ Call ended (DialCallStatus: ${DialCallStatus}) - silently hanging up, no message to caller`);
-      const silentHangup = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Hangup/>
-</Response>`;
-      res.type('text/xml');
-      return res.status(200).send(silentHangup);
-    }
-    
     // Call was NOT answered - proceed with voicemail prompt
     // IMPORTANT: Mark this as a missed call (no-answer) immediately
     // BUT: Only if the call doesn't have a recording or summary (recording/summary = answered call)
@@ -1777,9 +1770,10 @@ router.get('/voice/voicemail', async (req, res) => {
     res.send(twiML);
   } catch (error) {
     console.error('❌ Error handling voicemail request:', error);
-    // Return 200 with Hangup so Twilio does NOT play "application error has occurred" to the caller
+    // Never return 5xx or any Say—return 200 + silent Hangup so caller hears nothing
     res.type('text/xml');
-    res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`);
+    res.status(200);
+    res.send(SILENT_HANGUP_TWIML);
   }
 });
 
