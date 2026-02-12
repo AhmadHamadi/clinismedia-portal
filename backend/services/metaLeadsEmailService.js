@@ -498,7 +498,7 @@ class MetaLeadsEmailService {
         since.setDate(since.getDate() - (daysBack || 1));
         since.setHours(0, 0, 0, 0);
 
-        this.imap.search(['SINCE', since], async (err, results) => {
+        this.imap.search([['SINCE', since]], async (err, results) => {
           if (err) {
             console.error(`Error searching emails in "${folderName}":`, err);
             result.errors.push(`Error searching emails in "${folderName}": ${err.message}`);
