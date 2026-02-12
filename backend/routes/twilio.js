@@ -1303,7 +1303,7 @@ router.post('/voice/incoming', async (req, res) => {
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial timeout="30" action="${voicemailCallback}" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial timeout="30" action="${voicemailCallback}" method="GET" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1312,7 +1312,7 @@ router.post('/voice/incoming', async (req, res) => {
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial timeout="30" action="${voicemailCallback}" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial timeout="30" action="${voicemailCallback}" method="GET" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1358,7 +1358,7 @@ router.post('/voice/incoming', async (req, res) => {
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial timeout="30" action="${voicemailCallback}" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial timeout="30" action="${voicemailCallback}" method="GET" record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackMethod="POST" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1367,7 +1367,7 @@ router.post('/voice/incoming', async (req, res) => {
 <Response>
   ${disclosureMessage}
   ${transcriptionStart}
-  <Dial timeout="30" action="${voicemailCallback}" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
+  <Dial timeout="30" action="${voicemailCallback}" method="GET" statusCallback="${dialStatusCallback}" statusCallbackEvent="initiated ringing answered completed" statusCallbackMethod="POST">
     <Number>${forwardNumber}</Number>
   </Dial>
 </Response>`;
@@ -1664,15 +1664,21 @@ router.get('/voice/dial-status', (req, res) => {
   res.status(200).send('OK');
 });
 
-// GET /api/twilio/voice/voicemail - Handle voicemail recording (when dial times out or no answer)
+// Shared: read DialCallStatus from GET query or POST body (Twilio default for action is POST)
+function getDialCallStatus(req) {
+  const fromQuery = (req.query && req.query.DialCallStatus) || '';
+  const fromBody = (req.body && req.body.DialCallStatus) || '';
+  return (fromQuery || fromBody).trim();
+}
+
+// GET /api/twilio/voice/voicemail - Handle voicemail (when dial times out or no answer)
+// We also set method="GET" on <Dial> so Twilio requests this with GET; if Twilio sends POST, use POST handler below.
 router.get('/voice/voicemail', async (req, res) => {
-  // CRITICAL: When clinic/receptionist ends the call, Twilio calls this URL. We must return
-  // only <Hangup/> with 200 so the customer hears NOTHING. Do this first, before any async work.
-  const rawStatus = (req.query.DialCallStatus || '').trim();
+  const rawStatus = getDialCallStatus(req);
   const status = rawStatus.toLowerCase();
   const callWasConnected = ['completed', 'answered', 'connected'].includes(status);
   if (callWasConnected) {
-    console.log(`✅ Dial ended (DialCallStatus: ${rawStatus}) - returning silent Hangup, no message to caller`);
+    console.log(`✅ Dial ended GET (DialCallStatus: ${rawStatus}) - returning silent Hangup, no message to caller`);
     res.type('text/xml');
     res.status(200);
     return res.send(SILENT_HANGUP_TWIML);
@@ -1776,6 +1782,17 @@ router.get('/voice/voicemail', async (req, res) => {
     res.status(200);
     res.send(SILENT_HANGUP_TWIML);
   }
+});
+
+// POST /api/twilio/voice/voicemail - Twilio defaults to POST for Dial action URL. We set method="GET" on <Dial> so new calls use GET; this handles any POST (e.g. in-flight calls or older config).
+router.post('/voice/voicemail', (req, res) => {
+  const rawStatus = getDialCallStatus(req);
+  const status = rawStatus.toLowerCase();
+  const callWasConnected = ['completed', 'answered', 'connected'].includes(status);
+  console.log(`📞 Voicemail POST received (DialCallStatus: ${rawStatus}) - returning silent Hangup${callWasConnected ? ' (call was connected)' : ''}`);
+  res.type('text/xml');
+  res.status(200);
+  res.send(SILENT_HANGUP_TWIML);
 });
 
 // POST /api/twilio/voice/voicemail-status - Handle voicemail recording status
