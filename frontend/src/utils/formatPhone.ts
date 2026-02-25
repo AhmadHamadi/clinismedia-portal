@@ -15,7 +15,7 @@ export function formatPhoneDisplay(phone: string): string {
   if (digits.length < 10) return 'Unknown number'; // not a valid phone number
   const hasPlus = s.startsWith('+');
 
-  // North American: +1 and 10 digits → +1 XXX-XXX-XXXX
+  // North American: +1 and 10 digits → +1 XXX-XXX-XXXXg
   if (digits.length === 11 && digits.startsWith('1')) {
     const rest = digits.slice(1);
     return (hasPlus ? '+1 ' : '1 ') + `${rest.slice(0, 3)}-${rest.slice(3, 6)}-${rest.slice(6)}`;

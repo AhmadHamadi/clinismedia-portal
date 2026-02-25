@@ -487,6 +487,20 @@ const CallLogsPage: React.FC = () => {
     );
   }
 
+  if (config && !config.isConnected) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+            <FaPhone className="text-4xl text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-yellow-800 mb-2">No Call Tracking Connected</h2>
+            <p className="text-yellow-600">Call tracking has not been set up for your clinic. Please contact your administrator.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
@@ -539,15 +553,6 @@ const CallLogsPage: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {config && !config.isConnected && (
-          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4 text-sm">
-            <p className="flex items-center gap-2">
-              <FaInfoCircle />
-              Twilio phone number is not connected. Please contact your administrator to set up call tracking.
-            </p>
           </div>
         )}
 

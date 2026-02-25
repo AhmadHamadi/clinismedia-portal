@@ -175,9 +175,14 @@ app.listen(PORT, () => {
   ScheduledEmailService.sendDailyReminders();
   ScheduledEmailService.sendProactiveBookingReminders();
   
-  // Start Meta leads email monitoring (checks every 3 minutes by default)
+  // Start Meta Leads email monitoring (runs on THIS server - set LEADS_EMAIL_PASS/EMAIL_PASS in production so the always-on backend processes leads)
   const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL, 10) || 3;
   metaLeadsEmailService.startMonitoring(leadsCheckInterval);
+  if (metaLeadsEmailService.hasCredentials()) {
+    console.log('[Server] Meta Leads: email monitoring is active. Every lead that arrives at leads@ will be added to the portal automatically (runs every 3 min).');
+  } else {
+    console.warn('[Server] Meta Leads: credentials missing - monitoring did not start. Set LEADS_EMAIL_PASS or EMAIL_PASS in production env so leads always appear in the portal.');
+  }
   
   // Start QuickBooks token refresh service (runs every 30 seconds - FULLY AUTOMATIC)
   // This ensures tokens are always fresh without any manual intervention

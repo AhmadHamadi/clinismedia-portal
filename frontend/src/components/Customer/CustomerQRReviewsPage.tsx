@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import {
-  FaQrcode,
+  FaStar,
   FaChartBar,
   FaExclamationTriangle,
   FaSpinner,
@@ -139,12 +139,14 @@ const CustomerQRReviewsPage: React.FC = () => {
       )}
 
       {campaigns.length === 0 ? (
-        <div className="text-center py-16">
-          <FaQrcode className="text-gray-300 text-5xl mx-auto mb-4" />
-          <p className="text-gray-500 text-lg">No review campaigns yet</p>
-          <p className="text-gray-400 text-sm mt-1">
-            Contact your administrator to set up a QR review campaign.
-          </p>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center max-w-md">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+              <FaStar className="text-4xl text-yellow-500 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-yellow-800 mb-2">No QR Reviews Campaign</h2>
+              <p className="text-yellow-600">No QR review campaign has been set up for your clinic. Please contact your administrator.</p>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="grid gap-4">

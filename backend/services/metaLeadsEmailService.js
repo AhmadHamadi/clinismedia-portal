@@ -14,13 +14,21 @@ require('dotenv').config();
 
 class MetaLeadsEmailService {
   constructor() {
-    // Leads inbox: default leads@clinimedia.ca, password from EMAIL_PASS. Override with LEADS_EMAIL_* in .env if needed.
+    this.imap = null;
+    this.isChecking = false;
+    this.checkInterval = null;
+  }
+
+  /**
+   * Build IMAP config from current process.env (so we always use latest env, not stale values from module load).
+   * Leads go to leads@clinimedia.ca; we connect to that inbox. EMAIL_PASS can be used if it's the same password.
+   */
+  getImapConfig() {
     const leadsEmailUser = process.env.LEADS_EMAIL_USER || 'leads@clinimedia.ca';
     const leadsEmailPass = process.env.LEADS_EMAIL_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
     const leadsEmailHost = process.env.LEADS_EMAIL_HOST || process.env.EMAIL_HOST || 'mail.clinimedia.ca';
-    const leadsEmailPort = parseInt(process.env.LEADS_EMAIL_IMAP_PORT) || 993;
-    
-    this.imapConfig = {
+    const leadsEmailPort = parseInt(process.env.LEADS_EMAIL_IMAP_PORT, 10) || 993;
+    return {
       user: leadsEmailUser,
       password: leadsEmailPass,
       host: leadsEmailHost,
@@ -28,15 +36,6 @@ class MetaLeadsEmailService {
       tls: true,
       tlsOptions: { rejectUnauthorized: false }
     };
-    
-    // Validate password is set
-    if (!leadsEmailPass) {
-      console.error('Warning: Leads email password not set! Set EMAIL_PASS, EMAIL_PASSWORD, or LEADS_EMAIL_PASS in .env');
-    }
-    
-    this.imap = null;
-    this.isChecking = false;
-    this.checkInterval = null;
   }
 
   /**
@@ -57,17 +56,16 @@ class MetaLeadsEmailService {
         this.imap = null;
       }
 
-      this.imap = new Imap(this.imapConfig);
+      const config = this.getImapConfig();
+      this.imap = new Imap(config);
 
       this.imap.once('ready', () => {
-        console.log(`[Meta Leads] Connected to ${this.imapConfig.user} (IMAP). Checking for new lead emails...`);
+        console.log(`[Meta Leads] Connected to ${config.user} (IMAP). Checking for new lead emails...`);
         resolve(this.imap);
       });
 
       this.imap.once('error', (err) => {
-        // Handle connection reset errors gracefully
         if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED') {
-          // Clear the connection so it will reconnect next time
           this.imap = null;
         } else {
           console.error('IMAP error:', err);
@@ -330,15 +328,20 @@ class MetaLeadsEmailService {
   }
 
   /**
-   * Normalize email subject for matching: trim, collapse whitespace, strip control chars
-   * So "CliniMedia  -  Burlington..." or "CliniMedia - Burlington...\r" still match
+   * Normalize email subject for matching: strip leading bullets/prefixes, trim, collapse whitespace.
+   * Email clients often show "• CliniMedia - Dental Lenses Leads" — we strip the bullet so it matches
+   * admin mapping "CliniMedia - Dental Lenses Leads".
    */
   normalizeSubject(subject) {
     if (!subject || typeof subject !== 'string') return '';
-    return subject
+    let s = subject
       .replace(/\r\n|\r|\n/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+    // Strip leading bullet (•), dash, or "Re:" / "Fwd:" so "• CliniMedia - Dental Lenses Leads" matches "CliniMedia - Dental Lenses Leads"
+    s = s.replace(/^[\s\u2022\u00B7\u2023\u2043\u2219\-\*]+\s*/i, '').trim(); // bullet variants: • · ‣ ⁃ ∙
+    s = s.replace(/^(re|fwd|fw):\s*/gi, '').trim();
+    return s;
   }
 
   /**
@@ -487,7 +490,8 @@ class MetaLeadsEmailService {
       console.log(`[Meta Leads] Lead created for customer ${customer._id} (subject: "${subject.length > 50 ? subject.substring(0, 50) + '...' : subject}")`);
       return lead;
     } catch (error) {
-      console.error('Error processing email:', error);
+      console.error('[Meta Leads] Error processing email:', error.message || error);
+      if (error.code) console.error('[Meta Leads] Error code:', error.code);
       return null;
     }
   }
@@ -559,25 +563,34 @@ class MetaLeadsEmailService {
 
           fetch.on('message', (msg, seqno) => {
             const emailPromise = new Promise((resolveEmail) => {
+              const done = () => {
+                if (!resolved) {
+                  resolved = true;
+                  resolveEmail();
+                }
+              };
+              let resolved = false;
               msg.on('body', async (stream, info) => {
                 const buffer = [];
-                stream.on('data', (chunk) => {
-                  buffer.push(chunk);
-                });
-
+                stream.on('data', (chunk) => buffer.push(chunk));
                 stream.once('end', async () => {
-                  const emailBuffer = Buffer.concat(buffer);
-                  const lead = await this.processEmail(emailBuffer);
-                  result.emailsProcessed++;
-                  if (lead) {
-                    result.leadsCreated++;
-                    // Only mark as read when we actually created/found a lead for a clinic
-                    // So emails with no matching subject stay unread and can be retried after adding a mapping
-                    processedEmails.push(seqno);
+                  try {
+                    const emailBuffer = Buffer.concat(buffer);
+                    const lead = await this.processEmail(emailBuffer);
+                    result.emailsProcessed++;
+                    if (lead) {
+                      result.leadsCreated++;
+                      processedEmails.push(seqno);
+                    }
+                  } catch (e) {
+                    console.error(`[Meta Leads] Error processing one email in "${folderName}":`, e.message);
+                    result.emailsProcessed++;
                   }
-                  resolveEmail();
+                  done();
                 });
+                stream.on('error', () => done());
               });
+              msg.once('end', () => done()); // if body never emitted, still resolve
             });
             processingPromises.push(emailPromise);
           });
@@ -585,7 +598,8 @@ class MetaLeadsEmailService {
           fetch.once('error', (err) => {
             console.error(`Error fetching emails from "${folderName}":`, err);
             result.errors.push(`Error fetching emails from "${folderName}": ${err.message}`);
-            resolve(result);
+            // Wait for in-flight message processing so we don't open next folder while streams are active
+            Promise.all(processingPromises).then(() => resolve(result)).catch(() => resolve(result));
           });
 
           fetch.once('end', async () => {
@@ -716,10 +730,30 @@ class MetaLeadsEmailService {
   }
 
   /**
+   * Returns true if IMAP credentials are configured (so monitoring can run).
+   * Must use same env vars as constructor (read at call time for production env).
+   */
+  hasCredentials() {
+    const pass = process.env.LEADS_EMAIL_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
+    return !!(pass && String(pass).trim());
+  }
+
+  /**
    * Start monitoring emails - look back 7 days so we never miss leads (e.g. server down, or emails that stayed unread)
    * Default interval 3 minutes so portal updates soon after email arrives at leads@clinimedia.ca
+   * IMPORTANT: Runs on whichever server process calls this (e.g. production backend). Ensure LEADS_EMAIL_PASS
+   * (or EMAIL_PASS) is set in production environment so the always-on backend processes leads.
    */
   startMonitoring(intervalMinutes = 3) {
+    if (!this.hasCredentials()) {
+      console.error('[Meta Leads] ❌ Email monitoring NOT started: no password set.');
+      console.error('[Meta Leads]    Set LEADS_EMAIL_PASS or EMAIL_PASS (or EMAIL_PASSWORD) in this server\'s environment.');
+      console.error('[Meta Leads]    On production (e.g. Railway), add the variable in the project dashboard so leads are processed 24/7.');
+      return;
+    }
+    const nodeEnv = process.env.NODE_ENV || 'development';
+    const mailbox = (this.getImapConfig()).user;
+    console.log(`[Meta Leads] ✅ Email monitoring started (NODE_ENV=${nodeEnv}, interval=${intervalMinutes} min). Mailbox: ${mailbox} (leads inbox, not notifications@).`);
     const daysBack = 7; // Look back 7 days (all emails, read or unread); dedup by messageId prevents duplicates
     // Check immediately on startup
     this.checkForNewEmails(daysBack);

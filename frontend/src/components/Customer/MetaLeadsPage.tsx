@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { FaFacebook, FaEnvelope, FaPhone, FaCalendar, FaCheckCircle, FaTimesCircle, FaClock, FaUser, FaMapMarkerAlt, FaCalendarCheck, FaEdit, FaSpinner, FaFilter, FaEye, FaTimes } from 'react-icons/fa';
+import { FaFacebook, FaEnvelope, FaPhone, FaCalendar, FaCheckCircle, FaTimesCircle, FaClock, FaUser, FaMapMarkerAlt, FaCalendarCheck, FaEdit, FaSpinner, FaFilter, FaEye, FaTimes, FaSyncAlt } from 'react-icons/fa';
 import { startOfMonth, endOfMonth, subMonths, format, startOfDay, endOfDay, subDays } from 'date-fns';
 import DatePicker from 'react-multi-date-picker';
 
@@ -55,16 +55,30 @@ const MetaLeadsPage: React.FC = () => {
   const [showAppointmentSection, setShowAppointmentSection] = useState(false);
   const [editContactStatus, setEditContactStatus] = useState(false);
   const [editAppointmentStatus, setEditAppointmentStatus] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   useEffect(() => {
     fetchLeads();
     fetchStats();
   }, [startDate, endDate, selectedStatus]);
 
-  const fetchLeads = async () => {
+  // Auto-refresh every 3 min (matches backend email check) so new leads from email always show without leaving the page
+  useEffect(() => {
+    const intervalMs = 3 * 60 * 1000; // 3 minutes
+    const interval = setInterval(() => {
+      fetchLeads(true);
+      fetchStats();
+    }, intervalMs);
+    return () => clearInterval(interval);
+  }, [startDate, endDate, selectedStatus]);
+
+  const fetchLeads = async (silent = false) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
       const token = localStorage.getItem('customerToken');
       if (!token) return;
 
@@ -98,9 +112,9 @@ const MetaLeadsPage: React.FC = () => {
       setLeads(response.data.leads || []);
     } catch (err: any) {
       console.error('Error fetching leads:', err);
-      setError(err.response?.data?.message || 'Failed to fetch leads');
+      if (!silent) setError(err.response?.data?.message || 'Failed to fetch leads');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -424,13 +438,81 @@ const MetaLeadsPage: React.FC = () => {
     <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
         {/* Header */}
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <FaFacebook className="text-blue-500" />
-            Meta Leads
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">View all incoming leads from Facebook and track patient inquiries</p>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <FaFacebook className="text-blue-500" />
+              Meta Leads
+            </h1>
+            <p className="text-sm text-gray-600 mt-1">When a lead email arrives at leads@ for your clinic&apos;s subject, it is added to the portal automatically (production and everywhere). List refreshes every 3 min so you always see the latest. Use Refresh to sync from email now.</p>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              setRefreshing(true);
+              setSyncMessage(null);
+              const token = localStorage.getItem('customerToken');
+              try {
+                if (token) {
+                  const syncRes = await axios.post(
+                    `${import.meta.env.VITE_API_BASE_URL}/meta-leads/customer/sync-emails`,
+                    {},
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                  const result = syncRes.data?.result || {};
+                  const created = result.leadsCreated ?? 0;
+                  const found = result.emailsFound ?? 0;
+                  if (result.skipped) {
+                    setSyncMessage({ type: 'info', text: 'Sync skipped (already in progress). Try again in a moment.' });
+                  } else if (result.errors?.length) {
+                    setSyncMessage({ type: 'info', text: `Sync completed. ${found} email(s) checked. ${result.errors.join(' ')}` });
+                  } else if (created > 0) {
+                    setSyncMessage({ type: 'success', text: `Synced. ${created} new lead(s) added from email.` });
+                  } else {
+                    setSyncMessage({ type: 'success', text: `Synced. ${found} email(s) checked. No new leads for your clinic.` });
+                  }
+                }
+                await Promise.all([fetchLeads(true), fetchStats()]);
+              } catch (err: any) {
+                const msg = err.response?.data?.message || err.response?.data?.error || 'Sync failed.';
+                setSyncMessage({ type: 'error', text: msg });
+              } finally {
+                setRefreshing(false);
+                setTimeout(() => setSyncMessage((m) => (m?.type === 'error' ? m : null)), 6000);
+              }
+            }}
+            disabled={refreshing}
+            title="Connect to the leads inbox, sync emails for your clinic's subject(s), then refresh the list."
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-semibold text-sm shadow transition-colors"
+          >
+            {refreshing ? <FaSpinner className="animate-spin" /> : <FaSyncAlt />}
+            {refreshing ? 'Syncing & refreshing...' : 'Refresh leads'}
+          </button>
         </div>
+
+        {/* Sync result message */}
+        {syncMessage && (
+          <div
+            className={`mb-4 px-4 py-3 rounded-lg border ${
+              syncMessage.type === 'success'
+                ? 'bg-green-50 border-green-200 text-green-800'
+                : syncMessage.type === 'error'
+                  ? 'bg-red-50 border-red-200 text-red-800'
+                  : 'bg-blue-50 border-blue-200 text-blue-800'
+            }`}
+          >
+            {syncMessage.text}
+            {syncMessage.type === 'error' && (
+              <button
+                type="button"
+                onClick={() => setSyncMessage(null)}
+                className="ml-2 underline"
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Date Filters */}
         <div className="bg-white rounded-lg shadow mb-4 p-4">

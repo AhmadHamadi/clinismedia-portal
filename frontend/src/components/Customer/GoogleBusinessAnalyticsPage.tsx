@@ -307,6 +307,19 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
 
   if (error) {
     const isNotConnected = error.includes('No Google Business Profile connected');
+    if (isNotConnected) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center max-w-md">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+              <FaGoogle className="text-4xl text-yellow-500 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-yellow-800 mb-2">No Google Business Profile</h2>
+              <p className="text-yellow-600">No Google Business Profile has been assigned to your clinic. Please contact your administrator.</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -319,39 +332,16 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
-                {isNotConnected ? (
-                  <FaGoogle className="text-blue-500 text-4xl mx-auto mb-4" />
-                ) : (
-                  <FaExclamationTriangle className="text-yellow-500 text-4xl mx-auto mb-4" />
-                )}
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {isNotConnected ? 'Connect Your Google Business Profile' : 'Google Business Profile Issue'}
-                </h3>
-                <p className="text-gray-600 mb-4 max-w-md">
-                  {isNotConnected
-                    ? 'Connect your Google Business Profile to see your reviews, search performance, and customer interactions all in one place.'
-                    : error
-                  }
-                </p>
-                <div className="flex items-center justify-center gap-3">
-                  {isNotConnected && (
-                    <button
-                      onClick={handleConnect}
-                      disabled={connecting}
-                      className="inline-flex items-center px-6 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 shadow-md"
-                    >
-                      <FaLink className="mr-2" />
-                      {connecting ? 'Connecting...' : 'Connect Google Business Profile'}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => fetchGoogleBusinessData()}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    <FaSyncAlt className="mr-2" />
-                    Retry
-                  </button>
-                </div>
+                <FaExclamationTriangle className="text-yellow-500 text-4xl mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Google Business Profile Issue</h3>
+                <p className="text-gray-600 mb-4 max-w-md">{error}</p>
+                <button
+                  onClick={() => fetchGoogleBusinessData()}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <FaSyncAlt className="mr-2" />
+                  Retry
+                </button>
               </div>
             </div>
           </div>

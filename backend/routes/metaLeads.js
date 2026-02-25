@@ -25,6 +25,9 @@ router.patch('/customer/leads/:leadId/appointment', authenticateToken, authorize
 // Update lead notes
 router.patch('/customer/leads/:leadId/notes', authenticateToken, authorizeRole(['customer', 'receptionist']), resolveEffectiveCustomerId, MetaLeadsController.updateLeadNotes);
 
+// Sync leads from email (connect to leads@, process last 7 days, create missing leads for this clinic's subjects)
+router.post('/customer/sync-emails', authenticateToken, authorizeRole(['customer', 'receptionist']), resolveEffectiveCustomerId, MetaLeadsController.syncEmailsForCustomer);
+
 // ========== ADMIN ROUTES ==========
 
 // Get all leads (admin)

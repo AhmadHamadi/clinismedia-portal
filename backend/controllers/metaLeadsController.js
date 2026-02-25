@@ -2,13 +2,16 @@ const MetaLead = require('../models/MetaLead');
 const MetaLeadSubjectMapping = require('../models/MetaLeadSubjectMapping');
 const User = require('../models/User');
 
-/** Normalize subject the same way as metaLeadsEmailService (collapse whitespace) so stored mappings match incoming Facebook emails */
+/** Normalize subject the same way as metaLeadsEmailService so stored mappings match incoming emails (bullets, Re:, whitespace) */
 function normalizeSubjectForMapping(subject) {
   if (!subject || typeof subject !== 'string') return '';
-  return subject
+  let s = subject
     .replace(/\r\n|\r|\n/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  s = s.replace(/^[\s\u2022\u00B7\u2023\u2043\u2219\-\*]+\s*/i, '').trim();
+  s = s.replace(/^(re|fwd|fw):\s*/gi, '').trim();
+  return s;
 }
 
 class MetaLeadsController {
@@ -523,6 +526,34 @@ class MetaLeadsController {
     } catch (error) {
       console.error('Error testing subject:', error);
       res.status(500).json({ message: 'Failed to test subject', error: error.message });
+    }
+  }
+
+  /**
+   * Sync leads from email (customer/receptionist): connect to leads@ inbox, process last 7 days,
+   * create any missing leads for clinics whose subject mappings match. Then the client can refetch the list.
+   */
+  static async syncEmailsForCustomer(req, res) {
+    try {
+      const metaLeadsEmailService = require('../services/metaLeadsEmailService');
+      if (!metaLeadsEmailService.hasCredentials()) {
+        return res.status(503).json({
+          message: 'Email sync is not configured. Please contact support.',
+          result: { emailsFound: 0, leadsCreated: 0, errors: ['Leads email password not set on server.'] }
+        });
+      }
+      const checkResult = await metaLeadsEmailService.checkForNewEmails(7);
+      res.json({
+        message: 'Sync completed. Check your leads list for any new entries.',
+        result: checkResult
+      });
+    } catch (error) {
+      console.error('Error syncing leads from email:', error);
+      res.status(500).json({
+        message: 'Failed to sync from email',
+        error: error.message,
+        result: { emailsFound: 0, leadsCreated: 0, errors: [error.message] }
+      });
     }
   }
 
