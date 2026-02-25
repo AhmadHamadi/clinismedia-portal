@@ -739,7 +739,7 @@ class MetaLeadsEmailService {
   }
 
   /**
-   * Start monitoring emails - look back 7 days so we never miss leads (e.g. server down, or emails that stayed unread)
+   * Start monitoring emails - look back 30 days so we never miss leads (e.g. server down, or emails that stayed unread)
    * Default interval 3 minutes so portal updates soon after email arrives at leads@clinimedia.ca
    * IMPORTANT: Runs on whichever server process calls this (e.g. production backend). Ensure LEADS_EMAIL_PASS
    * (or EMAIL_PASS) is set in production environment so the always-on backend processes leads.
@@ -754,7 +754,7 @@ class MetaLeadsEmailService {
     const nodeEnv = process.env.NODE_ENV || 'development';
     const mailbox = (this.getImapConfig()).user;
     console.log(`[Meta Leads] ✅ Email monitoring started (NODE_ENV=${nodeEnv}, interval=${intervalMinutes} min). Mailbox: ${mailbox} (leads inbox, not notifications@).`);
-    const daysBack = 7; // Look back 7 days (all emails, read or unread); dedup by messageId prevents duplicates
+    const daysBack = 30; // Look back 30 days (all emails, read or unread); dedup by messageId prevents duplicates
     // Check immediately on startup
     this.checkForNewEmails(daysBack);
 

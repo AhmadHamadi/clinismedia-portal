@@ -542,7 +542,7 @@ class MetaLeadsController {
           result: { emailsFound: 0, leadsCreated: 0, errors: ['Leads email password not set on server.'] }
         });
       }
-      const checkResult = await metaLeadsEmailService.checkForNewEmails(7);
+      const checkResult = await metaLeadsEmailService.checkForNewEmails(30);
       res.json({
         message: 'Sync completed. Check your leads list for any new entries.',
         result: checkResult
@@ -566,7 +566,7 @@ class MetaLeadsController {
       
       // Check for emails from the past 7 days (not just today)
       // This ensures we catch any emails that might have been missed
-      const checkResult = await metaLeadsEmailService.checkForNewEmails(7);
+      const checkResult = await metaLeadsEmailService.checkForNewEmails(30);
       
       res.json({ 
         message: 'Email check completed',
