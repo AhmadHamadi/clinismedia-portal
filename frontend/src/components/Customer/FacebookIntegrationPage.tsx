@@ -81,8 +81,8 @@ const FacebookIntegrationPage: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-2 py-8">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center">
-        <div className="flex flex-col items-center mb-6">
+      <div className="w-full max-w-lg cm-panel p-8 flex flex-col items-center">
+        <div className="cm-page-hero w-full flex flex-col items-center mb-6 px-5 py-4">
           <FaFacebookSquare className="text-5xl text-[#1877f3] mb-2" />
           <h1 className="text-3xl font-extrabold text-[#1877f3] mb-1 tracking-tight">Facebook Integration</h1>
           <p className="text-gray-500 text-center max-w-xs">Connect your clinic's Facebook Page to view monthly reports and manage your integration.</p>
@@ -167,3 +167,11 @@ const FacebookIntegrationPage: React.FC = () => {
 };
 
 export default FacebookIntegrationPage; 
+
+
+
+
+
+
+
+

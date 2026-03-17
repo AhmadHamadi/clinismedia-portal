@@ -85,66 +85,56 @@ class GoogleAdsTokenRefreshService {
       console.log('[GoogleAdsTokenRefresh] ========================================');
       console.log('[GoogleAdsTokenRefresh] Starting token refresh check...');
       
-      // Find admin user with Google Ads connected
-      const adminUser = await User.findOne({ 
-        role: 'admin',
+      // Refresh for every user that has a Google Ads refresh token.
+      // This keeps tokens alive for all mappings without deleting or resetting anything.
+      const users = await User.find({
         googleAdsRefreshToken: { $exists: true, $ne: null }
       });
-      
-      if (!adminUser) {
-        console.log('[GoogleAdsTokenRefresh] ⚠️ No admin user with Google Ads refresh token found');
+
+      if (!users.length) {
+        console.log('[GoogleAdsTokenRefresh] ⚠️ No users with Google Ads refresh token found');
         return;
       }
-      
-      console.log(`[GoogleAdsTokenRefresh] ✅ Found admin user with Google Ads connected`);
-      
+
+      console.log(`[GoogleAdsTokenRefresh] ✅ Found ${users.length} user(s) with Google Ads refresh token`);
+
       const now = new Date();
       const bufferTime = 5 * 60 * 1000; // 5 minutes buffer (refresh if expiring within 5 min)
-      
-      // Check if token needs refresh
-      let expiryTime = adminUser.googleAdsTokenExpiry;
-      if (expiryTime && !(expiryTime instanceof Date)) {
-        expiryTime = new Date(expiryTime);
-      }
-      
-      const timeUntilExpiryMs = expiryTime ? expiryTime.getTime() - now.getTime() : 0;
-      const shouldRefresh = !expiryTime || timeUntilExpiryMs <= 0 || timeUntilExpiryMs <= bufferTime;
-      
-      let minutesUntilExpiry = null;
-      if (expiryTime) {
-        minutesUntilExpiry = Math.floor(timeUntilExpiryMs / 60000);
-      }
-      
-      if (shouldRefresh) {
-        console.log(`[GoogleAdsTokenRefresh] 🔄 Refreshing token for admin user`);
-        console.log(`[GoogleAdsTokenRefresh]    Current time: ${now.toISOString()}`);
-        console.log(`[GoogleAdsTokenRefresh]    Expiry time: ${expiryTime ? expiryTime.toISOString() : 'Not set'}`);
-        console.log(`[GoogleAdsTokenRefresh]    Time until expiry: ${minutesUntilExpiry !== null ? minutesUntilExpiry : 'N/A'} minutes`);
-        console.log(`[GoogleAdsTokenRefresh]    Buffer time: ${Math.floor(bufferTime / 60000)} minutes`);
-        console.log(`[GoogleAdsTokenRefresh]    Reason: ${!expiryTime ? 'No expiry set - refreshing immediately' : timeUntilExpiryMs <= 0 ? 'Token expired - refreshing immediately' : 'Expiring within buffer - proactive refresh'}`);
-        
-        if (!adminUser.googleAdsRefreshToken) {
-          console.error(`[GoogleAdsTokenRefresh] ❌ No refresh token found for admin user - cannot refresh`);
-          return;
+      let refreshedCount = 0;
+
+      for (const user of users) {
+        try {
+          let expiryTime = user.googleAdsTokenExpiry;
+          if (expiryTime && !(expiryTime instanceof Date)) {
+            expiryTime = new Date(expiryTime);
+          }
+
+          const timeUntilExpiryMs = expiryTime ? expiryTime.getTime() - now.getTime() : 0;
+          const shouldRefresh = !expiryTime || timeUntilExpiryMs <= 0 || timeUntilExpiryMs <= bufferTime;
+          const minutesUntilExpiry = expiryTime ? Math.floor(timeUntilExpiryMs / 60000) : null;
+
+          if (!shouldRefresh) {
+            console.log(`[GoogleAdsTokenRefresh] ✓ User ${user._id} token still valid (expires in ${minutesUntilExpiry !== null ? minutesUntilExpiry : 'N/A'} minutes)`);
+            continue;
+          }
+
+          console.log(`[GoogleAdsTokenRefresh] 🔄 Refreshing token for user ${user._id} (${user.email || user.role || 'unknown'})`);
+          const refreshed = await refreshGoogleAdsToken(user.googleAdsRefreshToken);
+
+          const freshUser = await User.findById(user._id);
+          if (!freshUser) {
+            console.error(`[GoogleAdsTokenRefresh] ❌ User ${user._id} not found after refresh`);
+            continue;
+          }
+
+          await saveTokensForUser(freshUser, refreshed);
+          refreshedCount += 1;
+        } catch (userError) {
+          console.error(`[GoogleAdsTokenRefresh] ❌ Failed refreshing user ${user._id}:`, userError.message);
         }
-        
-        const refreshed = await refreshGoogleAdsToken(adminUser.googleAdsRefreshToken);
-        
-        // Reload user to ensure we have latest data before saving
-        const freshUser = await User.findById(adminUser._id);
-        if (!freshUser) {
-          console.error(`[GoogleAdsTokenRefresh] ❌ Admin user not found after refresh`);
-          return;
-        }
-        
-        // Save tokens using helper
-        await saveTokensForUser(freshUser, refreshed);
-        
-        console.log(`[GoogleAdsTokenRefresh] ✅ Successfully refreshed token for admin user`);
-      } else {
-        console.log(`[GoogleAdsTokenRefresh] ✓ Token still valid (expires in ${minutesUntilExpiry !== null ? minutesUntilExpiry : 'N/A'} minutes)`);
       }
-      
+
+      console.log(`[GoogleAdsTokenRefresh] ✅ Refresh cycle complete. Refreshed ${refreshedCount}/${users.length} token(s).`);
       console.log(`[GoogleAdsTokenRefresh] 📊 Next check in 30 seconds`);
     } catch (error) {
       console.error('[GoogleAdsTokenRefresh] ❌ Error in token refresh service:', error.message);

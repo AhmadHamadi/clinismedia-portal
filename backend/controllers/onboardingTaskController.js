@@ -171,6 +171,14 @@ exports.updateAssignedTaskStatus = async (req, res) => {
 exports.getAssignedTasksForClinic = async (req, res) => {
   try {
     const { clinicId } = req.params;
+    const requesterId = String(req.user?.id || req.user?._id || '');
+    const requesterRole = req.user?.role;
+
+    // Customers can only access their own clinic assignments.
+    if (requesterRole === 'customer' && requesterId !== String(clinicId)) {
+      return res.status(403).json({ error: 'Forbidden: cannot access other clinic tasks' });
+    }
+
     console.log('Fetching assigned tasks for clinic:', clinicId);
     console.log('User making request:', req.user);
     

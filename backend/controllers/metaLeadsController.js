@@ -1,6 +1,7 @@
 const MetaLead = require('../models/MetaLead');
 const MetaLeadSubjectMapping = require('../models/MetaLeadSubjectMapping');
 const User = require('../models/User');
+const metaLeadsEmailService = require('../services/metaLeadsEmailService');
 
 /** Normalize subject the same way as metaLeadsEmailService so stored mappings match incoming emails (bullets, Re:, whitespace) */
 function normalizeSubjectForMapping(subject) {
@@ -536,16 +537,43 @@ class MetaLeadsController {
   static async syncEmailsForCustomer(req, res) {
     try {
       const metaLeadsEmailService = require('../services/metaLeadsEmailService');
+      const customerId = req.effectiveCustomerId;
       if (!metaLeadsEmailService.hasCredentials()) {
         return res.status(503).json({
           message: 'Email sync is not configured. Please contact support.',
           result: { emailsFound: 0, leadsCreated: 0, errors: ['Leads email password not set on server.'] }
         });
       }
-      const checkResult = await metaLeadsEmailService.checkForNewEmails(30);
+
+      // Build a clinic-aware lookback window so refresh can backfill missing leads.
+      // If clinic has old/latest lead, scan from that point forward (+ safety buffer).
+      // If clinic has no leads yet, scan a larger window for first-time import.
+      const latestLead = await MetaLead.findOne({ customerId }).sort({ emailDate: -1 }).select('emailDate');
+      let daysBack = 30;
+      if (latestLead?.emailDate) {
+        const msSinceLatest = Date.now() - new Date(latestLead.emailDate).getTime();
+        const daysSinceLatest = Math.max(0, Math.ceil(msSinceLatest / (24 * 60 * 60 * 1000)));
+        // Always include a buffer to catch timezone/date edge cases around midnight.
+        daysBack = Math.max(30, Math.min(365, daysSinceLatest + 7));
+      } else {
+        // New clinic or no historic leads yet: do a deeper backfill.
+        daysBack = 365;
+      }
+
+      const beforeCount = await MetaLead.countDocuments({ customerId });
+      const checkResult = await metaLeadsEmailService.checkForNewEmails(daysBack);
+      const afterCount = await MetaLead.countDocuments({ customerId });
+      const leadsCreatedForCustomer = Math.max(0, afterCount - beforeCount);
+
+      const result = {
+        ...checkResult,
+        daysBackUsed: daysBack,
+        leadsCreatedForCustomer
+      };
+
       res.json({
         message: 'Sync completed. Check your leads list for any new entries.',
-        result: checkResult
+        result
       });
     } catch (error) {
       console.error('Error syncing leads from email:', error);
@@ -578,6 +606,121 @@ class MetaLeadsController {
         message: 'Failed to trigger email check', 
         error: error.message 
       });
+    }
+  }
+
+  /**
+   * Get live monitoring status (admin)
+   */
+  static async getMonitoringStatus(req, res) {
+    try {
+      const status = metaLeadsEmailService.getMonitoringStatus();
+      res.json({ status });
+    } catch (error) {
+      console.error('Error getting monitoring status:', error);
+      res.status(500).json({ message: 'Failed to get monitoring status', error: error.message });
+    }
+  }
+
+  /**
+   * Live IMAP connectivity test (admin)
+   */
+  static async testImapConnection(req, res) {
+    try {
+      const result = await metaLeadsEmailService.testImapConnection();
+      if (!result.ok) {
+        return res.status(503).json({ message: 'IMAP connection test failed', result });
+      }
+      res.json({ message: 'IMAP connection test passed', result });
+    } catch (error) {
+      console.error('Error testing IMAP connection:', error);
+      res.status(500).json({ message: 'Failed to test IMAP connection', error: error.message });
+    }
+  }
+
+  /**
+   * Ingestion audit by clinic (admin)
+   * Shows latest lead date and recent volume to quickly identify stale clinics.
+   */
+  static async getIngestionAudit(req, res) {
+    try {
+      const now = new Date();
+      const since30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const activeMappings = await MetaLeadSubjectMapping.find({ isActive: true })
+        .populate('customerId', 'name email location role');
+
+      const mappedCustomers = new Map();
+      for (const mapping of activeMappings) {
+        if (!mapping.customerId || mapping.customerId.role !== 'customer') continue;
+        const key = String(mapping.customerId._id);
+        if (!mappedCustomers.has(key)) {
+          mappedCustomers.set(key, {
+            customerId: key,
+            customerName: mapping.customerId.name || null,
+            customerEmail: mapping.customerId.email || null,
+            location: mapping.customerId.location || null,
+            subjects: []
+          });
+        }
+        mappedCustomers.get(key).subjects.push(mapping.emailSubject);
+      }
+
+      const leadsAgg = await MetaLead.aggregate([
+        {
+          $group: {
+            _id: '$customerId',
+            latestLeadDate: { $max: '$emailDate' },
+            totalLeads: { $sum: 1 },
+            leadsLast30Days: {
+              $sum: {
+                $cond: [{ $gte: ['$emailDate', since30] }, 1, 0]
+              }
+            }
+          }
+        }
+      ]);
+
+      const aggByCustomer = new Map();
+      for (const row of leadsAgg) {
+        aggByCustomer.set(String(row._id), row);
+      }
+
+      const clinics = Array.from(mappedCustomers.values()).map((c) => {
+        const agg = aggByCustomer.get(c.customerId);
+        const latestLeadDate = agg?.latestLeadDate || null;
+        let staleDays = null;
+        if (latestLeadDate) {
+          staleDays = Math.floor((now.getTime() - new Date(latestLeadDate).getTime()) / (24 * 60 * 60 * 1000));
+        }
+        return {
+          ...c,
+          subjectCount: c.subjects.length,
+          latestLeadDate,
+          staleDays,
+          totalLeads: agg?.totalLeads || 0,
+          leadsLast30Days: agg?.leadsLast30Days || 0,
+          isStale: latestLeadDate ? staleDays > 7 : true
+        };
+      });
+
+      clinics.sort((a, b) => {
+        if (a.isStale !== b.isStale) return a.isStale ? -1 : 1;
+        const aDate = a.latestLeadDate ? new Date(a.latestLeadDate).getTime() : 0;
+        const bDate = b.latestLeadDate ? new Date(b.latestLeadDate).getTime() : 0;
+        return aDate - bDate;
+      });
+
+      res.json({
+        generatedAt: now.toISOString(),
+        totalMappedClinics: clinics.length,
+        staleClinics: clinics.filter((c) => c.isStale).length,
+        monitoring: metaLeadsEmailService.getMonitoringStatus(),
+        clinics
+      });
+    } catch (error) {
+      console.error('Error getting ingestion audit:', error);
+      res.status(500).json({ message: 'Failed to get ingestion audit', error: error.message });
     }
   }
 }

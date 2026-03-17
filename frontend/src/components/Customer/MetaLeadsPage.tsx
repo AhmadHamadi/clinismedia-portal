@@ -373,6 +373,11 @@ const MetaLeadsPage: React.FC = () => {
 
   const handleApplyCustomRange = () => {
     if (tempStartDate && tempEndDate) {
+      if (tempStartDate.getTime() > tempEndDate.getTime()) {
+        setError('Invalid date range: start date must be before end date.');
+        return;
+      }
+      setError(null);
       // Ensure dates are at start and end of day for proper filtering
       setStartDate(startOfDay(tempStartDate));
       setEndDate(endOfDay(tempEndDate));
@@ -380,6 +385,7 @@ const MetaLeadsPage: React.FC = () => {
       setTempEndDate(null);
       setActiveFilter('custom');
     } else if (tempStartDate) {
+      setError(null);
       // If only one date selected, use it for both start and end
       setStartDate(startOfDay(tempStartDate));
       setEndDate(endOfDay(tempStartDate));
@@ -435,10 +441,10 @@ const MetaLeadsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page metaleads-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
         {/* Header */}
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="cm-page-hero mb-4 px-5 py-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
               <FaFacebook className="text-blue-500" />
@@ -460,16 +466,17 @@ const MetaLeadsPage: React.FC = () => {
                     { headers: { Authorization: `Bearer ${token}` } }
                   );
                   const result = syncRes.data?.result || {};
-                  const created = result.leadsCreated ?? 0;
+                  const created = result.leadsCreatedForCustomer ?? result.leadsCreated ?? 0;
                   const found = result.emailsFound ?? 0;
+                  const daysBackUsed = result.daysBackUsed;
                   if (result.skipped) {
                     setSyncMessage({ type: 'info', text: 'Sync skipped (already in progress). Try again in a moment.' });
                   } else if (result.errors?.length) {
                     setSyncMessage({ type: 'info', text: `Sync completed. ${found} email(s) checked. ${result.errors.join(' ')}` });
                   } else if (created > 0) {
-                    setSyncMessage({ type: 'success', text: `Synced. ${created} new lead(s) added from email.` });
+                    setSyncMessage({ type: 'success', text: `Synced. ${created} new lead(s) added for your clinic${daysBackUsed ? ` (checked last ${daysBackUsed} day(s))` : ''}.` });
                   } else {
-                    setSyncMessage({ type: 'success', text: `Synced. ${found} email(s) checked. No new leads for your clinic.` });
+                    setSyncMessage({ type: 'success', text: `Synced. ${found} email(s) checked${daysBackUsed ? ` (last ${daysBackUsed} day(s))` : ''}. No new leads for your clinic.` });
                   }
                 }
                 await Promise.all([fetchLeads(true), fetchStats()]);
@@ -488,6 +495,27 @@ const MetaLeadsPage: React.FC = () => {
             {refreshing ? <FaSpinner className="animate-spin" /> : <FaSyncAlt />}
             {refreshing ? 'Syncing & refreshing...' : 'Refresh leads'}
           </button>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          <div className="cm-panel p-3">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Total Leads</p>
+            <p className="text-2xl font-bold text-gray-900">{stats?.totalLeads ?? 0}</p>
+          </div>
+          <div className="cm-panel p-3">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Contacted</p>
+            <p className="text-2xl font-bold text-gray-900">{stats?.contactedLeads ?? 0}</p>
+          </div>
+          <div className="cm-panel p-3">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Appointments</p>
+            <p className="text-2xl font-bold text-gray-900">{stats?.bookedAppointments ?? 0}</p>
+          </div>
+          <div className="cm-panel p-3">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Conversion</p>
+            <p className="text-2xl font-bold text-gray-900">
+              {stats?.totalLeads ? `${Math.round(((stats.bookedAppointments || 0) / stats.totalLeads) * 100)}%` : '0%'}
+            </p>
+          </div>
         </div>
 
         {/* Sync result message */}
@@ -515,7 +543,7 @@ const MetaLeadsPage: React.FC = () => {
         )}
 
         {/* Date Filters */}
-        <div className="bg-white rounded-lg shadow mb-4 p-4">
+        <div className="cm-panel mb-4 p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
               <FaFilter className="text-blue-500" />
@@ -732,7 +760,7 @@ const MetaLeadsPage: React.FC = () => {
         )}
 
         {/* Leads Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="cm-panel overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-800">Recent Leads</h2>
             <p className="text-xs text-gray-600 mt-1">
@@ -933,7 +961,7 @@ const MetaLeadsPage: React.FC = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
+            className="cm-panel-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -1221,3 +1249,10 @@ const MetaLeadsPage: React.FC = () => {
 };
 
 export default MetaLeadsPage;
+
+
+
+
+
+
+

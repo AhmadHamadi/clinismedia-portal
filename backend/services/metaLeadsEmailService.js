@@ -17,6 +17,14 @@ class MetaLeadsEmailService {
     this.imap = null;
     this.isChecking = false;
     this.checkInterval = null;
+    this.monitoringEnabled = false;
+    this.monitoringIntervalMinutes = null;
+    this.lastMonitoringStartedAt = null;
+    this.lastCheckStartedAt = null;
+    this.lastCheckCompletedAt = null;
+    this.lastSuccessfulCheckAt = null;
+    this.lastResult = null;
+    this.lastError = null;
   }
 
   /**
@@ -635,8 +643,23 @@ class MetaLeadsEmailService {
    * @param {number} daysBack - Number of days to look back (default: 1 for today only)
    */
   async checkForNewEmails(daysBack = 1) {
+    const finalizeCheck = (result) => {
+      const nowIso = new Date().toISOString();
+      this.lastCheckCompletedAt = nowIso;
+      this.lastResult = result;
+      if (result?.errors?.length) {
+        this.lastError = result.errors[result.errors.length - 1];
+      }
+      if (!result?.skipped && (!result?.errors || result.errors.length === 0)) {
+        this.lastSuccessfulCheckAt = nowIso;
+      }
+      return result;
+    };
+
+    this.lastCheckStartedAt = new Date().toISOString();
+
     if (this.isChecking) {
-      return { message: 'Check already in progress', skipped: true };
+      return finalizeCheck({ message: 'Check already in progress', skipped: true });
     }
 
     this.isChecking = true;
@@ -660,7 +683,7 @@ class MetaLeadsEmailService {
             result.errors.push(`Error getting folders: ${err.message}`);
             this.disconnect().finally(() => {
               this.isChecking = false;
-              resolve(result);
+              resolve(finalizeCheck(result));
             });
             return;
           }
@@ -696,7 +719,7 @@ class MetaLeadsEmailService {
                 }
                 this.disconnect().finally(() => {
                   this.isChecking = false;
-                  resolve(result);
+                  resolve(finalizeCheck(result));
                 });
                 return;
               }
@@ -710,7 +733,7 @@ class MetaLeadsEmailService {
               result.errors.push(`Folder error: ${folderError.message}`);
               this.disconnect().finally(() => {
                 this.isChecking = false;
-                resolve(result);
+                resolve(finalizeCheck(result));
               });
             }
           };
@@ -723,7 +746,7 @@ class MetaLeadsEmailService {
         result.errors.push(`Error checking emails: ${error.message}`);
         this.disconnect().finally(() => {
           this.isChecking = false;
-          resolve(result);
+          resolve(finalizeCheck(result));
         });
       }
     });
@@ -746,11 +769,15 @@ class MetaLeadsEmailService {
    */
   startMonitoring(intervalMinutes = 3) {
     if (!this.hasCredentials()) {
+      this.monitoringEnabled = false;
       console.error('[Meta Leads] ❌ Email monitoring NOT started: no password set.');
       console.error('[Meta Leads]    Set LEADS_EMAIL_PASS or EMAIL_PASS (or EMAIL_PASSWORD) in this server\'s environment.');
       console.error('[Meta Leads]    On production (e.g. Railway), add the variable in the project dashboard so leads are processed 24/7.');
       return;
     }
+    this.monitoringEnabled = true;
+    this.monitoringIntervalMinutes = intervalMinutes;
+    this.lastMonitoringStartedAt = new Date().toISOString();
     const nodeEnv = process.env.NODE_ENV || 'development';
     const mailbox = (this.getImapConfig()).user;
     console.log(`[Meta Leads] ✅ Email monitoring started (NODE_ENV=${nodeEnv}, interval=${intervalMinutes} min). Mailbox: ${mailbox} (leads inbox, not notifications@).`);
@@ -768,6 +795,8 @@ class MetaLeadsEmailService {
    * Stop monitoring emails
    */
   stopMonitoring() {
+    this.monitoringEnabled = false;
+    this.monitoringIntervalMinutes = null;
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
@@ -777,6 +806,93 @@ class MetaLeadsEmailService {
       this.imap.end();
       this.imap = null;
     }
+  }
+
+  /**
+   * Live IMAP smoke test for admin diagnostics.
+   * Attempts login + open INBOX and returns mailbox counters.
+   */
+  async testImapConnection() {
+    const cfg = this.getImapConfig();
+    const response = {
+      ok: false,
+      mailboxUser: cfg.user,
+      mailboxHost: cfg.host,
+      mailboxPort: cfg.port,
+      testedAt: new Date().toISOString(),
+      inbox: null,
+      error: null
+    };
+
+    if (!this.hasCredentials()) {
+      response.error = 'Missing credentials: LEADS_EMAIL_PASS/EMAIL_PASS is not set.';
+      return response;
+    }
+
+    return new Promise((resolve) => {
+      const imap = new Imap(cfg);
+      let settled = false;
+      const done = (result) => {
+        if (!settled) {
+          settled = true;
+          resolve(result);
+        }
+      };
+
+      imap.once('ready', () => {
+        imap.openBox('INBOX', true, (err, box) => {
+          if (err) {
+            response.error = `Connected, but failed to open INBOX: ${err.message}`;
+            try { imap.end(); } catch (_) {}
+            done(response);
+            return;
+          }
+          response.ok = true;
+          response.inbox = {
+            total: box?.messages?.total ?? null,
+            unread: box?.messages?.new ?? null
+          };
+          try { imap.end(); } catch (_) {}
+          done(response);
+        });
+      });
+
+      imap.once('error', (err) => {
+        response.error = err?.message || 'Unknown IMAP error';
+        done(response);
+      });
+
+      imap.once('end', () => done(response));
+
+      try {
+        imap.connect();
+      } catch (err) {
+        response.error = err?.message || 'Failed to start IMAP connection';
+        done(response);
+      }
+    });
+  }
+
+  /**
+   * Runtime status for production diagnostics.
+   */
+  getMonitoringStatus() {
+    const cfg = this.getImapConfig();
+    return {
+      monitoringEnabled: this.monitoringEnabled,
+      intervalMinutes: this.monitoringIntervalMinutes,
+      hasCredentials: this.hasCredentials(),
+      isChecking: this.isChecking,
+      mailboxUser: cfg.user,
+      mailboxHost: cfg.host,
+      mailboxPort: cfg.port,
+      lastMonitoringStartedAt: this.lastMonitoringStartedAt,
+      lastCheckStartedAt: this.lastCheckStartedAt,
+      lastCheckCompletedAt: this.lastCheckCompletedAt,
+      lastSuccessfulCheckAt: this.lastSuccessfulCheckAt,
+      lastError: this.lastError,
+      lastResult: this.lastResult
+    };
   }
 }
 

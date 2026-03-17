@@ -273,59 +273,32 @@ const GoogleBusinessManagementPage: React.FC = () => {
       hasRefreshToken: !!refreshToken
     });
     
-    if (adminOauthSuccess === 'true' && accessToken && refreshToken) {
+    if (adminOauthSuccess === 'true') {
       console.log('Processing successful admin OAuth callback');
-      // ✅ FIXED: Extract expires_in from URL parameters and decode tokens (they're URL encoded)
-      const expiresIn = urlParams.get('expires_in');
-      // Handle successful admin OAuth callback
-      // Tokens are URL encoded in the redirect, so decode them
-      const tokens = {
-        access_token: decodeURIComponent(accessToken),
-        refresh_token: decodeURIComponent(refreshToken),
-        expires_in: expiresIn ? parseInt(expiresIn, 10) : 3600, // Default to 1 hour if not provided
-        token_type: 'Bearer',
-        scope: 'https://www.googleapis.com/auth/business.manage'
-      };
-      
-      console.log('✅ OAuth tokens extracted:', {
-        hasAccessToken: !!tokens.access_token,
-        hasRefreshToken: !!tokens.refresh_token,
-        expiresIn: tokens.expires_in,
-        expiresInMinutes: Math.floor(tokens.expires_in / 60)
-      });
-      
-      setOauthTokens(tokens);
+
+      // Legacy fallback: support old callback URLs that still include tokens.
+      if (accessToken && refreshToken) {
+        const expiresIn = urlParams.get('expires_in');
+        const tokens = {
+          access_token: decodeURIComponent(accessToken),
+          refresh_token: decodeURIComponent(refreshToken),
+          expires_in: expiresIn ? parseInt(expiresIn, 10) : 3600,
+          token_type: 'Bearer',
+          scope: 'https://www.googleapis.com/auth/business.manage'
+        };
+        setOauthTokens(tokens);
+        localStorage.setItem('googleBusinessAdminTokens', JSON.stringify(tokens));
+      } else {
+        // Preferred secure flow: tokens remain server-side.
+        setOauthTokens(null);
+        localStorage.removeItem('googleBusinessAdminTokens');
+      }
+
       setAdminConnected(true);
-      
-      // Store connection state in localStorage
       localStorage.setItem('googleBusinessAdminConnected', 'true');
-      localStorage.setItem('googleBusinessAdminTokens', JSON.stringify(tokens));
-      
-      console.log('Stored admin connection in localStorage');
-      
-      // ✅ FIXED: Also save tokens to backend database (redundancy - callback already saves, but this ensures sync)
-      // Create async function and call it since useEffect callback cannot be async
-      const saveTokensToBackend = async () => {
-        try {
-          const token = localStorage.getItem('adminToken');
-          await axios.post(`${import.meta.env.VITE_API_BASE_URL}/google-business/save-admin-tokens`, {
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            expires_in: tokens.expires_in
-          }, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          console.log('✅ Admin tokens also saved to backend database');
-        } catch (err) {
-          console.warn('⚠️ Failed to save admin tokens to backend (tokens already saved by callback):', err);
-          // Don't fail the flow - callback already saved tokens
-        }
-      };
-      saveTokensToBackend();
-      
-      fetchAllBusinessProfiles(tokens);
-      
-      // Clean up URL
+
+      // Always load profiles from backend source of truth (DB tokens + auto-refresh).
+      fetchAllBusinessProfiles(null);
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (oauthError === 'true') {
       console.log('OAuth error detected');

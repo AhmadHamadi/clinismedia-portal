@@ -185,15 +185,18 @@ const CustomerDashboard = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedExt = new Set(['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif', 'bmp', 'tiff', 'avif', 'heic', 'heif']);
+
+    // Validate file type (MIME or extension fallback)
+    if (!file.type.startsWith('image/') && !allowedExt.has(ext)) {
+      alert('Please upload an image file (PNG, JPG, WEBP, SVG, AVIF, HEIC, etc.).');
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Image size must be less than 5MB');
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image size must be less than 10MB');
       return;
     }
 
@@ -238,9 +241,23 @@ const CustomerDashboard = () => {
     }
   };
 
+  const resolveCustomerLogoUrl = () => {
+    const logo =
+      customer?.customerSettings?.logoDisplayUrl ||
+      customer?.customerSettings?.logoUrlResolved ||
+      customer?.customerSettings?.logoUrl;
+
+    if (!logo) return '';
+    if (/^https?:\/\//i.test(logo)) return logo;
+    if (logo.startsWith('/uploads/')) {
+      return `${import.meta.env.VITE_BACKEND_BASE_URL}${logo}`;
+    }
+    return logo;
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your dashboard...</p>
@@ -251,7 +268,7 @@ const CustomerDashboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
             {error}
@@ -269,7 +286,7 @@ const CustomerDashboard = () => {
 
   if (!customer) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600 mb-4">No customer data found.</p>
           <button
@@ -284,48 +301,69 @@ const CustomerDashboard = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page dashboard-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
       {/* Header Section */}
-      <div className="mb-3">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">Dashboard</h1>
-        <p className="text-xs text-gray-600">Welcome back, {customer.name}</p>
+      <div className="cm-page-hero mb-4 px-5 py-4">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-1">Dashboard</h1>
+        <p className="text-sm text-slate-600 font-medium">Welcome back, {customer.name}</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="cm-panel p-3">
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Unread Updates</p>
+          <p className="text-2xl font-bold text-gray-900">
+            {unreadCounts.metaInsights + unreadCounts.gallery + unreadCounts.onboarding + unreadCounts.instagramInsights + unreadCounts.metaLeads + unreadCounts.callLogs}
+          </p>
+        </div>
+        <div className="cm-panel p-3">
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Unpaid Invoices</p>
+          <p className="text-2xl font-bold text-gray-900">{unpaidInvoicesCount}</p>
+        </div>
+        <div className="cm-panel p-3">
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Upcoming Booking</p>
+          <p className="text-sm font-semibold text-gray-900">{upcomingMediaDay ? 'Scheduled' : 'Not Scheduled'}</p>
+        </div>
+        <div className="cm-panel p-3">
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">This Month</p>
+          <p className="text-sm font-semibold text-gray-900">{hadMediaDayThisMonth ? 'Completed Media Day' : 'No Completed Media Day'}</p>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
         {/* Profile Section */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+        <div className="cm-panel p-4">
           <div className="flex items-center gap-3">
             {/* Logo or Profile Icon */}
             <div className="flex-shrink-0 relative">
-              {customer.customerSettings?.logoUrl ? (
+              {resolveCustomerLogoUrl() ? (
                 <img
-                  src={`${import.meta.env.VITE_BACKEND_BASE_URL}${customer.customerSettings.logoUrl}`}
+                  src={resolveCustomerLogoUrl()}
                   alt="Clinic Logo"
-                  className="w-12 h-12 rounded-lg object-cover border border-gray-200"
+                  className="w-20 h-20 rounded-xl object-cover border border-gray-200"
                 />
               ) : (
-                <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center border border-gray-200">
-                  <UserCircleIcon className="w-8 h-8 text-gray-400" />
+                <div className="w-20 h-20 rounded-xl bg-gray-100 flex items-center justify-center border border-gray-200">
+                  <UserCircleIcon className="w-12 h-12 text-gray-400" />
                 </div>
               )}
               {/* Upload Button Overlay */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingLogo}
-                className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-gray-900 hover:bg-gray-800 text-white rounded-full flex items-center justify-center shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="absolute -bottom-1 -right-1 w-7 h-7 bg-gray-900 hover:bg-gray-800 text-white rounded-full flex items-center justify-center shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Upload logo"
               >
                 {uploadingLogo ? (
-                  <div className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  <FaCamera className="w-2.5 h-2.5" />
+                  <FaCamera className="w-3.5 h-3.5" />
                 )}
               </button>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.svg,.heic,.heif,.avif,.webp,.png,.jpg,.jpeg,.gif,.bmp,.tiff"
                 onChange={handleLogoUpload}
                 className="hidden"
               />
@@ -354,7 +392,7 @@ const CustomerDashboard = () => {
           </div>
         </div>
         {/* Upcoming Media Day Section */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+        <div className="cm-panel p-4">
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1">
               <h3 className="text-xs font-semibold text-gray-900 mb-2">Upcoming Media Day</h3>
@@ -400,7 +438,7 @@ const CustomerDashboard = () => {
         </div>
         {/* Quick Actions Section */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          <div className="cm-panel p-4">
             <h3 className="text-base font-semibold text-gray-900 mb-4">Quick Actions</h3>
             
             {/* Main Actions Section */}
@@ -555,3 +593,9 @@ const CustomerDashboard = () => {
 };
 
 export default CustomerDashboard; 
+
+
+
+
+
+

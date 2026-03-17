@@ -22,8 +22,7 @@ const InstagramInsightsImagePage: React.FC = () => {
         setLoading(false);
         return;
       }
-      const user = JSON.parse(userStr);
-      const clinicId = user.id || user._id;
+      JSON.parse(userStr);
       try {
         const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/instagram-insights/my`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -55,7 +54,13 @@ const InstagramInsightsImagePage: React.FC = () => {
   if (loading) return <div className="p-6 text-gray-600">Loading Instagram insights...</div>;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 p-6">
+    <div className="customer-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
+      <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
+      <div className="cm-page-hero mb-6 px-5 py-4">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-1">Instagram Insights</h1>
+        <p className="text-sm text-slate-600 font-medium">Browse monthly uploaded insight images.</p>
+      </div>
+    <div className="flex flex-col lg:flex-row gap-6">
       {/* Left: Image Display */}
       <div className="w-full lg:w-3/4 flex flex-col items-center justify-center min-h-[70vh] px-2 py-8 bg-gradient-to-br from-[#f8fafc] to-[#fce4ec]">
         <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl p-12 flex flex-col items-center border border-[#fce4ec] relative">
@@ -66,9 +71,11 @@ const InstagramInsightsImagePage: React.FC = () => {
           </div>
           {selectedImage ? (
             <>
-              <h1 className="text-4xl font-extrabold text-pink-600 mb-4 tracking-tight text-center font-sans">
-                {getMonthLabel(selectedImage.month)} Instagram Insights
-              </h1>
+              <div className="mb-4">
+                <h1 className="text-4xl font-extrabold text-pink-600 mb-4 tracking-tight text-center font-sans">
+                  {getMonthLabel(selectedImage.month)} Instagram Insights
+                </h1>
+              </div>
               <img
                 src={`${import.meta.env.VITE_BACKEND_BASE_URL}${selectedImage.imageUrl}`}
                 alt="Instagram Insights"
@@ -80,19 +87,21 @@ const InstagramInsightsImagePage: React.FC = () => {
             </>
           ) : (
             <>
-              <h1 className="text-4xl font-extrabold text-pink-600 mb-4 tracking-tight text-center font-sans">
-                No Insights for Selected Month
-              </h1>
-              <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
-                No Instagram insights image has been uploaded for this month. Check back later or contact your administrator.
-              </p>
+              <div className="mb-4">
+                <h1 className="text-4xl font-extrabold text-pink-600 mb-4 tracking-tight text-center font-sans">
+                  No Insights for Selected Month
+                </h1>
+                <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
+                  No Instagram insights image has been uploaded for this month. Check back later or contact your administrator.
+                </p>
+              </div>
             </>
           )}
         </div>
       </div>
       {/* Right: Month Selector */}
       <div className="w-full lg:w-1/4">
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="cm-panel-md p-6">
           <h2 className="text-xl font-bold text-[#303b45] mb-4">Instagram Insights History</h2>
           {months.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No Instagram insights found.</p>
@@ -112,7 +121,12 @@ const InstagramInsightsImagePage: React.FC = () => {
         </div>
       </div>
     </div>
+    </div>
+    </div>
   );
 };
 
 export default InstagramInsightsImagePage; 
+
+
+

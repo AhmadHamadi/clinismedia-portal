@@ -2,8 +2,448 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-no-repeat bg-cover bg-center min-h-screen;
-  background-image: url("/wallpaper.png");
-  color: #ffff;
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --cm-bg: #f4f8ff;
+  --cm-bg-soft: #eef3ff;
+  --cm-surface: #ffffff;
+  --cm-surface-2: #f9fbff;
+  --cm-border: #dbe7ff;
+  --cm-text: #10213d;
+  --cm-text-soft: #60729a;
+  --cm-primary: #2e6bff;
+  --cm-primary-2: #16b0ff;
+  --cm-success: #10b981;
+  --cm-warning: #f59e0b;
+  --cm-danger: #ef4444;
 }
+
+html, body, #root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Manrope', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--cm-text);
+  background:
+    radial-gradient(80rem 40rem at -10% -20%, #d6e7ff 0%, transparent 50%),
+    radial-gradient(60rem 30rem at 110% -10%, #dff7ff 0%, transparent 55%),
+    var(--cm-bg);
+}
+
+.cm-customer-shell {
+  background:
+    radial-gradient(70rem 35rem at 10% -20%, #dce9ff 0%, transparent 60%),
+    radial-gradient(55rem 30rem at 100% 0%, #e4f7ff 0%, transparent 60%),
+    linear-gradient(180deg, #f6f9ff 0%, #eef4ff 100%);
+}
+
+.cm-glass-card {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(219, 231, 255, 0.95);
+  box-shadow: 0 20px 45px rgba(22, 48, 96, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.cm-panel {
+  border: 1px solid var(--cm-border);
+  background: linear-gradient(180deg, var(--cm-surface) 0%, var(--cm-surface-2) 100%);
+  box-shadow: 0 10px 30px rgba(34, 76, 153, 0.08);
+  border-radius: 18px;
+}
+
+.cm-panel-sm {
+  border: 1px solid var(--cm-border);
+  background: linear-gradient(180deg, var(--cm-surface) 0%, var(--cm-surface-2) 100%);
+  box-shadow: 0 8px 22px rgba(34, 76, 153, 0.08);
+  border-radius: 14px;
+}
+
+.cm-panel-md {
+  border: 1px solid var(--cm-border);
+  background: linear-gradient(180deg, var(--cm-surface) 0%, var(--cm-surface-2) 100%);
+  box-shadow: 0 12px 28px rgba(34, 76, 153, 0.09);
+  border-radius: 16px;
+}
+
+.cm-panel-lg {
+  border: 1px solid var(--cm-border);
+  background: linear-gradient(180deg, var(--cm-surface) 0%, var(--cm-surface-2) 100%);
+  box-shadow: 0 16px 36px rgba(34, 76, 153, 0.1);
+  border-radius: 22px;
+}
+
+.cm-panel-xl {
+  border: 1px solid var(--cm-border);
+  background: linear-gradient(180deg, var(--cm-surface) 0%, var(--cm-surface-2) 100%);
+  box-shadow: 0 18px 44px rgba(34, 76, 153, 0.12);
+  border-radius: 24px;
+}
+
+.cm-panel-2xl {
+  border: 1px solid var(--cm-border);
+  background: linear-gradient(180deg, var(--cm-surface) 0%, var(--cm-surface-2) 100%);
+  box-shadow: 0 20px 48px rgba(34, 76, 153, 0.14);
+  border-radius: 28px;
+}
+
+.cm-badge {
+  border-radius: 999px;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.35rem 0.55rem;
+  font-weight: 700;
+}
+
+.customer-main {
+  position: relative;
+}
+
+.customer-main::before {
+  content: "";
+  position: fixed;
+  left: 16rem;
+  right: 0;
+  top: 0;
+  height: 16rem;
+  background:
+    radial-gradient(42rem 18rem at 20% 0%, rgba(46, 107, 255, 0.16) 0%, rgba(46, 107, 255, 0) 70%),
+    radial-gradient(36rem 16rem at 80% 0%, rgba(22, 176, 255, 0.14) 0%, rgba(22, 176, 255, 0) 72%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.customer-main-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.customer-main :is(h1, h2, h3) {
+  letter-spacing: -0.02em;
+}
+
+.customer-main h1 {
+  font-weight: 800;
+}
+
+.customer-page {
+  animation: customerFadeIn 260ms ease;
+}
+
+.cm-page-hero {
+  background: linear-gradient(135deg, #1a3464 0%, #2a59a8 52%, #4d87ec 100%);
+  border: 1px solid rgba(149, 186, 245, 0.62);
+  border-radius: 20px;
+  box-shadow: 0 12px 28px rgba(24, 54, 104, 0.2);
+}
+
+.cm-page-hero h1,
+.cm-page-hero p {
+  color: #f2f8ff !important;
+}
+
+.cm-page-hero .text-gray-600,
+.cm-page-hero .text-gray-500,
+.cm-page-hero .text-slate-600 {
+  color: #d7e8ff !important;
+}
+
+@keyframes customerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.customer-main h2 {
+  font-weight: 700;
+}
+
+.customer-main p {
+  color: #4c6186;
+}
+
+.customer-main .cm-panel,
+.customer-main .cm-panel-sm,
+.customer-main .cm-panel-md,
+.customer-main .cm-panel-lg,
+.customer-main .cm-panel-xl,
+.customer-main .cm-panel-2xl {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.customer-main .cm-panel:hover,
+.customer-main .cm-panel-sm:hover,
+.customer-main .cm-panel-md:hover,
+.customer-main .cm-panel-lg:hover {
+  transform: translateY(-1px);
+  border-color: #bfd6ff;
+  box-shadow: 0 18px 38px rgba(34, 76, 153, 0.13);
+}
+
+.customer-main button {
+  border-radius: 12px;
+}
+
+.customer-main button:focus-visible,
+.customer-main a:focus-visible,
+.customer-main input:focus-visible,
+.customer-main select:focus-visible,
+.customer-main textarea:focus-visible {
+  outline: 2px solid #2e6bff;
+  outline-offset: 2px;
+}
+
+.customer-main input,
+.customer-main select,
+.customer-main textarea {
+  border-color: #c9daf9;
+  background: #fff;
+  color: #12213f;
+}
+
+.customer-main input::placeholder,
+.customer-main textarea::placeholder {
+  color: #7f94bc;
+}
+
+.customer-main .bg-gray-50 {
+  background: #f4f7ff !important;
+}
+
+.customer-main .bg-gray-100 {
+  background: #eaf0ff !important;
+}
+
+.customer-main .border-gray-200 {
+  border-color: #d3e1fa !important;
+}
+
+.customer-main .text-gray-900 {
+  color: #12213f !important;
+}
+
+.customer-main .text-gray-700 {
+  color: #324c78 !important;
+}
+
+.customer-main .text-gray-600 {
+  color: #56719c !important;
+}
+
+.customer-main .text-gray-500 {
+  color: #6d84ab !important;
+}
+
+.customer-main table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+
+.customer-main thead tr {
+  background: linear-gradient(180deg, #f7faff 0%, #ecf3ff 100%);
+}
+
+.customer-main thead th {
+  color: #2e4d7e !important;
+  font-weight: 700;
+  border-bottom: 1px solid #d7e4fd;
+}
+
+.customer-main tbody td {
+  border-bottom: 1px solid #e2ecff;
+  color: #2d4268;
+}
+
+.customer-main tbody tr:hover {
+  background: #f7faff !important;
+}
+
+.customer-main .recharts-wrapper .recharts-cartesian-grid-horizontal line,
+.customer-main .recharts-wrapper .recharts-cartesian-grid-vertical line {
+  stroke: #d8e6ff;
+}
+
+.customer-main .recharts-tooltip-wrapper .recharts-default-tooltip {
+  border: 1px solid #cfe0ff !important;
+  border-radius: 12px !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 14px 28px rgba(32, 71, 142, 0.12) !important;
+}
+
+.customer-main .recharts-legend-item-text {
+  color: #2d4a75 !important;
+}
+
+@media (max-width: 1024px) {
+  .customer-main::before {
+    left: 0;
+  }
+}
+
+/* Phase 2: Per-page redesign language */
+.dashboard-page .cm-glass-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(18, 34, 63, 0.96) 0%, rgba(33, 72, 134, 0.95) 48%, rgba(22, 176, 255, 0.88) 100%);
+  color: #f3f8ff;
+  border: 1px solid rgba(146, 196, 255, 0.45);
+}
+
+.dashboard-page .cm-glass-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(30rem 10rem at 88% 6%, rgba(255, 255, 255, 0.16) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.dashboard-page .cm-glass-card h1,
+.dashboard-page .cm-glass-card p {
+  color: #f3f8ff !important;
+}
+
+.dashboard-page .cm-panel {
+  border-radius: 20px;
+}
+
+.dashboard-page .cm-panel h3 {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dashboard-page .cm-panel button {
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.googleads-page .cm-page-hero {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(149, 186, 245, 0.62);
+  background: linear-gradient(135deg, #17315c 0%, #24529d 52%, #4b7fe0 100%);
+}
+
+.googleads-page .cm-page-hero::before {
+  content: "";
+  position: absolute;
+  right: -4rem;
+  top: -5rem;
+  width: 16rem;
+  height: 16rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(198, 222, 255, 0.35) 0%, rgba(198, 222, 255, 0) 72%);
+}
+
+.googleads-page .cm-page-hero h1,
+.googleads-page .cm-page-hero p {
+  color: #f3f8ff !important;
+}
+
+.googleads-page .cm-page-hero .inline-flex {
+  background: rgba(235, 244, 255, 0.22) !important;
+  border-color: rgba(210, 227, 255, 0.55) !important;
+  color: #eef6ff !important;
+}
+
+.googleads-page .grid .cm-panel p.text-3xl {
+  font-size: 2rem !important;
+  line-height: 1.1 !important;
+  letter-spacing: -0.03em;
+}
+
+.googleads-page .cm-panel h4 {
+  font-weight: 700;
+}
+
+.googleads-page .overflow-x-auto table tbody tr:nth-child(odd) {
+  background: #f8fbff;
+}
+
+.googleads-page .overflow-x-auto table tbody tr:hover {
+  background: #edf4ff !important;
+}
+
+.fbinsights-page .cm-page-hero {
+  background: linear-gradient(135deg, #172f57 0%, #1f4e96 56%, #3b82f6 100%);
+  border: 1px solid rgba(145, 184, 245, 0.58);
+  border-radius: 20px;
+  padding: 1.25rem 1.35rem;
+}
+
+.fbinsights-page .cm-page-hero h1,
+.fbinsights-page .cm-page-hero p {
+  color: #f1f7ff !important;
+}
+
+.fbinsights-page .grid .cm-panel {
+  border-radius: 16px;
+}
+
+.fbinsights-page .grid .cm-panel p.text-lg {
+  font-size: 1.3rem !important;
+}
+
+.fbinsights-page .recharts-wrapper .recharts-line-curve {
+  filter: drop-shadow(0 1px 2px rgba(23, 49, 94, 0.24));
+}
+
+.metaleads-page .cm-page-hero {
+  background: linear-gradient(130deg, #0e2c57 0%, #2457a2 50%, #1f7ad8 100%);
+  border: 1px solid rgba(113, 163, 241, 0.62);
+  border-radius: 22px;
+  padding: 1rem 1.15rem;
+}
+
+.metaleads-page .cm-page-hero h1,
+.metaleads-page .cm-page-hero p {
+  color: #f2f8ff !important;
+}
+
+.metaleads-page .cm-page-hero button {
+  background: #0f172a !important;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.metaleads-page .cm-panel {
+  border-radius: 16px;
+}
+
+.metaleads-page .cm-panel .rounded-lg {
+  border-radius: 12px;
+}
+
+.metaleads-page table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.calllogs-page .cm-page-hero {
+  background: linear-gradient(130deg, #101f39 0%, #1e3b6c 55%, #246ec8 100%);
+  border: 1px solid rgba(114, 156, 226, 0.65);
+  border-radius: 20px;
+  padding: 1rem 1.2rem;
+}
+
+.calllogs-page .cm-page-hero h1,
+.calllogs-page .cm-page-hero p {
+  color: #f3f8ff !important;
+}
+
+.calllogs-page .cm-panel {
+  border-radius: 16px;
+}
+
+.calllogs-page table td {
+  font-size: 0.86rem;
+}
+

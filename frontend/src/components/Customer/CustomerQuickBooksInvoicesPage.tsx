@@ -459,20 +459,20 @@ const CustomerQuickBooksInvoicesPage: React.FC = () => {
 
   if (!connected) {
     return (
-      <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+      <div className="customer-page p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+        <div className="cm-page-hero mb-6 px-5 py-4">
+          <h1 className="text-2xl font-bold flex items-center mb-2">
             <FaDollarSign className="mr-3 text-blue-600" />
             QuickBooks Invoices
           </h1>
-          <p className="text-gray-600">
+          <p>
             View and manage your invoices from QuickBooks
           </p>
         </div>
 
         {/* Not Connected Card */}
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+        <div className="cm-panel-lg border border-gray-200 p-6">
           <div className="flex items-center justify-center min-h-96">
             <div className="text-center">
               <FaFileInvoice className="text-6xl text-gray-400 mx-auto mb-6" />
@@ -491,17 +491,17 @@ const CustomerQuickBooksInvoicesPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
       {/* Header */}
-      <div className="mb-6">
+      <div className="cm-page-hero mb-6 px-5 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+            <h1 className="text-2xl font-bold flex items-center mb-2">
               <FaDollarSign className="mr-3 text-blue-600" />
               QuickBooks Invoices
             </h1>
-            <p className="text-gray-600">
+            <p>
               {quickbooksCustomerName 
                 ? `Showing invoices for ${quickbooksCustomerName}`
                 : 'View and manage your invoices from QuickBooks'}
@@ -552,19 +552,19 @@ const CustomerQuickBooksInvoicesPage: React.FC = () => {
       {/* Summary Stats */}
       {invoices.length > 0 && (
         <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
+          <div className="cm-panel-lg border border-gray-200 p-4">
             <div className="text-sm text-gray-600">Total Invoices</div>
             <div className="text-2xl font-bold text-gray-900">{invoices.length}</div>
           </div>
-          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
+          <div className="cm-panel-lg border border-gray-200 p-4">
             <div className="text-sm text-gray-600">Paid</div>
             <div className="text-2xl font-bold text-green-600">{paidInvoices.length}</div>
           </div>
-          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
+          <div className="cm-panel-lg border border-gray-200 p-4">
             <div className="text-sm text-gray-600">Unpaid</div>
             <div className="text-2xl font-bold text-yellow-600">{unpaidInvoices.length}</div>
           </div>
-          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
+          <div className="cm-panel-lg border border-gray-200 p-4">
             <div className="text-sm text-gray-600">Total Balance Due</div>
             <div className="text-2xl font-bold text-red-600">
               {formatCurrency(
@@ -578,7 +578,7 @@ const CustomerQuickBooksInvoicesPage: React.FC = () => {
 
       {/* Unpaid Invoices Section */}
       {(invoiceFilter === 'all' || invoiceFilter === 'NotPaid' || invoiceFilter === 'Overdue') && (
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden mb-6">
+        <div className="cm-panel-lg border border-gray-200 overflow-hidden mb-6">
           <div className="bg-yellow-50 px-6 py-4 border-b border-yellow-200">
             <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
               <FaCreditCard className="text-yellow-600" />
@@ -694,7 +694,7 @@ const CustomerQuickBooksInvoicesPage: React.FC = () => {
 
       {/* Paid Invoices Section */}
       {(invoiceFilter === 'all' || invoiceFilter === 'Paid') && (
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+        <div className="cm-panel-lg border border-gray-200 overflow-hidden">
           <div className="bg-green-50 px-6 py-4 border-b border-green-200">
             <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
               <FaReceipt className="text-green-600" />
@@ -791,7 +791,7 @@ const CustomerQuickBooksInvoicesPage: React.FC = () => {
 
       {/* No Invoices Message */}
       {invoices.length === 0 && !loading && (
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+        <div className="cm-panel-lg border border-gray-200 overflow-hidden">
           <div className="text-center py-12">
             <FaFileInvoice className="text-5xl text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No invoices found</h3>
@@ -809,3 +809,10 @@ const CustomerQuickBooksInvoicesPage: React.FC = () => {
 };
 
 export default CustomerQuickBooksInvoicesPage;
+
+
+
+
+
+
+

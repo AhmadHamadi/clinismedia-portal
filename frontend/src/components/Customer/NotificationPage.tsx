@@ -120,10 +120,10 @@ const NotificationPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
-        <div className="max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto bg-white rounded-lg shadow-md p-4 sm:p-6 md:p-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">All Notifications</h1>
+        <div className="max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto cm-panel p-4 sm:p-6 md:p-8">
+      <div className="cm-page-hero mb-6 px-5 py-4"><h1 className="text-3xl font-bold text-gray-900 mb-2">All Notifications</h1><p className="text-sm text-gray-600">Your complete notification history and updates.</p></div>
 
       {notifications.length === 0 ? (
         <div className="p-4 text-center text-gray-500 border border-gray-200 rounded-md">
@@ -156,3 +156,10 @@ const NotificationPage: React.FC = () => {
 };
 
 export default NotificationPage; 
+
+
+
+
+
+
+

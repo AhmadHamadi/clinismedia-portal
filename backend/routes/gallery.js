@@ -221,6 +221,14 @@ router.post('/assign', authenticateToken, authorizeRole(['admin']), async (req, 
 router.get('/assigned/:clinicId', authenticateToken, authorizeRole(['admin', 'customer']), async (req, res) => {
   try {
     const { clinicId } = req.params;
+    const requesterId = String(req.user?.id || req.user?._id || '');
+    const requesterRole = req.user?.role;
+
+    // Customers can only access their own assigned gallery items.
+    if (requesterRole === 'customer' && requesterId !== String(clinicId)) {
+      return res.status(403).json({ error: 'Forbidden: cannot access other clinic gallery items' });
+    }
+
     const assigned = await AssignedGalleryItem.find({ clinicId })
       .populate('galleryItemId')
       .sort({ assignedAt: -1 });

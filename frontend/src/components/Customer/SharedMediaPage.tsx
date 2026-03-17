@@ -162,15 +162,15 @@ const SharedMediaPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+      <div className="cm-page-hero mb-6 px-5 py-4">
+        <h1 className="text-2xl font-bold flex items-center mb-2">
           <FaShare className="mr-3 text-blue-600" />
           Share Your Media
         </h1>
-        <p className="text-gray-600">
+        <p>
           Access your shared folder to upload and share media files with our team
         </p>
       </div>
@@ -186,7 +186,7 @@ const SharedMediaPage: React.FC = () => {
       )}
 
       {/* Folder Information Card */}
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-6">
+      <div className="cm-panel-lg border border-gray-200 p-6 mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="bg-blue-100 p-3 rounded-lg mr-4">
@@ -208,7 +208,7 @@ const SharedMediaPage: React.FC = () => {
       </div>
 
       {/* Client Notes Section */}
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-6">
+      <div className="cm-panel-lg border border-gray-200 p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center">
             <FaStickyNote className="mr-2 text-blue-600" />
@@ -315,3 +315,10 @@ const SharedMediaPage: React.FC = () => {
 };
 
 export default SharedMediaPage;
+
+
+
+
+
+
+

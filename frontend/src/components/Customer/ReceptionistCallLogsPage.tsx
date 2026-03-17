@@ -201,10 +201,16 @@ const ReceptionistCallLogsPage: React.FC = () => {
 
   const handleApplyCustomRange = () => {
     if (tempStartDate && tempEndDate) {
+      if (tempStartDate.getTime() > tempEndDate.getTime()) {
+        setError('Invalid date range: start date must be before end date.');
+        return;
+      }
+      setError(null);
       setStartDate(startOfDay(tempStartDate));
       setEndDate(endOfDay(tempEndDate));
       setActiveFilter('custom');
     } else if (tempStartDate) {
+      setError(null);
       setStartDate(startOfDay(tempStartDate));
       setEndDate(endOfDay(tempStartDate));
       setActiveFilter('custom');
@@ -232,7 +238,7 @@ const ReceptionistCallLogsPage: React.FC = () => {
 
   if (config && !config.isConnected) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
             <FaPhone className="text-4xl text-yellow-500 mx-auto mb-4" />
@@ -245,9 +251,9 @@ const ReceptionistCallLogsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
-        <div className="mb-4">
+        <div className="cm-page-hero mb-4 px-5 py-4">
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <FaPhone className="text-blue-500" />
             Call Logs
@@ -256,7 +262,7 @@ const ReceptionistCallLogsPage: React.FC = () => {
         </div>
 
         {config && config.isConnected && (
-          <div className="bg-white rounded-lg shadow mb-4 p-4 border-l-4 border-blue-500">
+          <div className="cm-panel mb-4 p-4 border-l-4 border-blue-500">
             <div className="flex items-center gap-2">
               <FaInfoCircle className="text-blue-500" />
               <span className="text-sm font-medium text-gray-700">Tracking number:</span>
@@ -266,7 +272,7 @@ const ReceptionistCallLogsPage: React.FC = () => {
         )}
 
         {/* Date Filters */}
-        <div className="bg-white rounded-lg shadow mb-4 p-4">
+        <div className="cm-panel mb-4 p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
               <FaFilter className="text-blue-500" />
@@ -354,7 +360,7 @@ const ReceptionistCallLogsPage: React.FC = () => {
         )}
 
         {/* Table: Date & Time, Phone number, Status, Duration only */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="cm-panel overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-800">Recent calls</h2>
             {stats && <p className="text-xs text-gray-600 mt-1">Showing {callLogs.length} of {stats.totalCalls} calls</p>}
@@ -407,3 +413,10 @@ const ReceptionistCallLogsPage: React.FC = () => {
 };
 
 export default ReceptionistCallLogsPage;
+
+
+
+
+
+
+

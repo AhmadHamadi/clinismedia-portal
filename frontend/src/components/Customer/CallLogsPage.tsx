@@ -415,11 +415,17 @@ const CallLogsPage: React.FC = () => {
 
   const handleApplyCustomRange = () => {
     if (tempStartDate && tempEndDate) {
+      if (tempStartDate.getTime() > tempEndDate.getTime()) {
+        setError('Invalid date range: start date must be before end date.');
+        return;
+      }
+      setError(null);
       setStartDate(startOfDay(tempStartDate));
       setEndDate(endOfDay(tempEndDate));
       setActiveFilter('custom');
     } else if (tempStartDate) {
       // If only one date selected, use it as both start and end
+      setError(null);
       setStartDate(startOfDay(tempStartDate));
       setEndDate(endOfDay(tempStartDate));
       setActiveFilter('custom');
@@ -489,7 +495,7 @@ const CallLogsPage: React.FC = () => {
 
   if (config && !config.isConnected) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
             <FaPhone className="text-4xl text-yellow-500 mx-auto mb-4" />
@@ -502,10 +508,10 @@ const CallLogsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page calllogs-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
         {/* Header */}
-        <div className="mb-4">
+        <div className="cm-page-hero mb-4 px-5 py-4">
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <FaPhone className="text-blue-500" />
             Call Logs
@@ -513,9 +519,28 @@ const CallLogsPage: React.FC = () => {
           <p className="text-sm text-gray-600 mt-1">View all incoming calls and track patient inquiries</p>
         </div>
 
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          <div className="cm-panel p-3">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Total Calls</p>
+            <p className="text-2xl font-bold text-gray-900">{stats?.totalCalls ?? 0}</p>
+          </div>
+          <div className="cm-panel p-3">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Answered</p>
+            <p className="text-2xl font-bold text-gray-900">{stats?.completedCalls ?? 0}</p>
+          </div>
+          <div className="cm-panel p-3">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Missed</p>
+            <p className="text-2xl font-bold text-gray-900">{stats?.missedCalls ?? 0}</p>
+          </div>
+          <div className="cm-panel p-3">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Booked</p>
+            <p className="text-2xl font-bold text-gray-900">{stats?.appointmentsBooked ?? 0}</p>
+          </div>
+        </div>
+
         {/* Twilio Configuration Card */}
         {config && config.isConnected && (
-          <div className="bg-white rounded-lg shadow mb-4 p-4 border-l-4 border-blue-500">
+          <div className="cm-panel mb-4 p-4 border-l-4 border-blue-500">
             <div className="flex items-start gap-3">
               <FaInfoCircle className="text-blue-500 text-xl mt-0.5" />
               <div className="flex-1">
@@ -557,7 +582,7 @@ const CallLogsPage: React.FC = () => {
         )}
 
         {/* Date Filters */}
-        <div className="bg-white rounded-lg shadow mb-4 p-4">
+        <div className="cm-panel mb-4 p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
               <FaFilter className="text-blue-500" />
@@ -785,7 +810,7 @@ const CallLogsPage: React.FC = () => {
         )}
 
         {/* Call Logs Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="cm-panel overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-800">Recent Calls</h2>
             {stats && (
@@ -1116,7 +1141,7 @@ const CallLogsPage: React.FC = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6"
+            className="cm-panel-xl max-w-2xl w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -1204,7 +1229,7 @@ const CallLogsPage: React.FC = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6"
+            className="cm-panel-xl max-w-2xl w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -1287,5 +1312,13 @@ const CallLogsPage: React.FC = () => {
 };
 
 export default CallLogsPage;
+
+
+
+
+
+
+
+
 
 

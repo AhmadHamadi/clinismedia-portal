@@ -118,3 +118,4 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
 };
 
 export default ProtectedRoute; 
+

@@ -10,6 +10,8 @@ export interface Customer {
   address?: string;
   customerSettings?: {
     logoUrl?: string;
+    logoUrlResolved?: string;
+    logoDisplayUrl?: string;
     displayName?: string;
   };
   createdAt?: string;
@@ -61,3 +63,6 @@ export const useCustomerDashboard = () => {
     handleLogout,
   };
 };
+
+
+

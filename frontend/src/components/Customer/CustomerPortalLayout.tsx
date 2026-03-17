@@ -132,40 +132,42 @@ const CustomerPortalLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
+    <div className="flex min-h-screen cm-customer-shell overflow-x-hidden">
       {/* Sidebar - Always visible */}
       <CustomerSidebar onLogout={handleLogout} allowedPages={allowedPages ?? undefined} />
       
       {/* Main Content */}
       <div className="flex-1 flex flex-col ml-64 overflow-x-hidden">
         {/* Page Content */}
-        <main className="flex-1 overflow-x-hidden w-full">
-          <Routes>
-            <Route path="dashboard" element={<CustomerDashboard />} />
-            <Route path="media-day-booking" element={<CustomerMediaDayBookingPage />} />
-            <Route path="onboarding-tasks" element={<CustomerOnboardingTasks />} />
-            <Route path="facebook-integration" element={<FacebookIntegrationPage />} />
-            <Route path="facebook-insights" element={<FacebookInsightsPage />} />
-            <Route path="instagram-insights" element={<InstagramInsightsPage />} />
-            <Route path="shared-media" element={<SharedMediaPage />} />
-            <Route path="gallery" element={<CustomerGalleryPage />} />
-            <Route path="invoices" element={<CustomerInvoicePage />} />
-            <Route path="notifications" element={<NotificationPage />} />
-            <Route path="google-ads" element={<GoogleAdsPage />} />
-            <Route path="google-business-analytics" element={<GoogleBusinessAnalyticsPage />} />
-            <Route path="call-logs" element={(() => {
-              try {
-                const u = JSON.parse(localStorage.getItem('customerData') || '{}');
-                return u.role === 'receptionist' ? <ReceptionistCallLogsPage /> : <CallLogsPage />;
-              } catch {
-                return <CallLogsPage />;
-              }
-            })()} />
-            <Route path="meta-leads" element={<MetaLeadsPage />} />
-            <Route path="quickbooks-invoices" element={<CustomerQuickBooksInvoicesPage />} />
-            <Route path="qr-reviews" element={<CustomerQRReviewsPage />} />
-            <Route path="" element={<CustomerDashboard />} />
-          </Routes>
+        <main className="customer-main flex-1 overflow-x-hidden w-full">
+          <div className="customer-main-inner">
+            <Routes>
+              <Route path="dashboard" element={<CustomerDashboard />} />
+              <Route path="media-day-booking" element={<CustomerMediaDayBookingPage />} />
+              <Route path="onboarding-tasks" element={<CustomerOnboardingTasks />} />
+              <Route path="facebook-integration" element={<FacebookIntegrationPage />} />
+              <Route path="facebook-insights" element={<FacebookInsightsPage />} />
+              <Route path="instagram-insights" element={<InstagramInsightsPage />} />
+              <Route path="shared-media" element={<SharedMediaPage />} />
+              <Route path="gallery" element={<CustomerGalleryPage />} />
+              <Route path="invoices" element={<CustomerInvoicePage />} />
+              <Route path="notifications" element={<NotificationPage />} />
+              <Route path="google-ads" element={<GoogleAdsPage />} />
+              <Route path="google-business-analytics" element={<GoogleBusinessAnalyticsPage />} />
+              <Route path="call-logs" element={(() => {
+                try {
+                  const u = JSON.parse(localStorage.getItem('customerData') || '{}');
+                  return u.role === 'receptionist' ? <ReceptionistCallLogsPage /> : <CallLogsPage />;
+                } catch {
+                  return <CallLogsPage />;
+                }
+              })()} />
+              <Route path="meta-leads" element={<MetaLeadsPage />} />
+              <Route path="quickbooks-invoices" element={<CustomerQuickBooksInvoicesPage />} />
+              <Route path="qr-reviews" element={<CustomerQRReviewsPage />} />
+              <Route path="" element={<CustomerDashboard />} />
+            </Routes>
+          </div>
         </main>
       </div>
     </div>
@@ -173,3 +175,5 @@ const CustomerPortalLayout: React.FC = () => {
 };
 
 export default CustomerPortalLayout; 
+
+

@@ -78,6 +78,48 @@ class StorageService {
   }
 
   /**
+   * Upload customer logo to storage
+   * @param {string} localPath
+   * @param {string} originalName
+   * @param {string} mimeType
+   * @param {string} customerId
+   * @returns {Promise<{key: string}>}
+   */
+  async uploadCustomerLogo(localPath, originalName, mimeType, customerId = null) {
+    if (!this.useS3) {
+      const filename = path.basename(localPath);
+      return { key: `/uploads/customer-logos/${filename}` };
+    }
+
+    const ext = path.extname(originalName) || ".png";
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const key = customerId
+      ? `uploads/customer-logos/${customerId}/${filename}`
+      : `uploads/customer-logos/${filename}`;
+
+    const fileBuffer = await fs.readFile(localPath);
+
+    if (!s3Client) {
+      throw new Error('S3 client not initialized. Check Railway Storage Bucket configuration.');
+    }
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+        Body: fileBuffer,
+        ContentType: mimeType,
+      })
+    );
+
+    try {
+      await fs.unlink(localPath);
+    } catch (_) {}
+
+    return { key };
+  }
+
+  /**
    * Delete image from storage
    * @param {string} key - Object key or local path
    */
@@ -87,7 +129,8 @@ class StorageService {
     // If it's a local path, delete from filesystem
     if (key.startsWith('/uploads/')) {
       try {
-        const filePath = path.join(__dirname, '..', key);
+        const normalizedKey = key.replace(/^\/+/, '');
+        const filePath = path.join(__dirname, '..', normalizedKey);
         await fs.unlink(filePath);
         console.log(`✅ File deleted from local: ${key}`);
       } catch (error) {
@@ -161,7 +204,8 @@ class StorageService {
     // Check local filesystem
     if (key.startsWith('/uploads/')) {
       try {
-        const filePath = path.join(__dirname, '..', key);
+        const normalizedKey = key.replace(/^\/+/, '');
+        const filePath = path.join(__dirname, '..', normalizedKey);
         await fs.access(filePath);
         return true;
       } catch {

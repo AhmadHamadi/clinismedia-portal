@@ -3,6 +3,13 @@ import { FaGoogle, FaSpinner, FaSyncAlt, FaEye, FaSearch, FaPhone, FaDirections,
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 
+const isValidCustomRange = (start: string, end: string) => {
+  if (!start || !end) return false;
+  const s = new Date(start);
+  const e = new Date(end);
+  return s.getTime() <= e.getTime();
+};
+
 interface ComparisonMetric {
   current: number;
   previous: number;
@@ -134,6 +141,11 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
       const params = new URLSearchParams();
       
       if (dateRange === 'custom' && customStartDate && customEndDate) {
+        if (!isValidCustomRange(customStartDate, customEndDate)) {
+          setError('Invalid custom date range. Start date must be before end date.');
+          setStatus('loaded');
+          return;
+        }
         params.append('start', customStartDate);
         params.append('end', customEndDate);
       } else if (dateRange !== 'custom') {
@@ -292,7 +304,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center h-64">
             <div className="flex items-center space-x-3">
@@ -309,7 +321,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
     const isNotConnected = error.includes('No Google Business Profile connected');
     if (isNotConnected) {
       return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="min-h-screen flex items-center justify-center">
           <div className="text-center max-w-md">
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
               <FaGoogle className="text-4xl text-yellow-500 mx-auto mb-4" />
@@ -321,7 +333,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
       );
     }
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {justConnected && (
             <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
@@ -329,7 +341,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
               <span className="text-green-700 font-medium">Google Business Profile connected! Loading your data...</span>
             </div>
           )}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+          <div className="cm-panel-sm border border-gray-200 p-8">
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
                 <FaExclamationTriangle className="text-yellow-500 text-4xl mx-auto mb-4" />
@@ -351,10 +363,10 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6 md:p-8 overflow-x-hidden">
+    <div className="customer-page min-h-screen p-4 sm:p-6 md:p-8 overflow-x-hidden">
       <div className="max-w-7xl xl:max-w-7xl 2xl:max-w-7xl mx-auto w-full">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-100">
+        <div className="cm-page-hero p-8 mb-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               {/* Google Business Logo */}
@@ -400,7 +412,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
         </div>
 
         {/* Date Range Picker */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border border-gray-100">
+        <div className="cm-panel p-6 mb-8">
           <div className="flex flex-wrap items-center justify-between gap-6">
             <h3 className="text-xl font-semibold text-gray-900">Time Period</h3>
             
@@ -440,9 +452,12 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
                 />
                 <button
                   onClick={() => {
-                    if (customStartDate && customEndDate) {
+                    if (isValidCustomRange(customStartDate, customEndDate)) {
                       setDateRange('custom');
+                      setError(null);
                       fetchGoogleBusinessData();
+                    } else {
+                      setError('Please select a valid custom date range.');
                     }
                   }}
                   disabled={!customStartDate || !customEndDate}
@@ -480,7 +495,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
         {insights && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
             {/* Total Views */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-blue-200 transform hover:scale-105 transition-all duration-200">
+            <div className="cm-panel p-6 border-2 border-blue-200 transform hover:scale-105 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-sm font-semibold">Total Views</p>
@@ -492,7 +507,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
             </div>
 
             {/* Total Searches */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-green-200 transform hover:scale-105 transition-all duration-200">
+            <div className="cm-panel p-6 border-2 border-green-200 transform hover:scale-105 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-sm font-semibold">Total Searches</p>
@@ -504,7 +519,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
             </div>
 
             {/* Total Calls */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-purple-200 transform hover:scale-105 transition-all duration-200">
+            <div className="cm-panel p-6 border-2 border-purple-200 transform hover:scale-105 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-sm font-semibold">Total Calls</p>
@@ -516,7 +531,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
             </div>
 
             {/* Total Directions */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-orange-200 transform hover:scale-105 transition-all duration-200">
+            <div className="cm-panel p-6 border-2 border-orange-200 transform hover:scale-105 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-sm font-semibold">Total Directions</p>
@@ -528,7 +543,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
             </div>
 
             {/* Website Clicks */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-indigo-200 transform hover:scale-105 transition-all duration-200">
+            <div className="cm-panel p-6 border-2 border-indigo-200 transform hover:scale-105 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600 text-sm font-semibold">Website Clicks</p>
@@ -543,7 +558,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
 
         {/* Daily Performance Table */}
         {insights && insights.dailyData && insights.dailyData.length > 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="cm-panel-sm border border-gray-200">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">Daily Performance</h3>
               <p className="text-sm text-gray-600 mt-1">Day-by-day breakdown of your Google Business Profile performance</p>
@@ -588,7 +603,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
             </div>
           </div>
         ) : insights && insights.dailyData && insights.dailyData.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+          <div className="cm-panel-sm border border-gray-200 p-8">
             <div className="text-center">
               <FaExclamationTriangle className="text-yellow-500 text-4xl mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No Daily Data Available</h3>
@@ -611,3 +626,8 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
 };
 
 export default GoogleBusinessAnalyticsPage;
+
+
+
+
+

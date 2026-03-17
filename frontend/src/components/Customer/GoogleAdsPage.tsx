@@ -2,6 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { FaGoogle, FaSpinner, FaSyncAlt, FaDollarSign, FaMousePointer, FaEye, FaCheckCircle } from 'react-icons/fa';
 import axios from 'axios';
 
+const toYmd = (d: Date) => d.toISOString().split('T')[0];
+
+const getRangeBounds = (dateRange: string, customStartDate: string, customEndDate: string) => {
+  const today = new Date();
+
+  if (dateRange === 'custom') {
+    if (!customStartDate || !customEndDate) return null;
+    const start = new Date(customStartDate);
+    const end = new Date(customEndDate);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    if (start.getTime() > end.getTime()) return null;
+    return { from: toYmd(start), to: toYmd(end), start, end };
+  }
+
+  const days = Number(dateRange);
+  const start = new Date(today);
+  start.setDate(start.getDate() - days);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(today);
+  end.setHours(23, 59, 59, 999);
+
+  return { from: toYmd(start), to: toYmd(end), start, end };
+};
+
 const GoogleAdsPage: React.FC = () => {
   const [status, setStatus] = useState('loading');
   const [googleAdsData, setGoogleAdsData] = useState<any>(null);
@@ -60,23 +86,14 @@ const GoogleAdsPage: React.FC = () => {
 
       // Determine date range parameters
       const params: any = { accountId: customer.googleAdsCustomerId };
-      if (dateRange === 'custom' && customStartDate && customEndDate) {
-        // Custom date range
-        params.from = customStartDate;
-        params.to = customEndDate;
-      } else if (dateRange === '7') {
-        // Last 7 days
-        params.from = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        params.to = new Date().toISOString().split('T')[0];
-      } else if (dateRange === '30') {
-        // Last 30 days (default)
-        params.from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        params.to = new Date().toISOString().split('T')[0];
-      } else if (dateRange === '90') {
-        // Last 90 days
-        params.from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        params.to = new Date().toISOString().split('T')[0];
+      const bounds = getRangeBounds(dateRange, customStartDate, customEndDate);
+      if (!bounds) {
+        setError('Please pick a valid date range. Start date must be before end date.');
+        setStatus('loaded');
+        return;
       }
+      params.from = bounds.from;
+      params.to = bounds.to;
 
       console.log('🔍 Fetching Google Ads data with params:', params);
 
@@ -131,7 +148,7 @@ const GoogleAdsPage: React.FC = () => {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <FaSpinner className="animate-spin text-4xl text-blue-500 mx-auto mb-4" />
           <p className="text-gray-600">Loading Google Ads data...</p>
@@ -142,7 +159,7 @@ const GoogleAdsPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
             <h2 className="text-xl font-semibold text-red-800 mb-2">Error</h2>
@@ -161,7 +178,7 @@ const GoogleAdsPage: React.FC = () => {
 
   if (googleAdsData === 'no account') {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
             <FaGoogle className="text-4xl text-yellow-500 mx-auto mb-4" />
@@ -174,10 +191,10 @@ const GoogleAdsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6 md:p-8 overflow-x-hidden">
+    <div className="customer-page googleads-page min-h-screen p-4 sm:p-6 md:p-8 overflow-x-hidden">
       <div className="max-w-7xl xl:max-w-7xl 2xl:max-w-7xl mx-auto w-full">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-100">
+        <div className="cm-page-hero p-8 mb-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               {/* Google Ads Logo */}
@@ -195,6 +212,14 @@ const GoogleAdsPage: React.FC = () => {
                 <p className="text-gray-600 text-lg">
                   Last updated: {new Date(googleAdsData?.lastUpdated).toLocaleString()}
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                    Account: {googleAdsData?.accountInfo?.id || 'N/A'}
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                    Period: {dateRange === 'custom' ? 'Custom Range' : `Last ${dateRange} Days`}
+                  </span>
+                </div>
               </div>
             </div>
             
@@ -209,7 +234,7 @@ const GoogleAdsPage: React.FC = () => {
         </div>
 
         {/* Date Range Picker */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border border-gray-100">
+        <div className="cm-panel p-6 mb-8">
           <div className="flex flex-wrap items-center justify-between gap-6">
             <h3 className="text-xl font-semibold text-gray-900">Time Period</h3>
             
@@ -249,9 +274,13 @@ const GoogleAdsPage: React.FC = () => {
                 />
                 <button
                   onClick={() => {
-                    if (customStartDate && customEndDate) {
+                    const bounds = getRangeBounds('custom', customStartDate, customEndDate);
+                    if (bounds) {
                       setDateRange('custom');
+                      setError(null);
                       fetchGoogleAdsData();
+                    } else {
+                      setError('Please select a valid custom date range.');
                     }
                   }}
                   disabled={!customStartDate || !customEndDate}
@@ -267,7 +296,7 @@ const GoogleAdsPage: React.FC = () => {
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           {/* Total Spend */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-blue-200 transform hover:scale-105 transition-all duration-200">
+          <div className="cm-panel p-6 transform hover:scale-[1.01] transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-semibold">Total Spend</p>
@@ -280,7 +309,7 @@ const GoogleAdsPage: React.FC = () => {
           </div>
 
           {/* Total Clicks */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-green-200 transform hover:scale-105 transition-all duration-200">
+          <div className="cm-panel p-6 transform hover:scale-[1.01] transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-semibold">Total Clicks</p>
@@ -293,7 +322,7 @@ const GoogleAdsPage: React.FC = () => {
           </div>
 
           {/* Total Impressions */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-purple-200 transform hover:scale-105 transition-all duration-200">
+          <div className="cm-panel p-6 transform hover:scale-[1.01] transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-semibold">Impressions</p>
@@ -306,7 +335,7 @@ const GoogleAdsPage: React.FC = () => {
           </div>
 
           {/* Total Conversions */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-orange-200 transform hover:scale-105 transition-all duration-200">
+          <div className="cm-panel p-6 transform hover:scale-[1.01] transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-semibold">Conversions</p>
@@ -319,7 +348,7 @@ const GoogleAdsPage: React.FC = () => {
           </div>
 
           {/* CTR */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-indigo-200 transform hover:scale-105 transition-all duration-200">
+          <div className="cm-panel p-6 transform hover:scale-[1.01] transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-semibold">CTR</p>
@@ -332,7 +361,7 @@ const GoogleAdsPage: React.FC = () => {
           </div>
 
           {/* CPA */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-red-200 transform hover:scale-105 transition-all duration-200">
+          <div className="cm-panel p-6 transform hover:scale-[1.01] transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-semibold">CPA</p>
@@ -356,7 +385,7 @@ const GoogleAdsPage: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {/* Insight 1 - Performance Summary */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-blue-500 hover:shadow-xl transition-all duration-200">
+          <div className="cm-panel p-6 border-l-4 border-blue-500 transition-all duration-200">
             <div className="flex items-start">
               <div className="flex-1">
                 <h4 className="text-lg font-semibold text-gray-900 mb-3">📊 Performance Overview</h4>
@@ -371,7 +400,7 @@ const GoogleAdsPage: React.FC = () => {
           </div>
 
           {/* Insight 2 - Conversion Analysis */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-orange-500 hover:shadow-xl transition-all duration-200">
+          <div className="cm-panel p-6 border-l-4 border-orange-500 transition-all duration-200">
             <div className="flex items-start">
               <div className="flex-1">
                 <h4 className="text-lg font-semibold text-gray-900 mb-3">🎯 Your Conversion Performance</h4>
@@ -386,7 +415,7 @@ const GoogleAdsPage: React.FC = () => {
           </div>
 
           {/* Insight 3 - Campaign Performance */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-green-500 hover:shadow-xl transition-all duration-200">
+          <div className="cm-panel p-6 border-l-4 border-green-500 transition-all duration-200">
             <div className="flex items-start">
               <div className="flex-1">
                 <h4 className="text-lg font-semibold text-gray-900 mb-3">🚀 Campaign Management Update</h4>
@@ -402,7 +431,7 @@ const GoogleAdsPage: React.FC = () => {
         </div>
 
         {/* Performance Chart */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-100">
+        <div className="p-8 mb-8">
           <h3 className="text-2xl font-bold text-gray-900 mb-6">
             📈 Performance Trends - {dateRange === 'custom' ? 'Selected Period' : `Last ${dateRange} Days`}
           </h3>
@@ -802,7 +831,7 @@ const GoogleAdsPage: React.FC = () => {
         </div>
 
         {/* Campaigns Table */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-100">
+        <div className="p-8 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-2xl font-bold text-gray-900">🎯 Campaign Performance</h3>
             <button
@@ -885,3 +914,10 @@ const GoogleAdsPage: React.FC = () => {
 };
 
 export default GoogleAdsPage;
+
+
+
+
+
+
+

@@ -12,6 +12,7 @@ const GalleryItem = require('../models/GalleryItem');
 const Invoice = require('../models/Invoice');
 const multer = require('multer');
 const path = require('path');
+const storageService = require('../services/storageService');
 
 // Set up multer storage for customer logos
 const fs = require('fs');
@@ -36,11 +37,13 @@ const logoStorage = multer.diskStorage({
 const uploadLogo = multer({ 
   storage: logoStorage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
+    fileSize: 10 * 1024 * 1024, // 10MB limit for high-quality logos
   },
   fileFilter: function (req, file, cb) {
-    // Accept only image files
-    if (file.mimetype.startsWith('image/')) {
+    // Accept image MIME types and common image extensions (fallback for odd browser MIME reporting)
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const allowedExt = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.bmp', '.tiff', '.avif', '.heic', '.heif']);
+    if (file.mimetype.startsWith('image/') || allowedExt.has(ext)) {
       cb(null, true);
     } else {
       cb(new Error('Only image files are allowed'), false);
@@ -55,12 +58,23 @@ router.get("/profile", authenticateToken, async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    if (userObj?.customerSettings?.logoUrl) {
+      try {
+        const resolvedLogoUrl = await storageService.getImageUrl(userObj.customerSettings.logoUrl);
+        userObj.customerSettings.logoUrlResolved = resolvedLogoUrl;
+        userObj.customerSettings.logoDisplayUrl = resolvedLogoUrl;
+      } catch (_) {
+        userObj.customerSettings.logoUrlResolved = userObj.customerSettings.logoUrl;
+        userObj.customerSettings.logoDisplayUrl = userObj.customerSettings.logoUrl;
+      }
+    }
     if (user.role === "customer") {
-      return res.status(200).json(user);
+      return res.status(200).json(userObj);
     }
     if (user.role === "receptionist" && user.parentCustomerId) {
       const parent = await User.findById(user.parentCustomerId).select("bookingIntervalMonths name");
-      const profile = user.toObject ? user.toObject() : { ...user };
+      const profile = userObj;
       profile.bookingIntervalMonths = parent?.bookingIntervalMonths;
       profile.parentName = parent?.name;
       return res.status(200).json(profile);
@@ -95,7 +109,6 @@ router.get("/", authenticateToken, authorizeRole(['admin']), async (req, res) =>
 router.post('/', uploadLogo.single('logo'), async (req, res) => {
   try {
     const { name, username, email, password, location, address, bookingIntervalMonths } = req.body;
-    const logoUrl = req.file ? `/uploads/customer-logos/${req.file.filename}` : '';
 
     if (!name || !username || !email || !password || !location) {
       return res.status(400).json({ error: "All fields are required" });
@@ -116,7 +129,16 @@ router.post('/', uploadLogo.single('logo'), async (req, res) => {
       return res.status(400).json({ error: "User with this email or username already exists" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    let logoUrl = '';
+    if (req.file) {
+      const uploaded = await storageService.uploadCustomerLogo(
+        req.file.path,
+        req.file.originalname,
+        req.file.mimetype,
+        null
+      );
+      logoUrl = uploaded.key;
+    }
 
     const user = new User({
       name,
@@ -333,11 +355,28 @@ router.delete("/:id", authenticateToken, authorizeRole(['admin']), async (req, r
 router.put("/:id", authenticateToken, authorizeRole(['admin']), uploadLogo.single('logo'), async (req, res) => {
   try {
     const { name, username, email, location, address, bookingIntervalMonths } = req.body;
-    const logoUrl = req.file ? `/uploads/customer-logos/${req.file.filename}` : undefined;
+    let logoUrl;
+    if (req.file) {
+      const uploaded = await storageService.uploadCustomerLogo(
+        req.file.path,
+        req.file.originalname,
+        req.file.mimetype,
+        req.params.id
+      );
+      logoUrl = uploaded.key;
+    }
 
     const updateData = { name, username, email, location, address, bookingIntervalMonths };
     if (logoUrl) {
-      updateData.customerSettings = { logoUrl };
+      const existingCustomer = await User.findById(req.params.id);
+      const oldLogo = existingCustomer?.customerSettings?.logoUrl || null;
+      updateData.customerSettings = {
+        ...(existingCustomer?.customerSettings || {}),
+        logoUrl
+      };
+      if (oldLogo && oldLogo !== logoUrl) {
+        storageService.deleteImage(oldLogo).catch(() => {});
+      }
     }
 
     const customer = await User.findByIdAndUpdate(
@@ -361,7 +400,7 @@ router.put("/:id", authenticateToken, authorizeRole(['admin']), uploadLogo.singl
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: "File size too large. Maximum size is 5MB." });
+      return res.status(400).json({ error: "File size too large. Maximum size is 10MB." });
     }
     return res.status(400).json({ error: err.message });
   }
@@ -397,11 +436,18 @@ router.put("/profile", authenticateToken, uploadLogo.single('logo'), handleMulte
       return res.status(200).json(customer);
     }
 
-    const logoUrl = `/uploads/customer-logos/${req.file.filename}`;
+    const uploaded = await storageService.uploadCustomerLogo(
+      req.file.path,
+      req.file.originalname,
+      req.file.mimetype,
+      req.user.id
+    );
+    const logoUrl = uploaded.key;
     const updateData = { ...baseUpdate };
     // Receptionist cannot change logo/customerSettings (restricted to name, email, address)
     if (!isReceptionist) {
       const existingCustomer = await User.findById(req.user.id);
+      const oldLogo = existingCustomer?.customerSettings?.logoUrl || null;
       if (existingCustomer && existingCustomer.customerSettings) {
         updateData.customerSettings = {
           ...existingCustomer.customerSettings,
@@ -409,6 +455,9 @@ router.put("/profile", authenticateToken, uploadLogo.single('logo'), handleMulte
         };
       } else {
         updateData.customerSettings = { logoUrl };
+      }
+      if (oldLogo && oldLogo !== logoUrl) {
+        storageService.deleteImage(oldLogo).catch(() => {});
       }
     }
 
@@ -422,15 +471,27 @@ router.put("/profile", authenticateToken, uploadLogo.single('logo'), handleMulte
       return res.status(404).json({ error: "Customer not found" });
     }
 
+    const customerObj = customer.toObject ? customer.toObject() : { ...customer };
+    if (customerObj?.customerSettings?.logoUrl) {
+      try {
+        const resolvedLogoUrl = await storageService.getImageUrl(customerObj.customerSettings.logoUrl);
+        customerObj.customerSettings.logoUrlResolved = resolvedLogoUrl;
+        customerObj.customerSettings.logoDisplayUrl = resolvedLogoUrl;
+      } catch (_) {
+        customerObj.customerSettings.logoUrlResolved = customerObj.customerSettings.logoUrl;
+        customerObj.customerSettings.logoDisplayUrl = customerObj.customerSettings.logoUrl;
+      }
+    }
+
     console.log('✅ Logo uploaded successfully:', logoUrl);
-    res.status(200).json(customer);
+    res.status(200).json(customerObj);
   } catch (err) {
     console.error("❌ Failed to update customer profile:", err.message);
     console.error("❌ Error stack:", err.stack);
     
     // If multer error, provide more specific message
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: "File size too large. Maximum size is 5MB." });
+      return res.status(400).json({ error: "File size too large. Maximum size is 10MB." });
     }
     if (err.message === 'Only image files are allowed') {
       return res.status(400).json({ error: "Only image files are allowed." });
@@ -443,6 +504,19 @@ router.put("/profile", authenticateToken, uploadLogo.single('logo'), handleMulte
 // GET customer portal visibility (authenticated)
 router.get('/:id/portal-visibility', authenticateToken, async (req, res) => {
   try {
+    const targetId = String(req.params.id);
+    const requesterId = String(req.user?.id || req.user?._id || '');
+    const requesterRole = req.user?.role;
+    const requesterParentId = String(req.user?.parentCustomerId || '');
+
+    if (requesterRole !== 'admin') {
+      const isOwnCustomer = requesterRole === 'customer' && requesterId === targetId;
+      const isLinkedReceptionist = requesterRole === 'receptionist' && requesterParentId === targetId;
+      if (!isOwnCustomer && !isLinkedReceptionist) {
+        return res.status(403).json({ error: 'Forbidden: cannot access this customer visibility' });
+      }
+    }
+
     const customer = await User.findById(req.params.id).select('portalVisibility');
     if (!customer) {
       return res.status(404).json({ error: "Customer not found" });

@@ -123,7 +123,7 @@ const CustomerQRReviewsPage: React.FC = () => {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="mb-6">
+      <div className="cm-page-hero mb-6 px-5 py-4">
         <h1 className="text-2xl font-bold text-[#303b45]">QR Reviews</h1>
         <p className="text-sm text-gray-500 mt-1">
           Track how your review campaigns are performing
@@ -237,7 +237,7 @@ const CustomerQRReviewsPage: React.FC = () => {
       {/* Stats Modal */}
       {showStats && stats && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+          <div className="cm-panel-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b">
               <h2 className="text-lg font-semibold text-[#303b45]">Campaign Analytics</h2>
               <button onClick={() => setShowStats(false)} className="text-gray-400 hover:text-gray-600">
@@ -344,7 +344,7 @@ const CustomerQRReviewsPage: React.FC = () => {
       {/* Concerns Modal */}
       {showConcerns && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+          <div className="cm-panel-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b">
               <h2 className="text-lg font-semibold text-[#303b45]">Patient Concerns</h2>
               <button onClick={() => setShowConcerns(false)} className="text-gray-400 hover:text-gray-600">
@@ -398,3 +398,9 @@ const CustomerQRReviewsPage: React.FC = () => {
 };
 
 export default CustomerQRReviewsPage;
+
+
+
+
+
+

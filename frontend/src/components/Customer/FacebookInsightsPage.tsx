@@ -1,8 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { FaFacebook, FaChartLine, FaUsers, FaEye, FaHeart, FaComment, FaShare, FaSpinner, FaExclamationTriangle } from 'react-icons/fa';
+import React, { useState, useEffect, useMemo } from 'react';
+import { FaFacebook, FaChartLine, FaUsers, FaEye, FaHeart, FaComment, FaSpinner, FaExclamationTriangle } from 'react-icons/fa';
 import axios from 'axios';
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import {
+  ResponsiveContainer,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+} from 'recharts';
 
 interface FacebookInsights {
   pageInfo: {
@@ -29,14 +42,6 @@ interface FacebookInsights {
     totalPageViews: number;
     totalVideoViews: number;
   };
-  previousSummary: {
-    totalImpressions: number;
-    totalReach: number;
-    totalEngagements: number;
-    currentFollowers: number;
-    totalPageViews: number;
-    totalVideoViews: number;
-  };
   comparisons: {
     impressionsChange: number;
     reachChange: number;
@@ -52,9 +57,7 @@ const FacebookInsightsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRange, setSelectedRange] = useState<{ label: string; start: Date; end: Date } | null>(null);
-  // Remove all Instagram-related state, effects, chart data, and tab UI. Only keep Facebook Insights logic and charts.
 
-  // Always use real current date for month calculations
   const now = new Date(Date.now());
   const thisMonth = {
     label: `${format(now, 'MMMM yyyy')}`,
@@ -73,34 +76,26 @@ const FacebookInsightsPage: React.FC = () => {
   };
   const monthRanges = [thisMonth, lastMonth, twoMonthsAgo];
 
-  // Helper to check if selected month is in the future
-  const isFutureMonth = selectedRange && selectedRange.start > now;
-  // Helper to check if all metrics are zero
-  const allZero = insights &&
-    insights.summary.totalImpressions === 0 &&
-    insights.summary.totalReach === 0 &&
-    insights.summary.totalEngagements === 0 &&
-    insights.summary.currentFollowers === 0 &&
-    insights.summary.totalPageViews === 0 &&
-    insights.summary.totalVideoViews === 0;
-
   const fetchInsights = async (range?: { start: Date; end: Date }) => {
     try {
       setLoading(true);
       setError(null);
+
       const token = localStorage.getItem('customerToken');
       const customerData = localStorage.getItem('customerData');
       const customer = customerData ? JSON.parse(customerData) : null;
       if (!customer?.id && !customer?._id) {
         throw new Error('Customer data not found');
       }
+
       const customerId = customer.id || customer._id;
       let url = `${import.meta.env.VITE_API_BASE_URL}/facebook/insights/${customerId}`;
       if (range) {
         url += `?start=${format(range.start, 'yyyy-MM-dd')}&end=${format(range.end, 'yyyy-MM-dd')}`;
       }
+
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       setInsights(response.data);
     } catch (err: any) {
@@ -116,7 +111,6 @@ const FacebookInsightsPage: React.FC = () => {
     }
   };
 
-  // On mount, load this month's report by default
   useEffect(() => {
     setSelectedRange(thisMonth);
     fetchInsights(thisMonth);
@@ -129,64 +123,39 @@ const FacebookInsightsPage: React.FC = () => {
   };
 
   const formatNumber = (num: number): string => {
-    if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + 'M';
-    } else if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'K';
-    }
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
   };
 
-  // Helper function to format comparison data
   const formatComparison = (change: number) => {
     const isPositive = change > 0;
     const isNegative = change < 0;
-    const isNeutral = change === 0;
-    
     return {
       value: Math.abs(change),
-      isPositive,
-      isNegative,
-      isNeutral,
       color: isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-gray-600',
       bgColor: isPositive ? 'bg-green-100' : isNegative ? 'bg-red-100' : 'bg-gray-100',
-      icon: isPositive ? '↗' : isNegative ? '↘' : '→',
-      text: isPositive ? 'up' : isNegative ? 'down' : 'same'
+      icon: isPositive ? '?' : isNegative ? '?' : '?',
     };
   };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric'
-    });
+  const formatShortDate = (dateString: string): string => {
+    return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Prepare chart data for each metric
-  const impressionsData = insights?.metrics.impressions.map(item => ({
-    date: formatDate(item.end_time),
-    value: item.value,
-  })) || [];
-  const reachData = insights?.metrics.reach.map(item => ({
-    date: formatDate(item.end_time),
-    value: item.value,
-  })) || [];
-  const engagementsData = insights?.metrics.engagements.map(item => ({
-    date: formatDate(item.end_time),
-    value: item.value,
-  })) || [];
-  const followersData = insights?.metrics.followers.map(item => ({
-    date: formatDate(item.end_time),
-    value: item.value,
-  })) || [];
-  const pageViewsData = insights?.metrics.pageViews.map(item => ({
-    date: formatDate(item.end_time),
-    value: item.value,
-  })) || [];
-  const videoViewsData = insights?.metrics.videoViews.map(item => ({
-    date: formatDate(item.end_time),
-    value: item.value,
-  })) || [];
+  const trendData = useMemo(() => {
+    if (!insights) return [];
+    const base = insights.metrics.impressions || [];
+    return base.map((row, idx) => ({
+      date: formatShortDate(row.end_time),
+      impressions: row.value || 0,
+      reach: insights.metrics.reach?.[idx]?.value || 0,
+      engagements: insights.metrics.engagements?.[idx]?.value || 0,
+      followers: insights.metrics.followers?.[idx]?.value || 0,
+      pageViews: insights.metrics.pageViews?.[idx]?.value || 0,
+      videoViews: insights.metrics.videoViews?.[idx]?.value || 0,
+    }));
+  }, [insights]);
 
   if (loading) {
     return (
@@ -201,20 +170,16 @@ const FacebookInsightsPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
+      <div className="customer-page p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+        <div className="cm-page-hero mb-6 px-5 py-4">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
             <FaFacebook className="mr-3 text-blue-600" />
             Meta Insights
           </h1>
-          <p className="text-gray-600">
-            View your Facebook page insights and analytics
-          </p>
+          <p className="text-gray-600">View your Facebook page insights and analytics</p>
         </div>
 
-        {/* Error Card */}
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+        <div className="cm-panel p-6">
           <div className="flex items-center justify-center min-h-96">
             <div className="text-center">
               <FaExclamationTriangle className="text-4xl text-red-600 mx-auto mb-4" />
@@ -235,291 +200,181 @@ const FacebookInsightsPage: React.FC = () => {
 
   if (!insights) {
     return (
-      <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
-        <div className="flex items-center justify-center min-h-96">
-          <div className="text-center">
-            <p className="text-gray-600">No insights data available.</p>
-          </div>
+      <div className="customer-page p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+        <div className="cm-panel p-6 text-center">
+          <p className="text-gray-600">No insights data available.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page fbinsights-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
-          <FaFacebook className="mr-3 text-blue-600" />
-          Meta Insights
-        </h1>
-        <p className="text-gray-600">
-          View your Facebook page insights and analytics for {insights?.pageInfo.name}
-        </p>
-      </div>
+        <div className="cm-page-hero mb-6 px-5 py-4">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+            <FaFacebook className="mr-3 text-blue-600" />
+            Meta Insights
+          </h1>
+          <p className="text-gray-600">View your Facebook page insights and analytics for {insights.pageInfo.name}</p>
+        </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 md:gap-10 w-full">
-        {/* Sidebar: Month History */}
-        <div className="w-full lg:w-1/4 mb-8 lg:mb-0">
-          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Report History</h3>
-            <div className="flex flex-col gap-2">
+        <div className="cm-panel p-4 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                Page: {insights.pageInfo.name}
+              </span>
+              <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                Period: {insights.period.start} - {insights.period.end}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
               {monthRanges.map((range) => (
                 <button
                   key={range.label}
-                  className={`text-left px-4 py-2 rounded-lg font-medium border transition-all ${selectedRange?.label === range.label ? 'bg-blue-100 border-blue-400 text-blue-900' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-blue-50'}`}
                   onClick={() => handleSelectRange(range)}
-                  disabled={loading}
+                  className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                    selectedRange?.label === range.label
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-blue-50'
+                  }`}
                 >
-                  {range.label} {selectedRange?.label === range.label && <span className="ml-2 text-xs">(Selected)</span>}
+                  {range.label}
                 </button>
               ))}
             </div>
-            <button
-              className="mt-4 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-              onClick={() => handleSelectRange(thisMonth)}
-              disabled={loading || selectedRange?.label === thisMonth.label}
-            >
-              View This Month
-            </button>
           </div>
         </div>
-        {/* Main Content */}
-        <div className="flex-1">
-            {/* Period Info */}
-            <div className="mb-6">
-              <p className="text-gray-600">
-                Period: {insights?.period.start} to {insights?.period.end}
-              </p>
-              {isFutureMonth && (
-                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-yellow-800 text-sm">Selected month is in the future. Facebook will not return data for future dates.</p>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+          {[
+            {
+              key: 'impressions',
+              label: 'Impressions',
+              value: insights.summary.totalImpressions,
+              icon: <FaEye className="text-blue-600" />,
+              delta: insights.comparisons.impressionsChange,
+            },
+            {
+              key: 'reach',
+              label: 'Reach',
+              value: insights.summary.totalReach,
+              icon: <FaUsers className="text-green-600" />,
+              delta: insights.comparisons.reachChange,
+            },
+            {
+              key: 'engagements',
+              label: 'Engagements',
+              value: insights.summary.totalEngagements,
+              icon: <FaHeart className="text-red-600" />,
+              delta: insights.comparisons.engagementsChange,
+            },
+            {
+              key: 'followers',
+              label: 'Followers',
+              value: insights.summary.currentFollowers,
+              icon: <FaChartLine className="text-purple-600" />,
+              delta: insights.comparisons.followersChange,
+            },
+            {
+              key: 'pageViews',
+              label: 'Page Views',
+              value: insights.summary.totalPageViews,
+              icon: <FaEye className="text-indigo-600" />,
+              delta: insights.comparisons.pageViewsChange,
+            },
+            {
+              key: 'videoViews',
+              label: 'Video Views',
+              value: insights.summary.totalVideoViews,
+              icon: <FaComment className="text-orange-600" />,
+              delta: insights.comparisons.videoViewsChange,
+            },
+          ].map((item) => {
+            const cmp = formatComparison(item.delta);
+            return (
+              <div key={item.key} className="cm-panel p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{item.label}</span>
+                  {item.icon}
                 </div>
-              )}
-            </div>
-            {/* Zero data warning */}
-            {allZero && !isFutureMonth && (
-              <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-yellow-800">No data found for this period. This may be because the Facebook Page has no activity, or the app does not have the required permissions. Try another month or check with your admin.</p>
+                <p className="text-2xl font-extrabold text-gray-900 mb-2">{formatNumber(item.value)}</p>
+                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${cmp.bgColor} ${cmp.color}`}>
+                  <span className="mr-1">{cmp.icon}</span>{cmp.value}% vs last month
+                </span>
               </div>
-            )}
+            );
+          })}
+        </div>
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
-                <div className="flex items-center">
-                  <div className="bg-blue-100 p-3 rounded-lg mr-3">
-                    <FaEye className="text-xl text-blue-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-gray-600">Total Impressions</p>
-                    <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalImpressions)}</p>
-                    {insights.comparisons && (
-                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-1 ${formatComparison(insights.comparisons.impressionsChange).bgColor} ${formatComparison(insights.comparisons.impressionsChange).color}`}>
-                        <span className="mr-1">{formatComparison(insights.comparisons.impressionsChange).icon}</span>
-                        {formatComparison(insights.comparisons.impressionsChange).value}% vs last month
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+          <div className="cm-panel p-6 xl:col-span-2">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Audience Momentum</h3>
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="imprGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#1877f3" stopOpacity={0.45} />
+                    <stop offset="100%" stopColor="#1877f3" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="reachGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#16a34a" stopOpacity={0.04} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #dbe7ff' }} />
+                <Legend />
+                <Area type="monotone" dataKey="impressions" stroke="#1877f3" fill="url(#imprGrad)" strokeWidth={2.5} name="Impressions" />
+                <Area type="monotone" dataKey="reach" stroke="#16a34a" fill="url(#reachGrad)" strokeWidth={2.5} name="Reach" />
+                <Line type="monotone" dataKey="engagements" stroke="#e63946" strokeWidth={2.5} dot={false} name="Engagements" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
 
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <FaUsers className="text-xl text-green-600" />
-                  </div>
-                  <div className="ml-3 flex-1">
-                    <p className="text-xs font-medium text-gray-600">Total Reach</p>
-                    <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalReach)}</p>
-                    {insights.comparisons && (
-                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.reachChange).bgColor} ${formatComparison(insights.comparisons.reachChange).color}`}>
-                        <span className="mr-1">{formatComparison(insights.comparisons.reachChange).icon}</span>
-                        {formatComparison(insights.comparisons.reachChange).value}% vs last month
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+          <div className="cm-panel p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Behavior Snapshot</h3>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" hide />
+                <YAxis />
+                <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #dbe7ff' }} />
+                <Legend />
+                <Bar dataKey="pageViews" fill="#4f46e5" radius={[6, 6, 0, 0]} name="Page Views" />
+                <Bar dataKey="videoViews" fill="#f97316" radius={[6, 6, 0, 0]} name="Video Views" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
-                <div className="flex items-center">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <FaHeart className="text-xl text-red-600" />
-                  </div>
-                  <div className="ml-3 flex-1">
-                    <p className="text-xs font-medium text-gray-600">Total Engagements</p>
-                    <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalEngagements)}</p>
-                    {insights.comparisons && (
-                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.engagementsChange).bgColor} ${formatComparison(insights.comparisons.engagementsChange).color}`}>
-                        <span className="mr-1">{formatComparison(insights.comparisons.engagementsChange).icon}</span>
-                        {formatComparison(insights.comparisons.engagementsChange).value}% vs last month
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="cm-panel p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Followers Trend</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #dbe7ff' }} />
+                <Line type="monotone" dataKey="followers" stroke="#8e44ad" strokeWidth={3} dot={false} name="Followers" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
 
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <FaChartLine className="text-xl text-purple-600" />
-                  </div>
-                  <div className="ml-3 flex-1">
-                    <p className="text-xs font-medium text-gray-600">Current Followers</p>
-                    <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.currentFollowers)}</p>
-                    {insights.comparisons && (
-                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.followersChange).bgColor} ${formatComparison(insights.comparisons.followersChange).color}`}>
-                        <span className="mr-1">{formatComparison(insights.comparisons.followersChange).icon}</span>
-                        {formatComparison(insights.comparisons.followersChange).value}% vs last month
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Additional Metrics Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 mb-6">
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
-                <div className="flex items-center">
-                  <div className="p-2 bg-indigo-100 rounded-lg">
-                    <FaEye className="text-xl text-indigo-600" />
-                  </div>
-                  <div className="ml-3 flex-1">
-                    <p className="text-xs font-medium text-gray-600">Page Views</p>
-                    <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalPageViews)}</p>
-                    {insights.comparisons && (
-                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.pageViewsChange).bgColor} ${formatComparison(insights.comparisons.pageViewsChange).color}`}>
-                        <span className="mr-1">{formatComparison(insights.comparisons.pageViewsChange).icon}</span>
-                        {formatComparison(insights.comparisons.pageViewsChange).value}% vs last month
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
-                <div className="flex items-center">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <FaComment className="text-xl text-orange-600" />
-                  </div>
-                  <div className="ml-3 flex-1">
-                    <p className="text-xs font-medium text-gray-600">Video Views</p>
-                    <p className="text-lg font-bold text-gray-900">{formatNumber(insights.summary.totalVideoViews)}</p>
-                    {insights.comparisons && (
-                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${formatComparison(insights.comparisons.videoViewsChange).bgColor} ${formatComparison(insights.comparisons.videoViewsChange).color}`}>
-                        <span className="mr-1">{formatComparison(insights.comparisons.videoViewsChange).icon}</span>
-                        {formatComparison(insights.comparisons.videoViewsChange).value}% vs last month
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Metrics Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* Impressions Chart */}
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Impressions</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={impressionsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" stroke="#1877f3" strokeWidth={2} name="Impressions" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              {/* Reach Chart */}
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Reach</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={reachData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" stroke="#34a853" strokeWidth={2} name="Reach" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              {/* Engagements Chart */}
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Engagements</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={engagementsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" stroke="#e63946" strokeWidth={2} name="Engagements" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              {/* Followers Chart */}
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Followers</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={followersData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" stroke="#8e44ad" strokeWidth={2} name="Followers" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              {/* Page Views Chart */}
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Page Views</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={pageViewsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={2} name="Page Views" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              {/* Video Views Chart */}
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Video Views</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={videoViewsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" stroke="#f97316" strokeWidth={2} name="Video Views" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Info Section */}
-            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-blue-900 mb-3">About These Insights</h3>
-              <div className="space-y-2 text-sm text-blue-800">
-                <p>• <strong>Impressions:</strong> Number of times your page was seen</p>
-                <p>• <strong>Reach:</strong> Number of unique people who saw your page</p>
-                <p>• <strong>Engagements:</strong> Total interactions with your page content</p>
-                <p>• <strong>Followers:</strong> Number of people following your page</p>
-                <p>• <strong>Page Views:</strong> Total number of times your page was viewed</p>
-                <p>• <strong>Video Views:</strong> Number of times your videos were viewed</p>
-                <p>• Data is updated daily and shows the last 30 days of activity</p>
-              </div>
-            </div>
+          <div className="cm-panel p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">How To Read This</h3>
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li><strong>Impressions:</strong> How often your content was shown.</li>
+              <li><strong>Reach:</strong> Unique people who saw your content.</li>
+              <li><strong>Engagements:</strong> Reactions, comments, and interactions.</li>
+              <li><strong>Page / Video Views:</strong> Strong signal for intent and interest.</li>
+              <li><strong>Tip:</strong> Compare spikes in engagements to posting days.</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -527,4 +382,4 @@ const FacebookInsightsPage: React.FC = () => {
   );
 };
 
-export default FacebookInsightsPage; 
+export default FacebookInsightsPage;

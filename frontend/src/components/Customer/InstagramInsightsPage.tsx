@@ -129,20 +129,20 @@ const InstagramInsightsPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+      <div className="customer-page p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+        <div className="cm-page-hero mb-6 px-5 py-4">
+          <h1 className="text-2xl font-bold flex items-center mb-2">
             <FaInstagram className="mr-3 text-blue-600" />
             Instagram Insights
           </h1>
-          <p className="text-gray-600">
+          <p>
             View your Instagram insights reports from the past 3 months
           </p>
         </div>
 
         {/* Error Card */}
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+        <div className="cm-panel-lg border border-gray-200 p-6">
           <div className="flex items-center justify-center min-h-96">
             <div className="text-center">
               <FaExclamationTriangle className="text-4xl text-red-600 mx-auto mb-4" />
@@ -162,21 +162,21 @@ const InstagramInsightsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+      <div className="cm-page-hero mb-6 px-5 py-4">
+        <h1 className="text-2xl font-bold flex items-center mb-2">
           <FaInstagram className="mr-3 text-blue-600" />
           Instagram Insights
         </h1>
-        <p className="text-gray-600">
+        <p>
           View your Instagram insights reports from the past 3 months
         </p>
       </div>
 
       {/* Month Selector - Top Section */}
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-6">
+      <div className="cm-panel-lg border border-gray-200 p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Report History</h3>
           <div className="flex flex-col gap-2">
             {monthRanges.map((range) => {
@@ -226,7 +226,7 @@ const InstagramInsightsPage: React.FC = () => {
 
       {/* Main Content - Large Image Display */}
       {images.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+        <div className="cm-panel-lg border border-gray-200 p-6">
           <div className="flex items-center justify-center min-h-96">
             <div className="text-center">
               <FaInstagram className="text-6xl text-gray-400 mx-auto mb-6" />
@@ -250,7 +250,7 @@ const InstagramInsightsPage: React.FC = () => {
         if (imageForSelectedMonth) {
           // Display the image
           return (
-            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+            <div className="cm-panel-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
                   <div className="bg-blue-100 p-3 rounded-lg mr-4">
@@ -327,7 +327,7 @@ const InstagramInsightsPage: React.FC = () => {
         } else if (selectedMonth) {
           // No image for selected month
           return (
-            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+            <div className="cm-panel-lg border border-gray-200 p-6">
               <div className="flex items-center justify-center min-h-96">
                 <div className="text-center">
                   <FaInstagram className="text-6xl text-gray-400 mx-auto mb-6" />
@@ -342,7 +342,7 @@ const InstagramInsightsPage: React.FC = () => {
         } else {
           // No month selected
           return (
-            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+            <div className="cm-panel-lg border border-gray-200 p-6">
               <div className="flex items-center justify-center min-h-96">
                 <div className="text-center">
                   <FaInstagram className="text-6xl text-gray-400 mx-auto mb-6" />
@@ -408,3 +408,10 @@ const InstagramInsightsPage: React.FC = () => {
 };
 
 export default InstagramInsightsPage;
+
+
+
+
+
+
+

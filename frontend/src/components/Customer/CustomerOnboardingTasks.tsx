@@ -58,20 +58,20 @@ const CustomerOnboardingTasks: React.FC = () => {
 
   if (assignedTasks.length === 0) {
     return (
-      <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+      <div className="customer-page p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+        <div className="cm-page-hero mb-6 px-5 py-4">
+          <h1 className="text-2xl font-bold flex items-center mb-2">
             <FaClipboardList className="mr-3 text-blue-600" />
             Your Onboarding Checklist
           </h1>
-          <p className="text-gray-600">
+          <p>
             Track your onboarding progress and complete assigned tasks
           </p>
         </div>
 
         {/* Empty State Card */}
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+        <div className="cm-panel-lg border border-gray-200 p-6">
           <div className="flex items-center justify-center min-h-96">
             <div className="text-center">
               <FaClipboardList className="text-6xl text-gray-400 mx-auto mb-4" />
@@ -85,15 +85,15 @@ const CustomerOnboardingTasks: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+      <div className="cm-page-hero mb-6 px-5 py-4">
+        <h1 className="text-2xl font-bold flex items-center mb-2">
           <FaClipboardList className="mr-3 text-blue-600" />
           Your Onboarding Checklist
         </h1>
-        <p className="text-gray-600">
+        <p>
           Track your onboarding progress and complete assigned tasks
         </p>
       </div>
@@ -101,7 +101,7 @@ const CustomerOnboardingTasks: React.FC = () => {
       {/* Tasks by Category */}
       {tasksByCategory.map(({ category, tasks }) => (
         tasks.length > 0 && (
-          <div key={category} className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-6">
+          <div key={category} className="cm-panel-lg border border-gray-200 p-6 mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <span className="bg-blue-100 p-2 rounded-lg mr-3">
                 <FaCheckCircle className="text-blue-600" />
@@ -150,3 +150,8 @@ const CustomerOnboardingTasks: React.FC = () => {
 };
 
 export default CustomerOnboardingTasks; 
+
+
+
+
+

@@ -23,6 +23,43 @@ interface Customer {
   location?: string;
 }
 
+interface MonitoringStatus {
+  monitoringEnabled: boolean;
+  intervalMinutes: number | null;
+  hasCredentials: boolean;
+  isChecking: boolean;
+  mailboxUser: string;
+  mailboxHost: string;
+  mailboxPort: number;
+  lastMonitoringStartedAt: string | null;
+  lastCheckStartedAt: string | null;
+  lastCheckCompletedAt: string | null;
+  lastSuccessfulCheckAt: string | null;
+  lastError: string | null;
+}
+
+interface IngestionAuditClinic {
+  customerId: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  location: string | null;
+  subjects: string[];
+  subjectCount: number;
+  latestLeadDate: string | null;
+  staleDays: number | null;
+  totalLeads: number;
+  leadsLast30Days: number;
+  isStale: boolean;
+}
+
+interface IngestionAuditResponse {
+  generatedAt: string;
+  totalMappedClinics: number;
+  staleClinics: number;
+  monitoring: MonitoringStatus;
+  clinics: IngestionAuditClinic[];
+}
+
 const MetaLeadsManagementPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [mappings, setMappings] = useState<SubjectMapping[]>([]);
@@ -38,9 +75,15 @@ const MetaLeadsManagementPage: React.FC = () => {
   const [testSubjectInput, setTestSubjectInput] = useState('');
   const [testSubjectResult, setTestSubjectResult] = useState<{ match: boolean; normalizedSubject?: string; customerName?: string; customerEmail?: string } | null>(null);
   const [testingSubject, setTestingSubject] = useState(false);
+  const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus | null>(null);
+  const [auditData, setAuditData] = useState<IngestionAuditResponse | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [imapTestLoading, setImapTestLoading] = useState(false);
+  const [imapTestMessage, setImapTestMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
+    fetchHealthData();
   }, []);
 
   const fetchData = async () => {
@@ -187,6 +230,58 @@ const MetaLeadsManagementPage: React.FC = () => {
     }
   };
 
+  const fetchHealthData = async () => {
+    setHealthLoading(true);
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) return;
+
+      const [statusRes, auditRes] = await Promise.all([
+        axios.get(`${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/monitoring-status`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/ingestion-audit`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
+
+      setMonitoringStatus(statusRes.data?.status || null);
+      setAuditData(auditRes.data || null);
+    } catch (error) {
+      console.error('Failed to fetch Meta Leads health data:', error);
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
+  const handleImapConnectionTest = async () => {
+    setImapTestLoading(true);
+    setImapTestMessage(null);
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) return;
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/test-imap-connection`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const inbox = res.data?.result?.inbox;
+      setImapTestMessage(
+        `IMAP OK. INBOX total: ${inbox?.total ?? 'N/A'}, unread: ${inbox?.unread ?? 'N/A'}.`
+      );
+      await fetchHealthData();
+    } catch (error: any) {
+      const msg = error.response?.data?.result?.error || error.response?.data?.message || 'IMAP test failed.';
+      setImapTestMessage(`IMAP FAILED: ${msg}`);
+    } finally {
+      setImapTestLoading(false);
+    }
+  };
+
+  const fmtDateTime = (value?: string | null) => {
+    if (!value) return 'N/A';
+    return new Date(value).toLocaleString();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -269,6 +364,79 @@ const MetaLeadsManagementPage: React.FC = () => {
             >
               <FaSyncAlt className="mr-2" /> Refresh
             </button>
+          </div>
+        </div>
+
+        {/* Monitoring Panel */}
+        <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">Meta Leads Monitoring</h2>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={fetchHealthData}
+                disabled={healthLoading}
+                className="px-3 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 disabled:opacity-50"
+              >
+                {healthLoading ? 'Refreshing...' : 'Refresh Health'}
+              </button>
+              <button
+                type="button"
+                onClick={handleImapConnectionTest}
+                disabled={imapTestLoading}
+                className="px-3 py-2 bg-[#1877f3] text-white rounded-lg font-semibold hover:bg-[#145db2] disabled:opacity-50"
+              >
+                {imapTestLoading ? 'Testing IMAP...' : 'Test IMAP Connection'}
+              </button>
+            </div>
+          </div>
+
+          {imapTestMessage && (
+            <div className={`mb-3 p-2 rounded text-sm ${imapTestMessage.startsWith('IMAP OK') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+              {imapTestMessage}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div className="p-3 rounded border border-gray-200 bg-gray-50">
+              <div className="font-semibold text-gray-700 mb-1">Poller Status</div>
+              <div className={`${monitoringStatus?.monitoringEnabled ? 'text-green-700' : 'text-red-700'} font-semibold`}>
+                {monitoringStatus?.monitoringEnabled ? 'Running' : 'Not Running'}
+              </div>
+              <div className="text-gray-600">Interval: {monitoringStatus?.intervalMinutes ?? 'N/A'} min</div>
+              <div className="text-gray-600">Checking now: {monitoringStatus?.isChecking ? 'Yes' : 'No'}</div>
+            </div>
+
+            <div className="p-3 rounded border border-gray-200 bg-gray-50">
+              <div className="font-semibold text-gray-700 mb-1">Mailbox</div>
+              <div className="text-gray-800 break-all">{monitoringStatus?.mailboxUser || 'N/A'}</div>
+              <div className="text-gray-600">{monitoringStatus?.mailboxHost || 'N/A'}:{monitoringStatus?.mailboxPort ?? 'N/A'}</div>
+              <div className={`${monitoringStatus?.hasCredentials ? 'text-green-700' : 'text-red-700'} font-semibold`}>
+                Credentials: {monitoringStatus?.hasCredentials ? 'Set' : 'Missing'}
+              </div>
+            </div>
+
+            <div className="p-3 rounded border border-gray-200 bg-gray-50">
+              <div className="font-semibold text-gray-700 mb-1">Last Activity</div>
+              <div className="text-gray-600">Last success: {fmtDateTime(monitoringStatus?.lastSuccessfulCheckAt)}</div>
+              <div className="text-gray-600">Last completed: {fmtDateTime(monitoringStatus?.lastCheckCompletedAt)}</div>
+              <div className="text-gray-600">Started at: {fmtDateTime(monitoringStatus?.lastMonitoringStartedAt)}</div>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div className="p-3 rounded border border-gray-200 bg-blue-50">
+              <div className="font-semibold text-blue-900">Mapped Clinics</div>
+              <div className="text-2xl font-bold text-blue-800">{auditData?.totalMappedClinics ?? 0}</div>
+            </div>
+            <div className="p-3 rounded border border-gray-200 bg-amber-50">
+              <div className="font-semibold text-amber-900">Stale Clinics (&gt; 7 days)</div>
+              <div className="text-2xl font-bold text-amber-800">{auditData?.staleClinics ?? 0}</div>
+            </div>
+            <div className="p-3 rounded border border-gray-200 bg-red-50">
+              <div className="font-semibold text-red-900">Last Error</div>
+              <div className="text-red-800">{monitoringStatus?.lastError || 'None'}</div>
+            </div>
           </div>
         </div>
 

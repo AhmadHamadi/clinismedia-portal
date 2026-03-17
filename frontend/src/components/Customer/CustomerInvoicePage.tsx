@@ -60,8 +60,12 @@ const CustomerInvoicePage: React.FC = () => {
   if (loading) return <div className="p-6 text-gray-600">Loading invoices...</div>;
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
+        <div className="cm-page-hero mb-6 px-5 py-4">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-1">Invoices</h1>
+          <p className="text-sm text-slate-600 font-medium">Review your latest invoice and history.</p>
+        </div>
         <div className="flex flex-col lg:flex-row gap-6">
       {/* Left: Current Invoice */}
       <div className="w-full lg:w-2/3">
@@ -76,8 +80,7 @@ const CustomerInvoicePage: React.FC = () => {
                 </div>
                 <h1 className="text-3xl font-extrabold text-[#60a5fa] mb-2 tracking-tight text-center font-sans">
                   {currentInvoice.invoiceId.name}
-                </h1>
-                <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
+                </h1><p className="text-gray-600 text-center mb-6 max-w-md font-medium">
                   Access your latest invoice securely. Assigned on {new Date(currentInvoice.assignedAt).toLocaleDateString()}.
                 </p>
                 <div className="flex gap-4">
@@ -102,8 +105,7 @@ const CustomerInvoicePage: React.FC = () => {
               <>
                 <h1 className="text-3xl font-extrabold text-[#60a5fa] mb-2 tracking-tight text-center font-sans">
                   No Current Invoice
-                </h1>
-                <p className="text-gray-600 text-center mb-6 max-w-md font-medium">
+                </h1><p className="text-gray-600 text-center mb-6 max-w-md font-medium">
                   No invoice has been assigned to you yet. Check back later or contact your administrator.
                 </p>
                 <div className="mt-2 px-8 py-3 bg-gray-300 text-gray-600 rounded-xl font-bold text-lg">
@@ -116,7 +118,7 @@ const CustomerInvoicePage: React.FC = () => {
       </div>
       {/* Right: Invoice History */}
       <div className="w-full lg:w-1/3">
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="cm-panel-md p-6">
           <h2 className="text-xl font-bold text-[#303b45] mb-4">Invoice History</h2>
           {historyInvoices.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No previous invoices found.</p>
@@ -158,3 +160,7 @@ const CustomerInvoicePage: React.FC = () => {
 };
 
 export default CustomerInvoicePage; 
+
+
+
+

@@ -51,5 +51,14 @@ router.get('/admin/test-subject', authenticateToken, authorizeRole(['admin']), M
 // Manually trigger email check (admin)
 router.post('/admin/check-emails', authenticateToken, authorizeRole(['admin']), MetaLeadsController.triggerEmailCheck);
 
+// Live monitoring status (admin)
+router.get('/admin/monitoring-status', authenticateToken, authorizeRole(['admin']), MetaLeadsController.getMonitoringStatus);
+
+// Live IMAP connectivity test (admin)
+router.get('/admin/test-imap-connection', authenticateToken, authorizeRole(['admin']), MetaLeadsController.testImapConnection);
+
+// Ingestion audit by clinic (admin)
+router.get('/admin/ingestion-audit', authenticateToken, authorizeRole(['admin']), MetaLeadsController.getIngestionAudit);
+
 module.exports = router;
 

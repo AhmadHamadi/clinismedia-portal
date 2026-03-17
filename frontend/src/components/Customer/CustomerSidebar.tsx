@@ -307,3 +307,4 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
 };
 
 export default CustomerSidebar; 
+

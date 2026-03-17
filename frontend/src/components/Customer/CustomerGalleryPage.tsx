@@ -105,20 +105,20 @@ const CustomerGalleryPage: React.FC = () => {
 
   if (!currentItem) {
     return (
-      <div className="p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
+      <div className="customer-page p-4 sm:p-6 md:p-8 overflow-x-hidden w-full max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+        <div className="cm-page-hero mb-6 px-5 py-4">
+          <h1 className="text-2xl font-bold flex items-center mb-2">
             <FaImages className="mr-3 text-blue-600" />
             View Media
           </h1>
-          <p className="text-gray-600">
+          <p>
             Access your latest media content and professional photos
           </p>
         </div>
 
         {/* No Media Card */}
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+        <div className="cm-panel-lg border border-gray-200 p-6">
           <div className="flex items-center justify-center min-h-96">
             <div className="text-center">
               <FaPhotoVideo className="text-6xl text-gray-400 mx-auto mb-6" />
@@ -140,21 +140,21 @@ const CustomerGalleryPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen overflow-x-hidden">
+    <div className="customer-page p-4 sm:p-6 md:p-8 min-h-screen overflow-x-hidden">
       <div className="w-full mx-auto max-w-full xl:max-w-7xl 2xl:max-w-7xl">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
+      <div className="cm-page-hero mb-6 px-5 py-4">
+        <h1 className="text-2xl font-bold flex items-center mb-2">
           <FaImages className="mr-3 text-blue-600" />
           View Media
         </h1>
-        <p className="text-gray-600">
+        <p>
           Access your latest media content and professional photos
         </p>
       </div>
 
       {/* Media Information Card */}
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-6">
+      <div className="cm-panel-lg border border-gray-200 p-6 mb-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
             <div className="bg-blue-100 p-3 rounded-lg mr-4">
@@ -237,3 +237,9 @@ const CustomerGalleryPage: React.FC = () => {
 };
 
 export default CustomerGalleryPage;
+
+
+
+
+
+

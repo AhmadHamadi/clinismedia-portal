@@ -144,6 +144,10 @@ const Login = () => {
       console.error("Login error:", err);
       if (err.response && err.response.data && err.response.data.message) {
         setError(err.response.data.message);
+      } else if (err.response && err.response.data && err.response.data.error) {
+        setError(err.response.data.error);
+      } else if (err.message) {
+        setError(err.message);
       } else {
         setError("Login failed. Please check your credentials.");
       }

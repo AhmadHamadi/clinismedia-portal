@@ -639,11 +639,8 @@ router.get('/callback', async (req, res) => {
         console.log('   OAuth will still succeed - tokens are in redirect URL');
       }
       
-      // Always redirect successfully with tokens in URL (original behavior)
-      // ✅ FIXED: URL encode tokens to handle special characters
-      const encodedAccessToken = encodeURIComponent(tokens.access_token);
-      const encodedRefreshToken = encodeURIComponent(tokens.refresh_token);
-      res.redirect(`${frontendUrl}/admin/google-business?admin_oauth_success=true&access_token=${encodedAccessToken}&refresh_token=${encodedRefreshToken}&expires_in=${expires_in}`);
+      // Redirect without exposing OAuth tokens in URL query params.
+      res.redirect(`${frontendUrl}/admin/google-business?admin_oauth_success=true`);
     } else if (typeof state === 'string' && state.startsWith('customer_')) {
       // Customer self-connect OAuth
       const customerId = state.replace('customer_', '');
@@ -667,9 +664,8 @@ router.get('/callback', async (req, res) => {
       res.redirect(`${frontendUrl}/customer/google-business-analytics?gbp_connected=true`);
     } else {
       // Handle admin customer-specific OAuth (admin connecting on behalf of a customer)
-      const encodedAccessToken = encodeURIComponent(tokens.access_token);
-      const encodedRefreshToken = encodeURIComponent(tokens.refresh_token);
-      res.redirect(`${frontendUrl}/admin/google-business?oauth_success=true&clinic_id=${state}&access_token=${encodedAccessToken}&refresh_token=${encodedRefreshToken}&expires_in=${expires_in}`);
+      // Redirect without exposing OAuth tokens in URL query params.
+      res.redirect(`${frontendUrl}/admin/google-business?oauth_success=true&clinic_id=${state}`);
     }
   } catch (error) {
     console.error('❌ OAuth callback error:', error);
@@ -1210,6 +1206,17 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
   try {
     const { customerId } = req.params;
     const { start, end, days, compare } = req.query;
+    const requesterId = String(req.user?.id || req.user?._id || '');
+    const requesterRole = req.user?.role;
+    const requesterParentId = String(req.user?.parentCustomerId || '');
+
+    if (requesterRole !== 'admin') {
+      const isOwnCustomer = requesterRole === 'customer' && requesterId === String(customerId);
+      const isLinkedReceptionist = requesterRole === 'receptionist' && requesterParentId === String(customerId);
+      if (!isOwnCustomer && !isLinkedReceptionist) {
+        return res.status(403).json({ error: 'Forbidden: cannot access this customer insights' });
+      }
+    }
 
     // Get customer data
     let customer = await User.findById(customerId);
