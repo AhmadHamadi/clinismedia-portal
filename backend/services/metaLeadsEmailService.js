@@ -99,6 +99,17 @@ class MetaLeadsEmailService {
    * - "City: Stoney Creek"
    */
   parseLeadInfo(emailContent, emailSubject) {
+    const normalizeValue = (v) => (typeof v === 'string' ? v.replace(/^["']|["']$/g, '').trim() : '');
+    const isLikelyPersonName = (v) => {
+      const value = normalizeValue(v);
+      if (!value) return false;
+      if (value.length < 2 || value.length > 80) return false;
+      // Reject obvious non-person labels/campaign phrases.
+      if (/(campaign|lead info|cdcp|month|march|feb|january|december)/i.test(value)) return false;
+      // Reject values that look like phone/email.
+      if (/@/.test(value) || /\d{5,}/.test(value)) return false;
+      return true;
+    };
     // Initialize with null values - will be set if found, otherwise remain null
     const leadInfo = {
       name: null,
@@ -124,14 +135,22 @@ class MetaLeadsEmailService {
     // If we have HTML but no text, try to extract text from HTML
     if (!text && htmlContent) {
       try {
-        text = htmlContent.replace(/<[^>]*>/g, ' ') // Remove HTML tags
+        text = htmlContent
+                 // Preserve structure from common block/line-break tags first.
+                 .replace(/<\s*br\s*\/?>/gi, '\n')
+                 .replace(/<\s*\/p\s*>/gi, '\n')
+                 .replace(/<\s*\/div\s*>/gi, '\n')
+                 .replace(/<\s*\/li\s*>/gi, '\n')
+                 .replace(/<[^>]*>/g, ' ') // Remove remaining HTML tags
                  .replace(/&nbsp;/g, ' ')   // Replace &nbsp;
                  .replace(/&amp;/g, '&')    // Replace &amp;
                  .replace(/&lt;/g, '<')     // Replace &lt;
                  .replace(/&gt;/g, '>')     // Replace &gt;
                  .replace(/&quot;/g, '"')   // Replace &quot;
                  .replace(/&#39;/g, "'")    // Replace &#39;
-                 .replace(/\s+/g, ' ')      // Normalize whitespace
+                 .replace(/\r\n|\r/g, '\n')
+                 .replace(/[ \t]+/g, ' ')   // Normalize horizontal whitespace
+                 .replace(/\n{3,}/g, '\n\n')
                  .trim();
         
         // If text is empty after processing, set to empty string
@@ -149,10 +168,11 @@ class MetaLeadsEmailService {
     }
 
     // Enhanced patterns for Facebook lead email format
-    // Pattern 1: "Full Name: Khawaja Ahsan" or "Name: John Doe"
+    // Keep name patterns strict to avoid matching "Campaign Name".
     const namePatterns = [
-      /(?:full\s+name|name|first\s+name|last\s+name)[\s:]*([^\n\r]+?)(?:\n|$)/i,
-      /^[^:\n]*name[^:\n]*:\s*(.+?)(?:\n|$)/im,
+      /(?:^|\n)\s*full\s+name\s*:\s*([^\n\r]+)(?:\n|$)/im,
+      /(?:^|\n)\s*name\s*:\s*([^\n\r]+)(?:\n|$)/im,
+      /(?:^|\n)\s*first\s+name\s*:\s*([^\n\r]+)(?:\n|$)/im,
     ];
     
     // Pattern 2: "Email: khawajahsan00@gmail.com"
@@ -194,6 +214,26 @@ class MetaLeadsEmailService {
       }
     }
 
+    // Fallback: capture first email address anywhere in body if labeled extraction failed.
+    if (!leadInfo.email) {
+      const anyEmails = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+      const filtered = anyEmails
+        .map((e) => e.trim())
+        .filter((e) => !/noreply|no-reply/i.test(e));
+      if (filtered.length > 0) {
+        // Prefer non-clinimedia address if available.
+        leadInfo.email = filtered.find((e) => !/@clinimedia\.ca$/i.test(e)) || filtered[0];
+      }
+    }
+
+    // Fallback: capture likely phone number if labeled extraction failed.
+    if (!leadInfo.phone) {
+      const phoneMatch = text.match(/(?:\+\d[\d\s\-().]{7,}\d|\b\d{10,15}\b)/);
+      if (phoneMatch && phoneMatch[0]) {
+        leadInfo.phone = phoneMatch[0].trim().replace(/\s+/g, ' ');
+      }
+    }
+
     // Parse key-value pairs (more robust)
     // Split by newlines and look for "Key: Value" format
     try {
@@ -214,7 +254,8 @@ class MetaLeadsEmailService {
             leadInfo.fields[key] = value;
             
             // Map to specific fields if not already set (exclude 'campaign name' from mapping to lead name)
-            if (key.includes('full name') || (key.includes('name') && !key.includes('email') && !key.includes('phone') && !key.includes('campaign'))) {
+            // Prefer explicit person-name labels first.
+            if (key.includes('full name') || key === 'name') {
               if (!leadInfo.name) leadInfo.name = value;
             }
             if (key.includes('email')) {
@@ -260,7 +301,7 @@ class MetaLeadsEmailService {
             }
           }
           // Only use from name if we didn't find name in body
-          if (!leadInfo.name && fromInfo.name) {
+          if (!leadInfo.name && fromInfo.name && isLikelyPersonName(fromInfo.name)) {
             leadInfo.name = fromInfo.name.trim();
           }
         }
@@ -293,13 +334,27 @@ class MetaLeadsEmailService {
 
     // Clean up and validate extracted values (only if they exist)
     if (leadInfo.name) {
-      leadInfo.name = leadInfo.name.replace(/^["']|["']$/g, '').trim();
+      leadInfo.name = normalizeValue(leadInfo.name);
       // If name is empty after cleaning, set to null
       if (!leadInfo.name || leadInfo.name.length === 0) {
         leadInfo.name = null;
       }
     } else {
       leadInfo.name = null; // Ensure it's explicitly null
+    }
+
+    // Guardrail: never treat campaign-like text as a person's name.
+    if (leadInfo.name && leadInfo.campaignName) {
+      const n = leadInfo.name.toLowerCase().replace(/\s+/g, ' ').trim();
+      const c = leadInfo.campaignName.toLowerCase().replace(/\s+/g, ' ').trim();
+      if (n === c || n.includes('campaign') || n.includes('cdcp')) {
+        leadInfo.name = null;
+      }
+    }
+
+    // Secondary guardrail: if extracted "name" is not plausible, drop it.
+    if (leadInfo.name && !isLikelyPersonName(leadInfo.name)) {
+      leadInfo.name = null;
     }
     
     if (leadInfo.email) {

@@ -816,17 +816,24 @@ const MetaLeadsPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col space-y-2">
-                          {lead.leadInfo?.name ? (
-                            <div className="flex items-center">
-                              <FaUser className="text-gray-400 mr-2 text-sm" />
-                              <span className="text-sm text-gray-900 font-semibold">{lead.leadInfo.name}</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center">
-                              <FaUser className="text-gray-300 mr-2 text-sm" />
-                              <span className="text-sm text-gray-400 italic">No name</span>
-                            </div>
-                          )}
+                          {(() => {
+                            const personName = typeof lead.leadInfo?.name === 'string' ? lead.leadInfo.name.trim() : '';
+                            const campaignName = typeof lead.campaignName === 'string'
+                              ? lead.campaignName.trim()
+                              : (typeof lead.leadInfo?.fields?.['campaign name'] === 'string' ? lead.leadInfo.fields['campaign name'].trim() : '');
+                            const displayName = personName || campaignName;
+                            return displayName ? (
+                              <div className="flex items-center">
+                                <FaUser className="text-gray-400 mr-2 text-sm" />
+                                <span className="text-sm text-gray-900 font-semibold">{displayName}</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center">
+                                <FaUser className="text-gray-300 mr-2 text-sm" />
+                                <span className="text-sm text-gray-400 italic">No name</span>
+                              </div>
+                            );
+                          })()}
                           {lead.leadInfo?.phone ? (
                             <div className="flex items-center">
                               <FaPhone className="text-gray-400 mr-2 text-sm" />

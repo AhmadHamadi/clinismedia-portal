@@ -546,18 +546,38 @@ class MetaLeadsController {
       }
 
       // Build a clinic-aware lookback window so refresh can backfill missing leads.
-      // If clinic has old/latest lead, scan from that point forward (+ safety buffer).
-      // If clinic has no leads yet, scan a larger window for first-time import.
+      // Important edge case: if subject mapping was recently updated (e.g. renamed to
+      // match cPanel subject), we should deep-backfill to recover previously missed emails.
       const latestLead = await MetaLead.findOne({ customerId }).sort({ emailDate: -1 }).select('emailDate');
+      const latestActiveMapping = await MetaLeadSubjectMapping.findOne({
+        customerId,
+        isActive: true
+      })
+        .sort({ updatedAt: -1 })
+        .select('updatedAt emailSubject');
+
       let daysBack = 30;
-      if (latestLead?.emailDate) {
+      let lookbackReason = 'default_30_days';
+
+      const latestMappingUpdatedAt = latestActiveMapping?.updatedAt ? new Date(latestActiveMapping.updatedAt) : null;
+      const mappingUpdatedRecently = latestMappingUpdatedAt
+        ? (Date.now() - latestMappingUpdatedAt.getTime()) <= (30 * 24 * 60 * 60 * 1000)
+        : false;
+
+      if (mappingUpdatedRecently) {
+        // Mapping changed recently: force deep backfill for missed historical emails.
+        daysBack = 365;
+        lookbackReason = 'recent_mapping_update_backfill_365_days';
+      } else if (latestLead?.emailDate) {
         const msSinceLatest = Date.now() - new Date(latestLead.emailDate).getTime();
         const daysSinceLatest = Math.max(0, Math.ceil(msSinceLatest / (24 * 60 * 60 * 1000)));
-        // Always include a buffer to catch timezone/date edge cases around midnight.
+        // Include a buffer to catch timezone/date edge cases around midnight.
         daysBack = Math.max(30, Math.min(365, daysSinceLatest + 7));
+        lookbackReason = 'based_on_latest_lead_date';
       } else {
         // New clinic or no historic leads yet: do a deeper backfill.
         daysBack = 365;
+        lookbackReason = 'no_existing_leads_backfill_365_days';
       }
 
       const beforeCount = await MetaLead.countDocuments({ customerId });
@@ -568,6 +588,10 @@ class MetaLeadsController {
       const result = {
         ...checkResult,
         daysBackUsed: daysBack,
+        lookbackReason,
+        latestLeadAt: latestLead?.emailDate || null,
+        latestMappingUpdatedAt: latestMappingUpdatedAt || null,
+        latestMappingSubject: latestActiveMapping?.emailSubject || null,
         leadsCreatedForCustomer
       };
 
