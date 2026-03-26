@@ -9,6 +9,7 @@
 const Imap = require('imap');
 const { simpleParser } = require('mailparser');
 const MetaLead = require('../models/MetaLead');
+const MetaLeadFolderMapping = require('../models/MetaLeadFolderMapping');
 const MetaLeadSubjectMapping = require('../models/MetaLeadSubjectMapping');
 require('dotenv').config();
 
@@ -408,6 +409,48 @@ class MetaLeadsEmailService {
   }
 
   /**
+   * Normalize folder names for matching against cPanel/IMAP paths.
+   * Examples:
+   * - "INBOX.Fletcher Dental Centre" -> "fletcher dental centre"
+   * - "Fletcher Dental Centre" -> "fletcher dental centre"
+   */
+  normalizeFolderName(folderName) {
+    if (!folderName || typeof folderName !== 'string') return '';
+    const normalized = folderName
+      .replace(/\\/g, '.')
+      .split('.')
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+      .pop() || folderName;
+
+    return normalized.replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  /**
+   * Find customer by IMAP folder name.
+   */
+  async findCustomerByFolder(folderName) {
+    try {
+      const normalizedFolder = this.normalizeFolderName(folderName);
+      if (!normalizedFolder) return null;
+
+      const mapping = await MetaLeadFolderMapping.findOne({
+        folderNameLower: normalizedFolder,
+        isActive: true
+      }).populate('customerId');
+
+      if (mapping && mapping.customerId) {
+        return mapping.customerId;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error finding customer by folder:', error);
+      return null;
+    }
+  }
+
+  /**
    * Find customer by email subject (matches Admin → Manage Meta Leads subject mappings)
    */
   async findCustomerBySubject(subject) {
@@ -472,9 +515,121 @@ class MetaLeadsEmailService {
   }
 
   /**
+   * Test which customer would get a lead for a given folder.
+   */
+  async testFolderMatch(folderName) {
+    const normalizedFolder = this.normalizeFolderName(folderName || '');
+    const customer = await this.findCustomerByFolder(folderName || '');
+    if (customer) {
+      return {
+        match: true,
+        normalizedFolder,
+        customerId: customer._id,
+        customerName: customer.name,
+        customerEmail: customer.email
+      };
+    }
+    return { match: false, normalizedFolder };
+  }
+
+  buildLeadPayload(customer, subject, leadInfo, from, date, messageId, folderName) {
+    return {
+      customerId: customer._id,
+      emailSubject: subject,
+      campaignName: (leadInfo.campaignName && leadInfo.campaignName.trim()) ? leadInfo.campaignName.trim() : null,
+      leadInfo: {
+        name: leadInfo.name || null,
+        email: leadInfo.email || null,
+        phone: leadInfo.phone || null,
+        message: leadInfo.message || null,
+        rawContent: leadInfo.rawContent || null,
+        fields: {
+          ...(leadInfo.fields || {}),
+          sourceFolder: folderName || null
+        }
+      },
+      emailFrom: from || null,
+      emailDate: date,
+      emailMessageId: messageId || null,
+      status: 'new'
+    };
+  }
+
+  async upsertExistingLead(existingLead, payload) {
+    let changed = false;
+
+    if (payload.emailSubject && existingLead.emailSubject !== payload.emailSubject) {
+      existingLead.emailSubject = payload.emailSubject;
+      changed = true;
+    }
+
+    if (payload.campaignName && existingLead.campaignName !== payload.campaignName) {
+      existingLead.campaignName = payload.campaignName;
+      changed = true;
+    }
+
+    if (payload.emailFrom && existingLead.emailFrom !== payload.emailFrom) {
+      existingLead.emailFrom = payload.emailFrom;
+      changed = true;
+    }
+
+    if (
+      payload.emailDate &&
+      (!existingLead.emailDate || new Date(existingLead.emailDate).getTime() !== new Date(payload.emailDate).getTime())
+    ) {
+      existingLead.emailDate = payload.emailDate;
+      changed = true;
+    }
+
+    const existingLeadInfo = existingLead.leadInfo || {};
+    const incomingLeadInfo = payload.leadInfo || {};
+    const mergedFields = {
+      ...(existingLeadInfo.fields || {}),
+      ...(incomingLeadInfo.fields || {}),
+    };
+
+    const assignIfBetter = (key, prefersLonger = false) => {
+      const currentValue = existingLeadInfo[key];
+      const incomingValue = incomingLeadInfo[key];
+      if (!incomingValue) return;
+
+      if (!currentValue) {
+        existingLeadInfo[key] = incomingValue;
+        changed = true;
+        return;
+      }
+
+      if (prefersLonger && String(incomingValue).length > String(currentValue).length) {
+        existingLeadInfo[key] = incomingValue;
+        changed = true;
+      }
+    };
+
+    assignIfBetter('name');
+    assignIfBetter('email');
+    assignIfBetter('phone');
+    assignIfBetter('message', true);
+    assignIfBetter('rawContent', true);
+
+    if (JSON.stringify(existingLeadInfo.fields || {}) !== JSON.stringify(mergedFields)) {
+      existingLeadInfo.fields = mergedFields;
+      changed = true;
+    }
+
+    existingLead.leadInfo = existingLeadInfo;
+
+    if (changed) {
+      await existingLead.save();
+      return { lead: existingLead, action: 'updated' };
+    }
+
+    return { lead: existingLead, action: 'existing' };
+  }
+
+  /**
    * Process a single email: match subject to Admin subject mapping → assign lead to that clinic
    */
-  async processEmail(email) {
+  async processEmail(email, folderName = null) {
     try {
       const parsed = await simpleParser(email);
       const rawSubject = parsed.subject || 'No Subject';
@@ -483,12 +638,19 @@ class MetaLeadsEmailService {
       const from = parsed.from ? parsed.from.text : null;
       const date = parsed.date || new Date();
 
-      const customer = await this.findCustomerBySubject(subject);
+      const folderCustomer = folderName ? await this.findCustomerByFolder(folderName) : null;
+      const customer = folderCustomer || await this.findCustomerBySubject(subject);
 
       if (!customer) {
-        // Logged in findCustomerBySubject; return null so caller can track no-mapping count
+        if (folderName) {
+          console.warn(`[Meta Leads] No folder or subject mapping for folder "${folderName}" and subject "${subject.substring(0, 80)}${subject.length > 80 ? '...' : ''}"`);
+        }
         return null;
       }
+
+      // Parse lead information (will return null values for missing fields)
+      const leadInfo = this.parseLeadInfo(parsed, subject);
+      const payload = this.buildLeadPayload(customer, subject, leadInfo, from, date, messageId, folderName);
 
       // Check if email already processed (only if messageId exists)
       if (messageId) {
@@ -497,12 +659,9 @@ class MetaLeadsEmailService {
         });
 
         if (existingLead) {
-          return existingLead;
+          return this.upsertExistingLead(existingLead, payload);
         }
       }
-
-      // Parse lead information (will return null values for missing fields)
-      const leadInfo = this.parseLeadInfo(parsed, subject);
 
       // Fallback dedupe: same customer + same email or phone + same day = treat as duplicate (avoid double leads from same person)
       const emailNorm = leadInfo.email ? leadInfo.email.trim().toLowerCase() : null;
@@ -521,37 +680,23 @@ class MetaLeadsEmailService {
           const exEmail = (existing.leadInfo && existing.leadInfo.email) ? existing.leadInfo.email.trim().toLowerCase() : null;
           const exPhone = (existing.leadInfo && existing.leadInfo.phone) ? String(existing.leadInfo.phone).replace(/\D/g, '').trim() : null;
           if (emailNorm && exEmail === emailNorm) {
-            return await MetaLead.findById(existing._id);
+            const existingLead = await MetaLead.findById(existing._id);
+            return this.upsertExistingLead(existingLead, payload);
           }
           if (phoneNorm && exPhone && phoneNorm === exPhone) {
-            return await MetaLead.findById(existing._id);
+            const existingLead = await MetaLead.findById(existing._id);
+            return this.upsertExistingLead(existingLead, payload);
           }
         }
       }
 
       // Always create lead even if no information extracted (subject match is enough)
       // This ensures we track all leads regardless of email body content
-      const lead = new MetaLead({
-        customerId: customer._id,
-        emailSubject: subject,
-        campaignName: (leadInfo.campaignName && leadInfo.campaignName.trim()) ? leadInfo.campaignName.trim() : null,
-        leadInfo: {
-          name: leadInfo.name || null,
-          email: leadInfo.email || null,
-          phone: leadInfo.phone || null,
-          message: leadInfo.message || null,
-          rawContent: leadInfo.rawContent || null,
-          fields: leadInfo.fields || {}
-        },
-        emailFrom: from || null,
-        emailDate: date,
-        emailMessageId: messageId || null,
-        status: 'new'
-      });
+      const lead = new MetaLead(payload);
 
       await lead.save();
       console.log(`[Meta Leads] Lead created for customer ${customer._id} (subject: "${subject.length > 50 ? subject.substring(0, 50) + '...' : subject}")`);
-      return lead;
+      return { lead, action: 'created' };
     } catch (error) {
       console.error('[Meta Leads] Error processing email:', error.message || error);
       if (error.code) console.error('[Meta Leads] Error code:', error.code);
@@ -597,11 +742,16 @@ class MetaLeadsEmailService {
         }
 
         // Any email (unread or read) received with a subject that matches admin mapping → lead for that clinic
-        const since = new Date();
-        since.setDate(since.getDate() - (daysBack || 1));
-        since.setHours(0, 0, 0, 0);
+        const searchCriteria = daysBack === null
+          ? ['ALL']
+          : (() => {
+              const since = new Date();
+              since.setDate(since.getDate() - (daysBack || 1));
+              since.setHours(0, 0, 0, 0);
+              return [['SINCE', since]];
+            })();
 
-        this.imap.search([['SINCE', since]], async (err, results) => {
+        this.imap.search(searchCriteria, async (err, results) => {
           if (err) {
             console.error(`Error searching emails in "${folderName}":`, err);
             result.errors.push(`Error searching emails in "${folderName}": ${err.message}`);
@@ -639,10 +789,14 @@ class MetaLeadsEmailService {
                 stream.once('end', async () => {
                   try {
                     const emailBuffer = Buffer.concat(buffer);
-                    const lead = await this.processEmail(emailBuffer);
+                    const processed = await this.processEmail(emailBuffer, folderName);
                     result.emailsProcessed++;
-                    if (lead) {
-                      result.leadsCreated++;
+                    if (processed?.lead) {
+                      if (processed.action === 'created') {
+                        result.leadsCreated++;
+                      } else if (processed.action === 'updated') {
+                        result.leadsUpdated++;
+                      }
                       processedEmails.push(seqno);
                     }
                   } catch (e) {
@@ -723,6 +877,7 @@ class MetaLeadsEmailService {
       emailsFound: 0,
       emailsProcessed: 0,
       leadsCreated: 0,
+      leadsUpdated: 0,
       errors: [],
       skipped: false
     };
@@ -807,6 +962,132 @@ class MetaLeadsEmailService {
     });
   }
 
+  async checkSpecificFolders(folderNames = [], daysBack = null) {
+    const finalizeCheck = (result) => {
+      const nowIso = new Date().toISOString();
+      this.lastCheckCompletedAt = nowIso;
+      this.lastResult = result;
+      if (result?.errors?.length) {
+        this.lastError = result.errors[result.errors.length - 1];
+      }
+      if (!result?.skipped && (!result?.errors || result.errors.length === 0)) {
+        this.lastSuccessfulCheckAt = nowIso;
+      }
+      return result;
+    };
+
+    this.lastCheckStartedAt = new Date().toISOString();
+
+    if (this.isChecking) {
+      return finalizeCheck({ message: 'Check already in progress', skipped: true });
+    }
+
+    const uniqueFolders = [...new Set((folderNames || []).map((name) => String(name || '').trim()).filter(Boolean))];
+    if (!uniqueFolders.length) {
+      return finalizeCheck({
+        emailsFound: 0,
+        emailsProcessed: 0,
+        leadsCreated: 0,
+        leadsUpdated: 0,
+        errors: ['No folders were provided for import.'],
+        skipped: true,
+        foldersChecked: []
+      });
+    }
+
+    this.isChecking = true;
+
+    const result = {
+      emailsFound: 0,
+      emailsProcessed: 0,
+      leadsCreated: 0,
+      leadsUpdated: 0,
+      errors: [],
+      skipped: false,
+      foldersChecked: []
+    };
+
+    return new Promise(async (resolve) => {
+      try {
+        await this.connect();
+
+        const processFolders = async (index = 0) => {
+          try {
+            if (index >= uniqueFolders.length) {
+              this.disconnect().finally(() => {
+                this.isChecking = false;
+                resolve(finalizeCheck(result));
+              });
+              return;
+            }
+
+            const folderName = uniqueFolders[index];
+            result.foldersChecked.push(folderName);
+            await this.checkFolderForEmails(folderName, daysBack, result);
+            processFolders(index + 1);
+          } catch (folderError) {
+            result.errors.push(`Folder error: ${folderError.message}`);
+            this.disconnect().finally(() => {
+              this.isChecking = false;
+              resolve(finalizeCheck(result));
+            });
+          }
+        };
+
+        processFolders();
+      } catch (error) {
+        result.errors.push(`Error checking emails: ${error.message}`);
+        this.disconnect().finally(() => {
+          this.isChecking = false;
+          resolve(finalizeCheck(result));
+        });
+      }
+    });
+  }
+
+  /**
+   * Return all discoverable IMAP folders for admin mapping UI.
+   */
+  async getAvailableFolders() {
+    if (!this.hasCredentials()) {
+      throw new Error('Missing credentials: LEADS_EMAIL_PASS/EMAIL_PASS is not set.');
+    }
+
+    const folderNames = [];
+
+    try {
+      await this.connect();
+
+      await new Promise((resolve, reject) => {
+        this.imap.getBoxes((err, boxes) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+
+          const getFolderNames = (boxTree, prefix = '') => {
+            for (const name in boxTree) {
+              const fullName = prefix ? `${prefix}${boxTree[name].delimiter || '.'}${name}` : name;
+              if (fullName && String(fullName).trim()) {
+                folderNames.push(fullName);
+              }
+              if (boxTree[name].children && typeof boxTree[name].children === 'object') {
+                getFolderNames(boxTree[name].children, fullName || name);
+              }
+            }
+          };
+
+          getFolderNames(boxes);
+          resolve();
+        });
+      });
+
+      return folderNames.sort((a, b) => a.localeCompare(b));
+    } finally {
+      await this.disconnect();
+    }
+  }
+
   /**
    * Returns true if IMAP credentials are configured (so monitoring can run).
    * Must use same env vars as constructor (read at call time for production env).
@@ -818,11 +1099,11 @@ class MetaLeadsEmailService {
 
   /**
    * Start monitoring emails - look back 30 days so we never miss leads (e.g. server down, or emails that stayed unread)
-   * Default interval 3 minutes so portal updates soon after email arrives at leads@clinimedia.ca
+   * Default interval 1 minute so portal updates quickly after email arrives at leads@clinimedia.ca
    * IMPORTANT: Runs on whichever server process calls this (e.g. production backend). Ensure LEADS_EMAIL_PASS
    * (or EMAIL_PASS) is set in production environment so the always-on backend processes leads.
    */
-  startMonitoring(intervalMinutes = 3) {
+  startMonitoring(intervalMinutes = 1) {
     if (!this.hasCredentials()) {
       this.monitoringEnabled = false;
       console.error('[Meta Leads] ❌ Email monitoring NOT started: no password set.');

@@ -63,14 +63,35 @@ const MetaLeadsPage: React.FC = () => {
     fetchStats();
   }, [startDate, endDate, selectedStatus]);
 
-  // Auto-refresh every 3 min (matches backend email check) so new leads from email always show without leaving the page
+  // Auto-refresh every minute so imported or newly ingested leads appear without manual refresh.
   useEffect(() => {
-    const intervalMs = 3 * 60 * 1000; // 3 minutes
+    const intervalMs = 60 * 1000;
     const interval = setInterval(() => {
       fetchLeads(true);
       fetchStats();
     }, intervalMs);
     return () => clearInterval(interval);
+  }, [startDate, endDate, selectedStatus]);
+
+  useEffect(() => {
+    const refreshVisiblePage = () => {
+      fetchLeads(true);
+      fetchStats();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshVisiblePage();
+      }
+    };
+
+    window.addEventListener('focus', refreshVisiblePage);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('focus', refreshVisiblePage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [startDate, endDate, selectedStatus]);
 
   const fetchLeads = async (silent = false) => {
@@ -450,7 +471,7 @@ const MetaLeadsPage: React.FC = () => {
               <FaFacebook className="text-blue-500" />
               Meta Leads
             </h1>
-            <p className="text-sm text-gray-600 mt-1">When a lead email arrives at leads@ for your clinic&apos;s subject, it is added to the portal automatically (production and everywhere). List refreshes every 3 min so you always see the latest. Use Refresh to sync from email now.</p>
+            <p className="text-sm text-gray-600 mt-1">When a lead email arrives in your clinic&apos;s mapped Meta Leads folder, it is added to the portal automatically. This page refreshes every minute so you see new and updated leads quickly. Use Refresh to sync your mapped folder(s) now.</p>
           </div>
           <button
             type="button"
@@ -467,14 +488,18 @@ const MetaLeadsPage: React.FC = () => {
                   );
                   const result = syncRes.data?.result || {};
                   const created = result.leadsCreatedForCustomer ?? result.leadsCreated ?? 0;
+                  const updated = result.leadsUpdated ?? 0;
                   const found = result.emailsFound ?? 0;
                   const daysBackUsed = result.daysBackUsed;
                   if (result.skipped) {
                     setSyncMessage({ type: 'info', text: 'Sync skipped (already in progress). Try again in a moment.' });
                   } else if (result.errors?.length) {
                     setSyncMessage({ type: 'info', text: `Sync completed. ${found} email(s) checked. ${result.errors.join(' ')}` });
-                  } else if (created > 0) {
-                    setSyncMessage({ type: 'success', text: `Synced. ${created} new lead(s) added for your clinic${daysBackUsed ? ` (checked last ${daysBackUsed} day(s))` : ''}.` });
+                  } else if (created > 0 || updated > 0) {
+                    const parts = [];
+                    if (created > 0) parts.push(`${created} new lead(s) added`);
+                    if (updated > 0) parts.push(`${updated} existing lead(s) updated`);
+                    setSyncMessage({ type: 'success', text: `Synced. ${parts.join(' and ')} for your clinic${daysBackUsed ? ` (checked last ${daysBackUsed} day(s))` : ''}.` });
                   } else {
                     setSyncMessage({ type: 'success', text: `Synced. ${found} email(s) checked${daysBackUsed ? ` (last ${daysBackUsed} day(s))` : ''}. No new leads for your clinic.` });
                   }
@@ -489,7 +514,7 @@ const MetaLeadsPage: React.FC = () => {
               }
             }}
             disabled={refreshing}
-            title="Connect to the leads inbox, sync emails for your clinic's subject(s), then refresh the list."
+            title="Connect to the leads inbox, sync your clinic's mapped Meta Leads folder(s), then refresh the list."
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-semibold text-sm shadow transition-colors"
           >
             {refreshing ? <FaSpinner className="animate-spin" /> : <FaSyncAlt />}

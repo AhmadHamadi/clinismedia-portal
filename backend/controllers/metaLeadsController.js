@@ -1,4 +1,5 @@
 const MetaLead = require('../models/MetaLead');
+const MetaLeadFolderMapping = require('../models/MetaLeadFolderMapping');
 const MetaLeadSubjectMapping = require('../models/MetaLeadSubjectMapping');
 const User = require('../models/User');
 const metaLeadsEmailService = require('../services/metaLeadsEmailService');
@@ -13,6 +14,10 @@ function normalizeSubjectForMapping(subject) {
   s = s.replace(/^[\s\u2022\u00B7\u2023\u2043\u2219\-\*]+\s*/i, '').trim();
   s = s.replace(/^(re|fwd|fw):\s*/gi, '').trim();
   return s;
+}
+
+function normalizeFolderForMapping(folderName) {
+  return metaLeadsEmailService.normalizeFolderName(folderName || '');
 }
 
 class MetaLeadsController {
@@ -375,6 +380,35 @@ class MetaLeadsController {
   }
 
   /**
+   * Get all folder mappings (admin)
+   */
+  static async getFolderMappings(req, res) {
+    try {
+      const mappings = await MetaLeadFolderMapping.find()
+        .populate('customerId', 'name email')
+        .sort({ createdAt: -1 });
+
+      res.json({ mappings });
+    } catch (error) {
+      console.error('Error getting folder mappings:', error);
+      res.status(500).json({ message: 'Failed to get folder mappings', error: error.message });
+    }
+  }
+
+  /**
+   * List available IMAP folders for admin mapping.
+   */
+  static async getAvailableFolders(req, res) {
+    try {
+      const folders = await metaLeadsEmailService.getAvailableFolders();
+      res.json({ folders });
+    } catch (error) {
+      console.error('Error getting available folders:', error);
+      res.status(500).json({ message: 'Failed to get available folders', error: error.message });
+    }
+  }
+
+  /**
    * Create subject mapping (admin)
    */
   static async createSubjectMapping(req, res) {
@@ -423,6 +457,49 @@ class MetaLeadsController {
     } catch (error) {
       console.error('Error creating subject mapping:', error);
       res.status(500).json({ message: 'Failed to create subject mapping', error: error.message });
+    }
+  }
+
+  /**
+   * Create folder mapping (admin)
+   */
+  static async createFolderMapping(req, res) {
+    try {
+      const { customerId, folderName, notes } = req.body;
+
+      if (!customerId || !folderName) {
+        return res.status(400).json({ message: 'customerId and folderName are required' });
+      }
+
+      const customer = await User.findById(customerId);
+      if (!customer || customer.role !== 'customer') {
+        return res.status(404).json({ message: 'Customer not found' });
+      }
+
+      const normalizedFolder = normalizeFolderForMapping(folderName);
+      if (!normalizedFolder) {
+        return res.status(400).json({ message: 'Folder name is required and cannot be blank' });
+      }
+
+      const existing = await MetaLeadFolderMapping.findOne({ folderNameLower: normalizedFolder });
+      if (existing) {
+        return res.status(400).json({ message: 'Folder mapping already exists for this folder' });
+      }
+
+      const mapping = new MetaLeadFolderMapping({
+        customerId,
+        folderName: folderName.trim(),
+        folderNameLower: normalizedFolder,
+        notes: notes || null
+      });
+
+      await mapping.save();
+      await mapping.populate('customerId', 'name email');
+
+      res.json({ message: 'Folder mapping created', mapping });
+    } catch (error) {
+      console.error('Error creating folder mapping:', error);
+      res.status(500).json({ message: 'Failed to create folder mapping', error: error.message });
     }
   }
 
@@ -490,6 +567,66 @@ class MetaLeadsController {
   }
 
   /**
+   * Update folder mapping (admin)
+   */
+  static async updateFolderMapping(req, res) {
+    try {
+      const { mappingId } = req.params;
+      const { customerId, folderName, isActive, notes } = req.body;
+
+      const mapping = await MetaLeadFolderMapping.findById(mappingId);
+
+      if (!mapping) {
+        return res.status(404).json({ message: 'Folder mapping not found' });
+      }
+
+      if (customerId) {
+        const customer = await User.findById(customerId);
+        if (!customer || customer.role !== 'customer') {
+          return res.status(404).json({ message: 'Customer not found' });
+        }
+        mapping.customerId = customerId;
+      }
+
+      if (folderName !== undefined) {
+        const normalizedFolder = normalizeFolderForMapping(folderName);
+        if (!normalizedFolder) {
+          return res.status(400).json({ message: 'Folder name cannot be blank' });
+        }
+
+        if (normalizedFolder !== (mapping.folderNameLower || '')) {
+          const existing = await MetaLeadFolderMapping.findOne({
+            folderNameLower: normalizedFolder,
+            _id: { $ne: mappingId }
+          });
+          if (existing) {
+            return res.status(400).json({ message: 'Folder mapping already exists for this folder' });
+          }
+        }
+
+        mapping.folderName = folderName.trim();
+        mapping.folderNameLower = normalizedFolder;
+      }
+
+      if (isActive !== undefined) {
+        mapping.isActive = isActive;
+      }
+
+      if (notes !== undefined) {
+        mapping.notes = notes;
+      }
+
+      await mapping.save();
+      await mapping.populate('customerId', 'name email');
+
+      res.json({ message: 'Folder mapping updated', mapping });
+    } catch (error) {
+      console.error('Error updating folder mapping:', error);
+      res.status(500).json({ message: 'Failed to update folder mapping', error: error.message });
+    }
+  }
+
+  /**
    * Delete subject mapping (admin)
    */
   static async deleteSubjectMapping(req, res) {
@@ -508,6 +645,28 @@ class MetaLeadsController {
     } catch (error) {
       console.error('Error deleting subject mapping:', error);
       res.status(500).json({ message: 'Failed to delete subject mapping', error: error.message });
+    }
+  }
+
+  /**
+   * Delete folder mapping (admin)
+   */
+  static async deleteFolderMapping(req, res) {
+    try {
+      const { mappingId } = req.params;
+
+      const mapping = await MetaLeadFolderMapping.findById(mappingId);
+
+      if (!mapping) {
+        return res.status(404).json({ message: 'Folder mapping not found' });
+      }
+
+      await mapping.deleteOne();
+
+      res.json({ message: 'Folder mapping deleted' });
+    } catch (error) {
+      console.error('Error deleting folder mapping:', error);
+      res.status(500).json({ message: 'Failed to delete folder mapping', error: error.message });
     }
   }
 
@@ -549,17 +708,27 @@ class MetaLeadsController {
       // Important edge case: if subject mapping was recently updated (e.g. renamed to
       // match cPanel subject), we should deep-backfill to recover previously missed emails.
       const latestLead = await MetaLead.findOne({ customerId }).sort({ emailDate: -1 }).select('emailDate');
-      const latestActiveMapping = await MetaLeadSubjectMapping.findOne({
+      const latestActiveSubjectMapping = await MetaLeadSubjectMapping.findOne({
         customerId,
         isActive: true
       })
         .sort({ updatedAt: -1 })
         .select('updatedAt emailSubject');
+      const activeFolderMappings = await MetaLeadFolderMapping.find({
+        customerId,
+        isActive: true
+      })
+        .sort({ updatedAt: -1, folderName: 1 })
+        .select('updatedAt folderName');
 
       let daysBack = 30;
       let lookbackReason = 'default_30_days';
 
-      const latestMappingUpdatedAt = latestActiveMapping?.updatedAt ? new Date(latestActiveMapping.updatedAt) : null;
+      const latestSubjectUpdatedAt = latestActiveSubjectMapping?.updatedAt ? new Date(latestActiveSubjectMapping.updatedAt) : null;
+      const latestFolderUpdatedAt = activeFolderMappings[0]?.updatedAt ? new Date(activeFolderMappings[0].updatedAt) : null;
+      const latestMappingUpdatedAt = [latestSubjectUpdatedAt, latestFolderUpdatedAt]
+        .filter(Boolean)
+        .sort((a, b) => b.getTime() - a.getTime())[0] || null;
       const mappingUpdatedRecently = latestMappingUpdatedAt
         ? (Date.now() - latestMappingUpdatedAt.getTime()) <= (30 * 24 * 60 * 60 * 1000)
         : false;
@@ -581,22 +750,29 @@ class MetaLeadsController {
       }
 
       const beforeCount = await MetaLead.countDocuments({ customerId });
-      const checkResult = await metaLeadsEmailService.checkForNewEmails(daysBack);
+      const folderNames = activeFolderMappings.map((mapping) => mapping.folderName).filter(Boolean);
+      const checkResult = folderNames.length > 0
+        ? await metaLeadsEmailService.checkSpecificFolders(folderNames, daysBack)
+        : await metaLeadsEmailService.checkForNewEmails(daysBack);
       const afterCount = await MetaLead.countDocuments({ customerId });
       const leadsCreatedForCustomer = Math.max(0, afterCount - beforeCount);
 
       const result = {
         ...checkResult,
+        syncStrategy: folderNames.length > 0 ? 'mapped_folders' : 'global_mailbox_fallback',
+        mappedFoldersChecked: folderNames,
         daysBackUsed: daysBack,
         lookbackReason,
         latestLeadAt: latestLead?.emailDate || null,
         latestMappingUpdatedAt: latestMappingUpdatedAt || null,
-        latestMappingSubject: latestActiveMapping?.emailSubject || null,
+        latestMappingSubject: latestActiveSubjectMapping?.emailSubject || null,
         leadsCreatedForCustomer
       };
 
       res.json({
-        message: 'Sync completed. Check your leads list for any new entries.',
+        message: folderNames.length > 0
+          ? 'Sync completed using your mapped Meta Leads folder(s).'
+          : 'Sync completed. No active folder mapping found, so the mailbox fallback was used.',
         result
       });
     } catch (error) {
@@ -629,6 +805,46 @@ class MetaLeadsController {
       res.status(500).json({ 
         message: 'Failed to trigger email check', 
         error: error.message 
+      });
+    }
+  }
+
+  /**
+   * Import leads from a single mapped folder (admin).
+   * Reads the folder, creates any missing leads, and customer portal will reflect saved records.
+   */
+  static async importFolderMapping(req, res) {
+    try {
+      const { mappingId } = req.params;
+      const mapping = await MetaLeadFolderMapping.findById(mappingId).populate('customerId', 'name email');
+
+      if (!mapping) {
+        return res.status(404).json({ message: 'Folder mapping not found' });
+      }
+
+      if (!mapping.isActive) {
+        return res.status(400).json({ message: 'Folder mapping is inactive' });
+      }
+
+      const beforeCount = await MetaLead.countDocuments({ customerId: mapping.customerId._id });
+      const importResult = await metaLeadsEmailService.checkSpecificFolders([mapping.folderName], null);
+      const afterCount = await MetaLead.countDocuments({ customerId: mapping.customerId._id });
+
+      res.json({
+        message: `Imported leads from folder "${mapping.folderName}" for ${mapping.customerId.name}.`,
+        result: {
+          ...importResult,
+          folderName: mapping.folderName,
+          customerId: mapping.customerId._id,
+          customerName: mapping.customerId.name,
+          leadsCreatedForCustomer: Math.max(0, afterCount - beforeCount)
+        }
+      });
+    } catch (error) {
+      console.error('Error importing folder mapping:', error);
+      res.status(500).json({
+        message: 'Failed to import leads from folder',
+        error: error.message
       });
     }
   }

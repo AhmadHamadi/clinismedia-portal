@@ -2,6 +2,10 @@ const transporter = require('../config/email_config');
 const path = require('path');
 
 class EmailService {
+  static getMediaDayTrackingEmail() {
+    return process.env.MEDIA_DAY_TRACKING_EMAIL || 'notifications@clinimedia.ca';
+  }
+
   // Common email template
   static createEmailTemplate(content) {
     return `
@@ -17,8 +21,16 @@ class EmailService {
     `;
   }
 
-  // Common email sending function - all emails sent FROM notifications@clinimedia.ca
-  static async sendEmail(subject, content, toEmail, errorMessage, fromEmail = 'notifications@clinimedia.ca') {
+  // Common email sending function
+  // Default sender is info@clinimedia.ca; auth still uses EMAIL_USER in transporter config.
+  static async sendEmail(
+    subject,
+    content,
+    toEmail,
+    errorMessage,
+    fromEmail = process.env.EMAIL_FROM || 'info@clinimedia.ca',
+    options = {}
+  ) {
     try {
       const logoPath = path.join(__dirname, '../assets/CliniMedia_Logo1.png');
       const fs = require('fs');
@@ -38,6 +50,9 @@ class EmailService {
       await transporter.sendMail({
         from: fromEmail,
         to: toEmail, // Send to specific customer email
+        cc: options.cc,
+        bcc: options.bcc,
+        replyTo: options.replyTo,
         subject,
         html: EmailService.createEmailTemplate(content),
         attachments
@@ -68,7 +83,9 @@ class EmailService {
       'Media Day Booking Received',
       content,
       customerEmail,
-      'Failed to send booking confirmation email:'
+      'Failed to send booking confirmation email:',
+      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
 
@@ -83,7 +100,9 @@ class EmailService {
       `Media Day Booking Confirmed – ${bookingDate}`,
       content,
       customerEmail,
-      'Failed to send booking accepted email:'
+      'Failed to send booking accepted email:',
+      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
 
@@ -98,7 +117,9 @@ class EmailService {
       `Media Day Booking Declined – ${requestedDate}`,
       content,
       customerEmail,
-      'Failed to send booking declined email:'
+      'Failed to send booking declined email:',
+      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
 
@@ -116,7 +137,9 @@ class EmailService {
       `New Media Day Session Available – ${bookingDate}`,
       content,
       'notifications@clinimedia.ca', // Send to notifications email
-      'Failed to send photographer notification email:'
+      'Failed to send photographer notification email:',
+      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      { bcc: EmailService.getMediaDayTrackingEmail() }
       // FROM defaults to notifications@clinimedia.ca
     );
   }
@@ -141,7 +164,9 @@ class EmailService {
           `New Media Day Session Available – ${bookingDate}`,
           content,
           photographer.email,
-          'Failed to send photographer notification email:'
+          'Failed to send photographer notification email:',
+          process.env.EMAIL_FROM || 'info@clinimedia.ca',
+          { bcc: EmailService.getMediaDayTrackingEmail() }
         );
       }
     } catch (error) {
@@ -160,7 +185,9 @@ class EmailService {
       `Media Day Session Secured – ${bookingDate}`,
       content,
       photographerEmail,
-      'Failed to send photographer booking secured email:'
+      'Failed to send photographer booking secured email:',
+      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
 
@@ -175,7 +202,9 @@ class EmailService {
       `Reminder: Your Media Day is Tomorrow – ${bookingDate}`,
       content,
       customerEmail,
-      'Failed to send booking reminder email:'
+      'Failed to send booking reminder email:',
+      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
 
@@ -193,7 +222,9 @@ class EmailService {
       `Reminder: Media Day Session Tomorrow – ${bookingDate}`,
       content,
       photographerEmail,
-      'Failed to send photographer reminder email:'
+      'Failed to send photographer reminder email:',
+      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
 
@@ -243,7 +274,9 @@ class EmailService {
       subject,
       content,
       customerEmail,
-      'Failed to send proactive booking reminder:'
+      'Failed to send proactive booking reminder:',
+      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
 
@@ -263,7 +296,9 @@ class EmailService {
       `New Media Day Booking Request - ${customerName} - ${bookingDate}`,
       content,
       'notifications@clinimedia.ca', // Admin notifications go to notifications email
-      'Failed to send admin booking notification:'
+      'Failed to send admin booking notification:',
+      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      { bcc: EmailService.getMediaDayTrackingEmail() }
       // FROM defaults to notifications@clinimedia.ca
     );
   }

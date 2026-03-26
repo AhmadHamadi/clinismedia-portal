@@ -5,6 +5,7 @@ const router = express.Router();
 const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
+const { findGoogleIntegrationAdminUser } = require('../utils/googleIntegrationAdminUser');
 
 // Constants
 const MCC_CUSTOMER_ID = '4037087680';
@@ -151,7 +152,7 @@ router.get('/auth/admin', authenticateToken, authorizeRole(['admin']), async (re
       throw new Error('Missing GOOGLE_ADS_CLIENT_ID or GOOGLE_ADS_CLIENT_SECRET');
     }
 
-  const adminUser = await User.findOne({ role: 'admin' });
+  const adminUser = await findGoogleIntegrationAdminUser(req, 'googleAds');
   if (!adminUser) {
     return res.status(404).json({ error: 'Admin user not found' });
   }
@@ -324,7 +325,7 @@ async function executeGAQLQuery(accessToken, customerId, query) {
 // GET /api/google-ads/accounts - List accessible customer accounts
 router.get('/accounts', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    const adminUser = await User.findOne({ role: 'admin' });
+    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleAds');
     if (!adminUser || !adminUser.googleAdsRefreshToken) {
       return res.status(401).json({ error: 'Admin Google Ads not connected' });
     }
@@ -407,7 +408,7 @@ router.get('/kpis', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'accountId required' });
     }
 
-    const adminUser = await User.findOne({ role: 'admin' });
+    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleAds');
     if (!adminUser?.googleAdsRefreshToken) {
       return res.status(401).json({ error: 'Admin Google Ads not connected' });
     }
@@ -490,7 +491,7 @@ router.get('/daily', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'accountId required' });
     }
 
-    const adminUser = await User.findOne({ role: 'admin' });
+    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleAds');
     if (!adminUser?.googleAdsRefreshToken) {
       return res.status(401).json({ error: 'Admin Google Ads not connected' });
     }
@@ -563,7 +564,7 @@ router.get('/campaigns', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'accountId required' });
     }
 
-    const adminUser = await User.findOne({ role: 'admin' });
+    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleAds');
     if (!adminUser?.googleAdsRefreshToken) {
       return res.status(401).json({ error: 'Admin Google Ads not connected' });
     }

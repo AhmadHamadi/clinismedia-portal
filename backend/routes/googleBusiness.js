@@ -6,6 +6,7 @@ const authorizeRole = require('../middleware/authorizeRole');
 const User = require('../models/User');
 const GoogleBusinessInsights = require('../models/GoogleBusinessInsights');
 const GoogleBusinessDataRefreshService = require('../services/googleBusinessDataRefreshService');
+const { findGoogleIntegrationAdminUser } = require('../utils/googleIntegrationAdminUser');
 const { google } = require('googleapis');
 const axios = require('axios');
 
@@ -379,6 +380,11 @@ router.get('/auth/admin', authenticateToken, authorizeRole(['admin']), async (re
       return res.status(500).json({ error: 'Google Business Client Secret is not configured. Please add GOOGLE_BUSINESS_CLIENT_SECRET to environment variables.' });
     }
     
+    const adminUserId = req.user?._id || req.user?.id;
+    if (!adminUserId) {
+      return res.status(401).json({ error: 'Admin user not found in session.' });
+    }
+
     // ✅ FIXED: Dynamically detect redirect URI from request (supports both localhost and production)
     const redirectUri = getGoogleBusinessRedirectUri(req);
     
@@ -392,7 +398,7 @@ router.get('/auth/admin', authenticateToken, authorizeRole(['admin']), async (re
     const authUrl = requestOAuth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: SCOPES,
-      state: 'admin', // Use 'admin' as state for admin OAuth
+      state: `admin_${adminUserId}`, // Persist the exact admin record that started OAuth
       prompt: 'consent', // Force consent screen to get refresh token
       redirect_uri: redirectUri
     });
@@ -610,12 +616,17 @@ router.get('/callback', async (req, res) => {
     }
 
     // If this is admin OAuth, store tokens in database (admin User record)
-    if (state === 'admin') {
+    if (state === 'admin' || (typeof state === 'string' && state.startsWith('admin_'))) {
       // ✅ FIXED: Save admin tokens to database (admin User record) - NON-BLOCKING
       // If database save fails, we still redirect successfully (original behavior)
       // Database save is just for our new refresh service, but OAuth flow should work regardless
       try {
-        const adminUser = await User.findOne({ role: 'admin' });
+        const adminUserId = typeof state === 'string' && state.startsWith('admin_')
+          ? state.replace('admin_', '')
+          : null;
+        const adminUser = adminUserId
+          ? await User.findById(adminUserId)
+          : await findGoogleIntegrationAdminUser(req, 'googleBusiness');
         if (adminUser) {
           // Calculate expiry date
           const tokenExpiry = expires_in 
@@ -695,7 +706,7 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
 
     // ✅ FIXED: Get admin tokens from database first (with fallback to header/env)
     let adminTokens;
-    let adminUser = await User.findOne({ role: 'admin' });
+    let adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
     
     // Priority 1: Database (most reliable, persistent)
     if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
@@ -990,7 +1001,7 @@ router.get('/admin-connection-status', authenticateToken, authorizeRole(['admin'
       });
     }
 
-    const adminUser = await User.findOne({ role: 'admin' });
+    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
 
     if (!adminUser) {
       return res.json({
@@ -1051,7 +1062,7 @@ router.post('/save-admin-tokens', authenticateToken, authorizeRole(['admin']), a
       return res.status(400).json({ error: 'access_token and refresh_token are required' });
     }
     
-    const adminUser = await User.findOne({ role: 'admin' });
+    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
     if (!adminUser) {
       return res.status(404).json({ error: 'Admin user not found' });
     }
@@ -1108,7 +1119,7 @@ router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']
     let tokensToUse = tokens;
     if (!tokens || !tokens.access_token || !tokens.refresh_token) {
       console.log('⚠️ Tokens not provided in request, using admin tokens from database');
-      const adminUser = await User.findOne({ role: 'admin' });
+      const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
       if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
         tokensToUse = {
           access_token: adminUser.googleBusinessAccessToken,
@@ -1260,7 +1271,7 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
     let usingAdminTokens = false;
     
     // Priority 1: Use admin tokens (always fresh, auto-refreshed every 30 seconds)
-    const adminUser = await User.findOne({ role: 'admin' });
+    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
     if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
       tokensToUse = {
         access_token: adminUser.googleBusinessAccessToken,
@@ -1491,7 +1502,7 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
         console.error('❌ No refresh token available');
         // If using admin tokens and they're expired, try to refresh admin tokens
         if (usingAdminTokens) {
-          const adminUser = await User.findOne({ role: 'admin' });
+          const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
           if (adminUser?.googleBusinessRefreshToken) {
             try {
               const refreshedTokens = await refreshGoogleBusinessToken(adminUser.googleBusinessRefreshToken);
@@ -1575,7 +1586,7 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
           
           // Update database - if using customer tokens, update customer; if using admin, update admin
           if (usingAdminTokens) {
-            const adminUser = await User.findOne({ role: 'admin' });
+            const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
             if (adminUser) {
               await User.findByIdAndUpdate(adminUser._id, {
                 googleBusinessAccessToken: refreshedTokens.access_token,
@@ -2205,7 +2216,7 @@ router.get('/group-insights', authenticateToken, authorizeRole(['admin']), async
     
     // ✅ FIXED: Get admin tokens from database first (with fallback to header/env)
     let adminTokens;
-    let adminUser = await User.findOne({ role: 'admin' });
+    let adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
     
     // Priority 1: Database (most reliable, persistent)
     if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {

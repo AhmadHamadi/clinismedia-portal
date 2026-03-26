@@ -236,6 +236,7 @@ class ScheduledEmailService {
           twoWeeksBefore.setHours(0, 0, 0, 0);
 
           const firstOfPeriod = new Date(periodStart);
+          firstOfPeriod.setHours(0, 0, 0, 0);
           const tenthOfPeriod = new Date(periodStart);
           tenthOfPeriod.setDate(10);
           tenthOfPeriod.setHours(0, 0, 0, 0);

@@ -36,14 +36,30 @@ router.get('/admin/leads', authenticateToken, authorizeRole(['admin']), MetaLead
 // Get all subject mappings (admin)
 router.get('/admin/subject-mappings', authenticateToken, authorizeRole(['admin']), MetaLeadsController.getSubjectMappings);
 
+// Get all folder mappings (admin)
+router.get('/admin/folder-mappings', authenticateToken, authorizeRole(['admin']), MetaLeadsController.getFolderMappings);
+
+// Get available IMAP folders (admin)
+router.get('/admin/available-folders', authenticateToken, authorizeRole(['admin']), MetaLeadsController.getAvailableFolders);
+
 // Create subject mapping (admin)
 router.post('/admin/subject-mappings', authenticateToken, authorizeRole(['admin']), MetaLeadsController.createSubjectMapping);
+
+// Create folder mapping (admin)
+router.post('/admin/folder-mappings', authenticateToken, authorizeRole(['admin']), MetaLeadsController.createFolderMapping);
 
 // Update subject mapping (admin)
 router.patch('/admin/subject-mappings/:mappingId', authenticateToken, authorizeRole(['admin']), MetaLeadsController.updateSubjectMapping);
 
+// Update folder mapping (admin)
+router.patch('/admin/folder-mappings/:mappingId', authenticateToken, authorizeRole(['admin']), MetaLeadsController.updateFolderMapping);
+
 // Delete subject mapping (admin)
 router.delete('/admin/subject-mappings/:mappingId', authenticateToken, authorizeRole(['admin']), MetaLeadsController.deleteSubjectMapping);
+
+// Delete folder mapping (admin)
+router.delete('/admin/folder-mappings/:mappingId', authenticateToken, authorizeRole(['admin']), MetaLeadsController.deleteFolderMapping);
+router.post('/admin/folder-mappings/:mappingId/import', authenticateToken, authorizeRole(['admin']), MetaLeadsController.importFolderMapping);
 
 // Test subject line → clinic (admin debug)
 router.get('/admin/test-subject', authenticateToken, authorizeRole(['admin']), MetaLeadsController.testSubject);
