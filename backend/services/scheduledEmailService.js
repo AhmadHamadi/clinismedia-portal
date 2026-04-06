@@ -1,6 +1,15 @@
 const Booking = require('../models/Booking');
 const User = require('../models/User');
+const EmailNotificationSettings = require('../models/EmailNotificationSettings');
 const EmailService = require('./emailService');
+
+const getAutomationSetting = async (notificationType) => {
+  return EmailNotificationSettings.findOne({
+    notificationType,
+    isEnabled: true,
+    sendAutomatically: true
+  });
+};
 
 // Utility function for consistent date formatting
 const formatDateForEmail = (date) => {
@@ -45,6 +54,12 @@ const hasBookingForQuarter = async (customerId, year, quarterStartMonth) => {
 class ScheduledEmailService {
   static async sendDailyReminders() {
     try {
+      const bookingReminderSetting = await getAutomationSetting('booking_reminder');
+      if (!bookingReminderSetting) {
+        console.log('Booking reminder emails are disabled or set to manual only');
+        return;
+      }
+
       const today = new Date();
       today.setHours(0, 0, 0, 0); // Start of day
       
@@ -183,6 +198,12 @@ class ScheduledEmailService {
 
   static async sendProactiveBookingReminders() {
     try {
+      const proactiveReminderSetting = await getAutomationSetting('proactive_booking_reminder');
+      if (!proactiveReminderSetting) {
+        console.log('Proactive booking reminder emails are disabled or set to manual only');
+        return;
+      }
+
       const customers = await User.find({ role: 'customer' });
       const today = new Date();
       today.setHours(0, 0, 0, 0);

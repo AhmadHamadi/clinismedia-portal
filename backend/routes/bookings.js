@@ -8,6 +8,7 @@ const resolveEffectiveCustomerId = require('../middleware/resolveEffectiveCustom
 const requireCanBookMediaDay = require('../middleware/requireCanBookMediaDay');
 const allowBookingAccess = require('../middleware/allowBookingAccess');
 const EmailService = require('../services/emailService');
+const EmailNotificationSettings = require('../models/EmailNotificationSettings');
 const User = require('../models/User');
 
 // Import booking eligibility utilities with error handling
@@ -71,6 +72,15 @@ const sendEmailAsync = async (emailFunction, ...args) => {
   } catch (error) {
     console.error('Failed to send email:', error);
   }
+};
+
+const canSendAutomaticEmail = async (notificationType) => {
+  const setting = await EmailNotificationSettings.findOne({
+    notificationType,
+    isEnabled: true,
+    sendAutomatically: true
+  });
+  return !!setting;
 };
 
 // Legacy function - now using shared eligibility calculator
@@ -200,7 +210,9 @@ router.post('/', authenticateToken, authorizeRole(['customer', 'receptionist']),
       const customer = await User.findById(customerId);
       const clinicName = customer.name || 'Customer';
       const requestedDate = formatDateForEmail(date);
-      await sendEmailAsync(EmailService.sendBookingConfirmation, clinicName, requestedDate, customer.email);
+      if (await canSendAutomaticEmail('booking_confirmation')) {
+        await sendEmailAsync(EmailService.sendBookingConfirmation, clinicName, requestedDate, customer.email);
+      }
       
       // Send admin notification email
       await sendEmailAsync(EmailService.sendAdminBookingNotification, clinicName, customer.email, requestedDate, notes);
@@ -488,7 +500,9 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
         const customer = await User.findById(booking.customer);
         const clinicName = customer.name || 'Customer';
         const bookingDate = formatDateForEmail(booking.date);
-        await sendEmailAsync(EmailService.sendBookingAccepted, clinicName, bookingDate, customer.email);
+        if (await canSendAutomaticEmail('booking_accepted')) {
+          await sendEmailAsync(EmailService.sendBookingAccepted, clinicName, bookingDate, customer.email);
+        }
         
         // Also notify photographers about the available session
         await sendEmailAsync(EmailService.sendPhotographerNotificationToAll, clinicName, bookingDate);
@@ -501,7 +515,9 @@ router.patch('/:id/status', authenticateToken, authorizeRole('admin'), async (re
         const customer = await User.findById(booking.customer);
         const clinicName = customer.name || 'Customer';
         const requestedDate = formatDateForEmail(booking.date);
-        await sendEmailAsync(EmailService.sendBookingDeclined, clinicName, requestedDate, customer.email);
+        if (await canSendAutomaticEmail('booking_declined')) {
+          await sendEmailAsync(EmailService.sendBookingDeclined, clinicName, requestedDate, customer.email);
+        }
         
         // Google Calendar integration removed - keeping it simple!
       })();

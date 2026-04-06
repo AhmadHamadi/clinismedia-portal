@@ -170,10 +170,9 @@ app.listen(PORT, () => {
     console.log("🧹 Cleaned up old sessions");
   }, 60 * 60 * 1000); // Every hour
   
-  // Also run once on server start for testing
+  // Run Google Business refresh once on server start, but do not send reminder emails on boot.
+  // Reminder sends stay on their daily schedule to avoid duplicate emails after deploy/restart.
   GoogleBusinessDataRefreshService.refreshAllBusinessProfiles();
-  ScheduledEmailService.sendDailyReminders();
-  ScheduledEmailService.sendProactiveBookingReminders();
   
   // Start Meta Leads email monitoring (runs on THIS server - set LEADS_EMAIL_PASS/EMAIL_PASS in production so the always-on backend processes leads)
   const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL, 10) || 1;

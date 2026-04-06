@@ -469,6 +469,86 @@ class MetaLeadsEmailService {
     });
   }
 
+  buildFolderOpenCandidates(folderName) {
+    const rawFolder = String(folderName || '').trim();
+    if (!rawFolder) return [];
+
+    const candidates = [];
+    const pushCandidate = (candidate) => {
+      const value = String(candidate || '').trim();
+      if (value && !candidates.includes(value)) {
+        candidates.push(value);
+      }
+    };
+
+    pushCandidate(rawFolder);
+    pushCandidate(rawFolder.replace(/\//g, '.'));
+    pushCandidate(rawFolder.replace(/\./g, '/'));
+
+    if (!/^INBOX([./]|$)/i.test(rawFolder)) {
+      pushCandidate(`INBOX.${rawFolder}`);
+      pushCandidate(`INBOX/${rawFolder}`);
+      pushCandidate(`INBOX.${rawFolder.replace(/\//g, '.')}`);
+      pushCandidate(`INBOX/${rawFolder.replace(/\./g, '/')}`);
+    }
+
+    return candidates;
+  }
+
+  async openBoxWithFallback(folderName) {
+    const candidates = this.buildFolderOpenCandidates(folderName);
+    const errors = [];
+
+    for (const candidate of candidates) {
+      try {
+        const box = await new Promise((resolve, reject) => {
+          this.imap.openBox(candidate, false, (err, openedBox) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            resolve(openedBox);
+          });
+        });
+
+        return { box, openedFolderName: candidate, attemptedFolders: candidates, errors };
+      } catch (error) {
+        errors.push(`${candidate}: ${error.message}`);
+      }
+    }
+
+    throw new Error(errors.join(' | '));
+  }
+
+  getStaleCheckThresholdMs() {
+    return 10 * 60 * 1000;
+  }
+
+  async recoverIfCheckIsStale() {
+    if (!this.isChecking || !this.lastCheckStartedAt) {
+      return false;
+    }
+
+    const startedAtMs = new Date(this.lastCheckStartedAt).getTime();
+    if (!Number.isFinite(startedAtMs)) {
+      return false;
+    }
+
+    if ((Date.now() - startedAtMs) < this.getStaleCheckThresholdMs()) {
+      return false;
+    }
+
+    console.warn('[Meta Leads] Detected stale email check lock. Resetting IMAP connection so polling can recover automatically.');
+    try {
+      await this.disconnect();
+    } catch (_) {
+      // Best-effort recovery only.
+    }
+    this.isChecking = false;
+    this.lastError = 'Recovered from stale Meta Leads check lock';
+    return true;
+  }
+
   /**
    * Find customer by IMAP folder name.
    */
@@ -777,15 +857,10 @@ class MetaLeadsEmailService {
    * @param {number} daysBack - How many days back to look (e.g. 2 = today + yesterday so we never miss leads)
    */
   async checkFolderForEmails(folderName, daysBack, result) {
-    return new Promise((resolve) => {
-      this.imap.openBox(folderName, false, (err, box) => {
-        if (err) {
-          result.errors.push(`Error opening folder "${folderName}": ${err.message}`);
-          resolve(result);
-          return;
-        }
+    try {
+      const { openedFolderName } = await this.openBoxWithFallback(folderName);
 
-        // Any email (unread or read) received with a subject that matches admin mapping → lead for that clinic
+      return await new Promise((resolve) => {
         const searchCriteria = daysBack === null
           ? ['ALL']
           : (() => {
@@ -797,8 +872,8 @@ class MetaLeadsEmailService {
 
         this.imap.search(searchCriteria, async (err, results) => {
           if (err) {
-            console.error(`Error searching emails in "${folderName}":`, err);
-            result.errors.push(`Error searching emails in "${folderName}": ${err.message}`);
+            console.error(`Error searching emails in "${openedFolderName}":`, err);
+            result.errors.push(`Error searching emails in "${openedFolderName}": ${err.message}`);
             resolve(result);
             return;
           }
@@ -812,7 +887,7 @@ class MetaLeadsEmailService {
 
           const processedEmails = [];
           const processingPromises = [];
-          
+
           const fetch = this.imap.fetch(results, {
             bodies: '',
             struct: true
@@ -833,7 +908,7 @@ class MetaLeadsEmailService {
                 stream.once('end', async () => {
                   try {
                     const emailBuffer = Buffer.concat(buffer);
-                    const processed = await this.processEmail(emailBuffer, folderName);
+                    const processed = await this.processEmail(emailBuffer, openedFolderName);
                     result.emailsProcessed++;
                     if (processed?.lead) {
                       if (processed.action === 'created') {
@@ -844,36 +919,33 @@ class MetaLeadsEmailService {
                       processedEmails.push(seqno);
                     }
                   } catch (e) {
-                    console.error(`[Meta Leads] Error processing one email in "${folderName}":`, e.message);
+                    console.error(`[Meta Leads] Error processing one email in "${openedFolderName}":`, e.message);
                     result.emailsProcessed++;
                   }
                   done();
                 });
                 stream.on('error', () => done());
               });
-              msg.once('end', () => done()); // if body never emitted, still resolve
+              msg.once('end', () => done());
             });
             processingPromises.push(emailPromise);
           });
 
           fetch.once('error', (err) => {
-            console.error(`Error fetching emails from "${folderName}":`, err);
-            result.errors.push(`Error fetching emails from "${folderName}": ${err.message}`);
-            // Wait for in-flight message processing so we don't open next folder while streams are active
+            console.error(`Error fetching emails from "${openedFolderName}":`, err);
+            result.errors.push(`Error fetching emails from "${openedFolderName}": ${err.message}`);
             Promise.all(processingPromises).then(() => resolve(result)).catch(() => resolve(result));
           });
 
           fetch.once('end', async () => {
-            // Wait for all emails to finish processing before marking as read
             try {
               await Promise.all(processingPromises);
-              
-              // Mark all processed emails as SEEN (read)
+
               if (processedEmails.length > 0) {
                 this.imap.addFlags(processedEmails, '\\Seen', (err) => {
                   if (err) {
-                    console.error(`Error marking emails as read in "${folderName}":`, err);
-                    result.errors.push(`Error marking emails as read in "${folderName}": ${err.message}`);
+                    console.error(`Error marking emails as read in "${openedFolderName}":`, err);
+                    result.errors.push(`Error marking emails as read in "${openedFolderName}": ${err.message}`);
                   }
                   resolve(result);
                 });
@@ -881,14 +953,17 @@ class MetaLeadsEmailService {
                 resolve(result);
               }
             } catch (error) {
-              console.error(`Error processing emails in "${folderName}":`, error);
-              result.errors.push(`Error processing emails in "${folderName}": ${error.message}`);
+              console.error(`Error processing emails in "${openedFolderName}":`, error);
+              result.errors.push(`Error processing emails in "${openedFolderName}": ${error.message}`);
               resolve(result);
             }
           });
         });
       });
-    });
+    } catch (error) {
+      result.errors.push(`Error opening folder "${folderName}": ${error.message}`);
+      return result;
+    }
   }
 
   /**
@@ -908,6 +983,8 @@ class MetaLeadsEmailService {
       }
       return result;
     };
+
+    await this.recoverIfCheckIsStale();
 
     this.lastCheckStartedAt = new Date().toISOString();
 
@@ -1020,6 +1097,8 @@ class MetaLeadsEmailService {
       return result;
     };
 
+    await this.recoverIfCheckIsStale();
+
     this.lastCheckStartedAt = new Date().toISOString();
 
     if (this.isChecking) {
@@ -1057,11 +1136,37 @@ class MetaLeadsEmailService {
 
         this.imap.getBoxes((err, boxes) => {
           if (err) {
-            result.errors.push(`Error getting folders: ${err.message}`);
-            this.disconnect().finally(() => {
-              this.isChecking = false;
-              resolve(finalizeCheck(result));
-            });
+            result.errors.push(`Error getting folders: ${err.message}. Falling back to direct folder open attempts.`);
+            const fallbackResolvedFolders = uniqueFolders.map((folderName) => ({
+              requestedFolder: folderName,
+              resolvedFolder: folderName,
+              matchedBy: 'fallback'
+            }));
+            result.foldersChecked = fallbackResolvedFolders.map((folder) => folder.resolvedFolder);
+
+            const processFallbackFolders = async (index = 0) => {
+              try {
+                if (index >= fallbackResolvedFolders.length) {
+                  this.disconnect().finally(() => {
+                    this.isChecking = false;
+                    resolve(finalizeCheck(result));
+                  });
+                  return;
+                }
+
+                const folderName = fallbackResolvedFolders[index].resolvedFolder;
+                await this.checkFolderForEmails(folderName, daysBack, result);
+                processFallbackFolders(index + 1);
+              } catch (folderError) {
+                result.errors.push(`Folder error: ${folderError.message}`);
+                this.disconnect().finally(() => {
+                  this.isChecking = false;
+                  resolve(finalizeCheck(result));
+                });
+              }
+            };
+
+            processFallbackFolders();
             return;
           }
 
@@ -1145,6 +1250,12 @@ class MetaLeadsEmailService {
       });
 
       return folderNames.sort((a, b) => a.localeCompare(b));
+    } catch (error) {
+      console.warn('[Meta Leads] Folder discovery failed, falling back to saved mapped folders:', error.message);
+      const mappedFolders = await MetaLeadFolderMapping.find({ isActive: true })
+        .distinct('folderName');
+      return [...new Set(mappedFolders.map((folder) => String(folder || '').trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b));
     } finally {
       await this.disconnect();
     }
@@ -1295,4 +1406,5 @@ class MetaLeadsEmailService {
 }
 
 module.exports = new MetaLeadsEmailService();
+
 
