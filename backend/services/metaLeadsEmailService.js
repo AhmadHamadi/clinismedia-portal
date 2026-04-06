@@ -426,6 +426,49 @@ class MetaLeadsEmailService {
     return normalized.replace(/\s+/g, ' ').trim().toLowerCase();
   }
 
+  extractFolderNames(boxTree, prefix = '') {
+    const folderNames = [];
+
+    for (const name in boxTree || {}) {
+      const box = boxTree[name];
+      const fullName = prefix ? `${prefix}${box?.delimiter || '.'}${name}` : name;
+      if (fullName && String(fullName).trim()) {
+        folderNames.push(fullName);
+      }
+      if (box?.children && typeof box.children === 'object') {
+        folderNames.push(...this.extractFolderNames(box.children, fullName || name));
+      }
+    }
+
+    return folderNames;
+  }
+
+  resolveRequestedFolders(requestedFolders = [], availableFolders = []) {
+    const availableByNormalizedName = new Map();
+
+    for (const availableFolder of availableFolders) {
+      const normalized = this.normalizeFolderName(availableFolder);
+      if (normalized && !availableByNormalizedName.has(normalized)) {
+        availableByNormalizedName.set(normalized, availableFolder);
+      }
+    }
+
+    return requestedFolders.map((requestedFolder) => {
+      const exactMatch = availableFolders.find((folder) => folder === requestedFolder);
+      if (exactMatch) {
+        return { requestedFolder, resolvedFolder: exactMatch, matchedBy: 'exact' };
+      }
+
+      const normalizedRequested = this.normalizeFolderName(requestedFolder);
+      const normalizedMatch = normalizedRequested ? availableByNormalizedName.get(normalizedRequested) : null;
+      return {
+        requestedFolder,
+        resolvedFolder: normalizedMatch || requestedFolder,
+        matchedBy: normalizedMatch ? 'normalized' : 'fallback'
+      };
+    });
+  }
+
   /**
    * Find customer by IMAP folder name.
    */
@@ -737,6 +780,7 @@ class MetaLeadsEmailService {
     return new Promise((resolve) => {
       this.imap.openBox(folderName, false, (err, box) => {
         if (err) {
+          result.errors.push(`Error opening folder "${folderName}": ${err.message}`);
           resolve(result);
           return;
         }
@@ -1011,30 +1055,48 @@ class MetaLeadsEmailService {
       try {
         await this.connect();
 
-        const processFolders = async (index = 0) => {
-          try {
-            if (index >= uniqueFolders.length) {
-              this.disconnect().finally(() => {
-                this.isChecking = false;
-                resolve(finalizeCheck(result));
-              });
-              return;
-            }
-
-            const folderName = uniqueFolders[index];
-            result.foldersChecked.push(folderName);
-            await this.checkFolderForEmails(folderName, daysBack, result);
-            processFolders(index + 1);
-          } catch (folderError) {
-            result.errors.push(`Folder error: ${folderError.message}`);
+        this.imap.getBoxes((err, boxes) => {
+          if (err) {
+            result.errors.push(`Error getting folders: ${err.message}`);
             this.disconnect().finally(() => {
               this.isChecking = false;
               resolve(finalizeCheck(result));
             });
+            return;
           }
-        };
 
-        processFolders();
+          const availableFolders = this.extractFolderNames(boxes);
+          const resolvedFolders = this.resolveRequestedFolders(uniqueFolders, availableFolders);
+          result.foldersChecked = resolvedFolders.map((folder) => folder.resolvedFolder);
+
+          for (const unresolvedFolder of resolvedFolders.filter((folder) => folder.matchedBy === 'fallback')) {
+            result.errors.push(`Mapped folder "${unresolvedFolder.requestedFolder}" was not found in IMAP folder list; attempted raw folder name as fallback.`);
+          }
+
+          const processFolders = async (index = 0) => {
+            try {
+              if (index >= resolvedFolders.length) {
+                this.disconnect().finally(() => {
+                  this.isChecking = false;
+                  resolve(finalizeCheck(result));
+                });
+                return;
+              }
+
+              const folderName = resolvedFolders[index].resolvedFolder;
+              await this.checkFolderForEmails(folderName, daysBack, result);
+              processFolders(index + 1);
+            } catch (folderError) {
+              result.errors.push(`Folder error: ${folderError.message}`);
+              this.disconnect().finally(() => {
+                this.isChecking = false;
+                resolve(finalizeCheck(result));
+              });
+            }
+          };
+
+          processFolders();
+        });
       } catch (error) {
         result.errors.push(`Error checking emails: ${error.message}`);
         this.disconnect().finally(() => {

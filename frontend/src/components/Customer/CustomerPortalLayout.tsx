@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Routes, Route, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import CustomerSidebar from './CustomerSidebar';
@@ -25,6 +25,8 @@ const CustomerPortalLayout: React.FC = () => {
   const location = useLocation();
   // After /auth/validate, we merge role/parentCustomerId/canBookMediaDay into this; null = use localStorage
   const [userFromValidate, setUserFromValidate] = useState<{ role?: string; canBookMediaDay?: boolean; parentCustomerId?: string } | null>(null);
+  const metaLeadsSyncInFlightRef = useRef(false);
+  const metaLeadsLastAttemptRef = useRef(0);
 
   // On mount: refresh customerData from /auth/validate so canBookMediaDay/parentCustomerId stay in sync (e.g. after admin edits)
   useEffect(() => {
@@ -57,6 +59,70 @@ const CustomerPortalLayout: React.FC = () => {
     }
     return null; // customer: all pages
   }, [userFromValidate]);
+
+  useEffect(() => {
+    const metaLeadRoutes = new Set(['/customer', '/customer/', '/customer/dashboard', '/customer/meta-leads']);
+    const syncCooldownMs = 5 * 60 * 1000;
+    const attemptCooldownMs = 60 * 1000;
+    const syncStorageKey = 'customerMetaLeadsLastBackgroundSyncAt';
+
+    const syncMetaLeadsIfDue = async (force = false) => {
+      const token = localStorage.getItem('customerToken');
+      if (!token || !metaLeadRoutes.has(location.pathname)) return;
+      if (metaLeadsSyncInFlightRef.current) return;
+
+      const now = Date.now();
+      if (!force && now - metaLeadsLastAttemptRef.current < attemptCooldownMs) return;
+
+      const lastSuccessfulSyncAt = Number(sessionStorage.getItem(syncStorageKey) || 0);
+      if (!force && lastSuccessfulSyncAt && now - lastSuccessfulSyncAt < syncCooldownMs) return;
+
+      metaLeadsSyncInFlightRef.current = true;
+      metaLeadsLastAttemptRef.current = now;
+
+      try {
+        await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/meta-leads/customer/sync-emails`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        sessionStorage.setItem(syncStorageKey, String(Date.now()));
+        window.dispatchEvent(new CustomEvent('refreshCustomerNotifications'));
+      } catch (error) {
+        console.error('Background Meta Leads sync failed:', error);
+      } finally {
+        metaLeadsSyncInFlightRef.current = false;
+      }
+    };
+
+    const refreshOnFocus = () => {
+      syncMetaLeadsIfDue();
+    };
+
+    const refreshOnVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncMetaLeadsIfDue();
+      }
+    };
+
+    syncMetaLeadsIfDue();
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncMetaLeadsIfDue();
+      }
+    }, syncCooldownMs);
+
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnVisibility);
+    };
+  }, [location.pathname]);
 
   // Route guard: redirect receptionist away from pages they cannot access
   useEffect(() => {
@@ -175,5 +241,4 @@ const CustomerPortalLayout: React.FC = () => {
 };
 
 export default CustomerPortalLayout; 
-
 

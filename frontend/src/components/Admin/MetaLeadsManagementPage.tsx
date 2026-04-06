@@ -72,6 +72,7 @@ const MetaLeadsManagementPage: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [checkingEmails, setCheckingEmails] = useState(false);
   const [foldersLoading, setFoldersLoading] = useState(false);
+  const [availableFoldersError, setAvailableFoldersError] = useState<string | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [imapTestLoading, setImapTestLoading] = useState(false);
   const [importingMappingId, setImportingMappingId] = useState<string | null>(null);
@@ -155,10 +156,12 @@ const MetaLeadsManagementPage: React.FC = () => {
         timeout: 8000,
       });
       setAvailableFolders(res.data.folders || []);
+      setAvailableFoldersError(null);
       if (!silent) {
         setSuccess('Mailbox folders refreshed successfully.');
       }
     } catch (err: any) {
+      setAvailableFoldersError(err.response?.data?.error || err.response?.data?.message || 'Failed to refresh mailbox folders');
       if (!silent) {
         setError(err.response?.data?.message || 'Failed to refresh mailbox folders');
       }
@@ -186,7 +189,10 @@ const MetaLeadsManagementPage: React.FC = () => {
   useEffect(() => {
     const refreshSilently = async () => {
       try {
-        await fetchCoreData();
+        await Promise.allSettled([
+          fetchCoreData(),
+          fetchAvailableFolders(true),
+        ]);
       } catch (err) {
         // Keep the last known UI visible if a background refresh fails.
       }
@@ -559,6 +565,11 @@ const MetaLeadsManagementPage: React.FC = () => {
               Auto-refreshes every minute
             </span>
           </div>
+          {availableFoldersError && (
+            <p className="mt-3 text-sm text-red-600">
+              Mailbox folder discovery is failing: {availableFoldersError}
+            </p>
+          )}
         </div>
 
         <div className="overflow-x-auto">
