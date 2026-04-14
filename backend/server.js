@@ -7,12 +7,15 @@ const dotenv = require('dotenv');
 console.log('🔍 BEFORE loading .env:');
 console.log('   QUICKBOOKS_ENVIRONMENT (system):', process.env.QUICKBOOKS_ENVIRONMENT);
 
-// Explicitly load .env from backend directory with override enabled
-// override: true ensures .env values override any existing system/env variables
+// Explicitly load .env from backend directory.
+// In development we allow local .env values to fill in and override convenience defaults.
+// In production we do NOT let a bundled .env override Railway/runtime environment variables.
 const envPath = path.join(__dirname, '.env');
-const result = dotenv.config({ 
+const result = dotenv.config({
   path: envPath,
-  override: true // IMPORTANT: Override any existing env vars (like from system or Railway)
+  // Keep local development convenient, but never let a bundled .env override
+  // Railway/runtime env vars in production.
+  override: process.env.NODE_ENV !== 'production'
 });
 
 // Debug: Check what's in process.env AFTER loading .env
@@ -25,7 +28,7 @@ console.log('   .env file path:', envPath);
 if (result.error) {
   console.error('   ❌ ERROR loading .env file:', result.error);
 } else {
-  console.log('   ✅ .env file loaded successfully (with override: true)');
+  console.log(`   ✅ .env file loaded successfully (override enabled: ${process.env.NODE_ENV !== 'production'})`);
 }
 console.log('   QUICKBOOKS_ENVIRONMENT:', process.env.QUICKBOOKS_ENVIRONMENT);
 console.log('   QUICKBOOKS_CLIENT_ID:', process.env.QUICKBOOKS_CLIENT_ID ? 'SET' : 'NOT SET');

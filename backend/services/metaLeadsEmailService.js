@@ -43,7 +43,15 @@ class MetaLeadsEmailService {
       host: leadsEmailHost,
       port: leadsEmailPort,
       tls: true,
-      tlsOptions: { rejectUnauthorized: false }
+      tlsOptions: { rejectUnauthorized: false },
+      connTimeout: parseInt(process.env.LEADS_EMAIL_CONN_TIMEOUT_MS, 10) || 20000,
+      authTimeout: parseInt(process.env.LEADS_EMAIL_AUTH_TIMEOUT_MS, 10) || 15000,
+      socketTimeout: parseInt(process.env.LEADS_EMAIL_SOCKET_TIMEOUT_MS, 10) || 60000,
+      keepalive: {
+        interval: parseInt(process.env.LEADS_EMAIL_KEEPALIVE_INTERVAL_MS, 10) || 10000,
+        idleInterval: parseInt(process.env.LEADS_EMAIL_KEEPALIVE_IDLE_MS, 10) || 300000,
+        forceNoop: true
+      }
     };
   }
 
@@ -838,16 +846,41 @@ class MetaLeadsEmailService {
         return;
       }
 
-      try {
-        this.imap.once('end', () => {
+      const imap = this.imap;
+      let resolved = false;
+      const finish = () => {
+        if (resolved) return;
+        resolved = true;
+        if (this.imap === imap) {
           this.imap = null;
-          resolve();
+        }
+        resolve();
+      };
+
+      const timeoutMs = parseInt(process.env.LEADS_EMAIL_DISCONNECT_TIMEOUT_MS, 10) || 5000;
+      const timeout = setTimeout(() => {
+        console.warn('[Meta Leads] IMAP disconnect timed out. Forcing local recovery state.');
+        finish();
+      }, timeoutMs);
+
+      try {
+        imap.once('end', () => {
+          clearTimeout(timeout);
+          finish();
+        });
+        imap.once('close', () => {
+          clearTimeout(timeout);
+          finish();
+        });
+        imap.once('error', () => {
+          clearTimeout(timeout);
+          finish();
         });
 
-        this.imap.end();
+        imap.end();
       } catch (error) {
-        this.imap = null;
-        resolve();
+        clearTimeout(timeout);
+        finish();
       }
     });
   }
@@ -971,6 +1004,20 @@ class MetaLeadsEmailService {
    * @param {number} daysBack - Number of days to look back (default: 1 for today only)
    */
   async checkForNewEmails(daysBack = 1) {
+    try {
+      const activeMappedFolders = await this.getActiveMappedFolders();
+      if (activeMappedFolders.length > 0) {
+        const result = await this.checkSpecificFolders(activeMappedFolders, daysBack);
+        return {
+          ...result,
+          syncStrategy: 'mapped_folders_background_poll',
+          mappedFoldersChecked: activeMappedFolders
+        };
+      }
+    } catch (mappingError) {
+      console.warn('[Meta Leads] Failed to load active folder mappings for background poll. Falling back to mailbox-wide scan:', mappingError.message);
+    }
+
     const finalizeCheck = (result) => {
       const nowIso = new Date().toISOString();
       this.lastCheckCompletedAt = nowIso;
@@ -1062,10 +1109,7 @@ class MetaLeadsEmailService {
             } catch (folderError) {
               console.error(`Error processing folder at index ${index}:`, folderError);
               result.errors.push(`Folder error: ${folderError.message}`);
-              this.disconnect().finally(() => {
-                this.isChecking = false;
-                resolve(finalizeCheck(result));
-              });
+              processFolders(index + 1);
             }
           };
 
@@ -1159,10 +1203,7 @@ class MetaLeadsEmailService {
                 processFallbackFolders(index + 1);
               } catch (folderError) {
                 result.errors.push(`Folder error: ${folderError.message}`);
-                this.disconnect().finally(() => {
-                  this.isChecking = false;
-                  resolve(finalizeCheck(result));
-                });
+                processFallbackFolders(index + 1);
               }
             };
 
@@ -1193,10 +1234,7 @@ class MetaLeadsEmailService {
               processFolders(index + 1);
             } catch (folderError) {
               result.errors.push(`Folder error: ${folderError.message}`);
-              this.disconnect().finally(() => {
-                this.isChecking = false;
-                resolve(finalizeCheck(result));
-              });
+              processFolders(index + 1);
             }
           };
 
@@ -1268,6 +1306,12 @@ class MetaLeadsEmailService {
   hasCredentials() {
     const pass = process.env.LEADS_EMAIL_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
     return !!(pass && String(pass).trim());
+  }
+
+  async getActiveMappedFolders() {
+    const mappedFolders = await MetaLeadFolderMapping.find({ isActive: true })
+      .distinct('folderName');
+    return [...new Set(mappedFolders.map((folder) => String(folder || '').trim()).filter(Boolean))];
   }
 
   /**

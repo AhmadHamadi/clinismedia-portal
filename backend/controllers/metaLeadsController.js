@@ -887,7 +887,7 @@ class MetaLeadsController {
       const now = new Date();
       const since30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-      const activeMappings = await MetaLeadSubjectMapping.find({ isActive: true })
+      const activeMappings = await MetaLeadFolderMapping.find({ isActive: true })
         .populate('customerId', 'name email location role');
 
       const mappedCustomers = new Map();
@@ -900,10 +900,10 @@ class MetaLeadsController {
             customerName: mapping.customerId.name || null,
             customerEmail: mapping.customerId.email || null,
             location: mapping.customerId.location || null,
-            subjects: []
+            folders: []
           });
         }
-        mappedCustomers.get(key).subjects.push(mapping.emailSubject);
+        mappedCustomers.get(key).folders.push(mapping.folderName);
       }
 
       const leadsAgg = await MetaLead.aggregate([
@@ -935,7 +935,7 @@ class MetaLeadsController {
         }
         return {
           ...c,
-          subjectCount: c.subjects.length,
+          folderCount: c.folders.length,
           latestLeadDate,
           staleDays,
           totalLeads: agg?.totalLeads || 0,

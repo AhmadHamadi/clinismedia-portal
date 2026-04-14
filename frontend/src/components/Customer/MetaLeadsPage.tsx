@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { FaFacebook, FaEnvelope, FaPhone, FaCalendar, FaCheckCircle, FaTimesCircle, FaClock, FaUser, FaMapMarkerAlt, FaCalendarCheck, FaEdit, FaSpinner, FaFilter, FaEye, FaTimes, FaSyncAlt } from 'react-icons/fa';
 import { startOfMonth, endOfMonth, subMonths, format, startOfDay, endOfDay, subDays } from 'date-fns';
@@ -57,6 +57,8 @@ const MetaLeadsPage: React.FC = () => {
   const [editAppointmentStatus, setEditAppointmentStatus] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const leadsRequestSeqRef = useRef(0);
+  const statsRequestSeqRef = useRef(0);
 
   useEffect(() => {
     fetchLeads();
@@ -95,6 +97,7 @@ const MetaLeadsPage: React.FC = () => {
   }, [startDate, endDate, selectedStatus]);
 
   const fetchLeads = async (silent = false) => {
+    const requestSeq = ++leadsRequestSeqRef.current;
     try {
       if (!silent) {
         setLoading(true);
@@ -130,16 +133,23 @@ const MetaLeadsPage: React.FC = () => {
         }
       );
 
-      setLeads(response.data.leads || []);
+      if (requestSeq === leadsRequestSeqRef.current) {
+        setLeads(response.data.leads || []);
+      }
     } catch (err: any) {
       console.error('Error fetching leads:', err);
-      if (!silent) setError(err.response?.data?.message || 'Failed to fetch leads');
+      if (!silent && requestSeq === leadsRequestSeqRef.current) {
+        setError(err.response?.data?.message || 'Failed to fetch leads');
+      }
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent && requestSeq === leadsRequestSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const fetchStats = async () => {
+    const requestSeq = ++statsRequestSeqRef.current;
     try {
       const token = localStorage.getItem('customerToken');
       if (!token) return;
@@ -163,7 +173,9 @@ const MetaLeadsPage: React.FC = () => {
         }
       );
 
-      setStats(response.data);
+      if (requestSeq === statsRequestSeqRef.current) {
+        setStats(response.data);
+      }
     } catch (err: any) {
       console.error('Error fetching lead stats:', err);
     }

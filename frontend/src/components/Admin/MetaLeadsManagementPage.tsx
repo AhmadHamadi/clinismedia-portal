@@ -261,7 +261,10 @@ const MetaLeadsManagementPage: React.FC = () => {
     clearMessages();
     setRefreshing(true);
     try {
-      await fetchCoreData();
+      await Promise.all([
+        fetchCoreData(),
+        fetchAvailableFolders(true),
+      ]);
       setSuccess('Meta Leads data refreshed successfully.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to refresh Meta Leads data');
@@ -336,7 +339,10 @@ const MetaLeadsManagementPage: React.FC = () => {
           ? `Check finished with warnings. Emails found: ${result.emailsFound ?? 0}, leads created: ${result.leadsCreated ?? 0}.`
           : `Check completed. Emails found: ${result.emailsFound ?? 0}, leads created: ${result.leadsCreated ?? 0}.`
       );
-      await handleRefreshHealth();
+      await Promise.all([
+        fetchCoreData(),
+        fetchAvailableFolders(true),
+      ]);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to check emails');
     } finally {
@@ -535,6 +541,11 @@ const MetaLeadsManagementPage: React.FC = () => {
               <p className="text-sm text-gray-700">Completed: {fmtDateTime(monitoringStatus?.lastCheckCompletedAt)}</p>
             </div>
           </div>
+          {monitoringStatus?.lastError && (
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              Last backend poller error: {monitoringStatus.lastError}
+            </div>
+          )}
         </div>
       </div>
 
