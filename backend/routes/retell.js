@@ -17,43 +17,136 @@ function getSettings(user) {
   return sanitizeAiReceptionistSettings(user?.aiReceptionistSettings || {});
 }
 
+function preferIncomingValue(incomingValue, existingValue) {
+  if (incomingValue === undefined || incomingValue === null || incomingValue === "") {
+    return existingValue === undefined ? null : existingValue;
+  }
+
+  return incomingValue;
+}
+
+function mergeCallAnalysis(existingAnalysis, incomingAnalysis) {
+  if (!existingAnalysis && !incomingAnalysis) {
+    return undefined;
+  }
+
+  return {
+    ...(existingAnalysis && typeof existingAnalysis === "object" ? existingAnalysis : {}),
+    ...(incomingAnalysis && typeof incomingAnalysis === "object" ? incomingAnalysis : {}),
+    raw:
+      incomingAnalysis?.raw ??
+      existingAnalysis?.raw ??
+      (incomingAnalysis && typeof incomingAnalysis === "object" ? incomingAnalysis : undefined) ??
+      (existingAnalysis && typeof existingAnalysis === "object" ? existingAnalysis : undefined),
+  };
+}
+
+function readAnalysisValue(callAnalysis, ...keys) {
+  if (!callAnalysis || typeof callAnalysis !== "object") {
+    return null;
+  }
+
+  const candidateObjects = [
+    callAnalysis,
+    callAnalysis.custom_analysis_data,
+    callAnalysis.custom_analysis,
+    callAnalysis.analysis_data,
+    callAnalysis.extracted_data,
+  ].filter((value) => value && typeof value === "object");
+
+  for (const key of keys) {
+    for (const candidate of candidateObjects) {
+      if (candidate[key] !== undefined && candidate[key] !== null && candidate[key] !== "") {
+        return candidate[key];
+      }
+    }
+  }
+
+  return null;
+}
+
 function mapCallAnalysis(callAnalysis = {}) {
   if (!callAnalysis || typeof callAnalysis !== "object") {
     return undefined;
   }
 
+  const appointmentIntent = readAnalysisValue(
+    callAnalysis,
+    "appointment_intent",
+    "appointmentIntent"
+  );
+  const insuranceMentioned = readAnalysisValue(
+    callAnalysis,
+    "insurance_mentioned",
+    "insuranceMentioned"
+  );
+
   return {
-    callSummary: callAnalysis.call_summary || null,
+    callSummary: readAnalysisValue(callAnalysis, "call_summary", "callSummary"),
     callSuccessful:
-      typeof callAnalysis.call_successful === "boolean" ? callAnalysis.call_successful : null,
-    userSentiment: callAnalysis.user_sentiment || null,
-    callerName: callAnalysis.caller_name || null,
-    email: callAnalysis.email || null,
-    reasonForCall: callAnalysis.reason_for_call || null,
-    callbackNumber: callAnalysis.callback_number || null,
-    symptomsMentioned: callAnalysis.symptoms_mentioned || null,
-    preferredCallbackTime: callAnalysis.preferred_callback_time || null,
-    patientType: callAnalysis.patient_type || null,
-    urgencyLevel: callAnalysis.urgency_level || null,
-    locationWorksForCaller: callAnalysis.location_works_for_caller || null,
-    recommendedFollowUp: callAnalysis.recommended_follow_up || null,
-    serviceRequested: callAnalysis.service_requested || null,
-    appointmentIntent:
-      typeof callAnalysis.appointment_intent === "boolean"
-        ? callAnalysis.appointment_intent
+      typeof readAnalysisValue(callAnalysis, "call_successful", "callSuccessful") === "boolean"
+        ? readAnalysisValue(callAnalysis, "call_successful", "callSuccessful")
         : null,
-    insuranceMentioned:
-      typeof callAnalysis.insurance_mentioned === "boolean"
-        ? callAnalysis.insurance_mentioned
-        : null,
-    insuranceProvider: callAnalysis.insurance_provider || null,
+    userSentiment: readAnalysisValue(callAnalysis, "user_sentiment", "userSentiment"),
+    callerName: readAnalysisValue(callAnalysis, "caller_name", "callerName", "name"),
+    email: readAnalysisValue(callAnalysis, "email"),
+    reasonForCall: readAnalysisValue(callAnalysis, "reason_for_call", "reasonForCall"),
+    callbackNumber: readAnalysisValue(
+      callAnalysis,
+      "callback_number",
+      "callbackNumber",
+      "phone_number"
+    ),
+    symptomsMentioned: readAnalysisValue(
+      callAnalysis,
+      "symptoms_mentioned",
+      "symptomsMentioned"
+    ),
+    preferredCallbackTime: readAnalysisValue(
+      callAnalysis,
+      "preferred_callback_time",
+      "preferredCallbackTime"
+    ),
+    patientType: readAnalysisValue(callAnalysis, "patient_type", "patientType"),
+    urgencyLevel: readAnalysisValue(callAnalysis, "urgency_level", "urgencyLevel"),
+    locationWorksForCaller: readAnalysisValue(
+      callAnalysis,
+      "location_works_for_caller",
+      "locationWorksForCaller"
+    ),
+    recommendedFollowUp: readAnalysisValue(
+      callAnalysis,
+      "recommended_follow_up",
+      "recommendedFollowUp"
+    ),
+    serviceRequested: readAnalysisValue(
+      callAnalysis,
+      "service_requested",
+      "serviceRequested"
+    ),
+    appointmentIntent: typeof appointmentIntent === "boolean" ? appointmentIntent : null,
+    insuranceMentioned: typeof insuranceMentioned === "boolean" ? insuranceMentioned : null,
+    insuranceProvider: readAnalysisValue(
+      callAnalysis,
+      "insurance_provider",
+      "insuranceProvider"
+    ),
     painLevel:
-      typeof callAnalysis.pain_level === "number" || typeof callAnalysis.pain_level === "string"
-        ? callAnalysis.pain_level
+      typeof readAnalysisValue(callAnalysis, "pain_level", "painLevel") === "number" ||
+      typeof readAnalysisValue(callAnalysis, "pain_level", "painLevel") === "string"
+        ? readAnalysisValue(callAnalysis, "pain_level", "painLevel")
         : null,
-    preferredLocation: callAnalysis.preferred_location || null,
-    bestNextAction: callAnalysis.best_next_action || null,
-    bookingReadiness: callAnalysis.booking_readiness || null,
+    preferredLocation: readAnalysisValue(
+      callAnalysis,
+      "preferred_location",
+      "preferredLocation"
+    ),
+    bestNextAction: readAnalysisValue(callAnalysis, "best_next_action", "bestNextAction"),
+    bookingReadiness: readAnalysisValue(
+      callAnalysis,
+      "booking_readiness",
+      "bookingReadiness"
+    ),
     raw: callAnalysis,
   };
 }
@@ -66,46 +159,103 @@ async function findCustomerIdForRetellCall(call = {}) {
 
   const twilioCallSid = call?.metadata?.twilioCallSid || call?.telephony_identifier?.twilio_call_sid;
   if (!twilioCallSid) {
+    const inboundNumber =
+      call?.metadata?.called_number ||
+      call?.metadata?.calledNumber ||
+      call?.to_number ||
+      null;
+
+    if (inboundNumber) {
+      const clinic = await User.findOne({ role: "customer", twilioPhoneNumber: inboundNumber }).select(
+        "_id"
+      );
+      return clinic?._id || null;
+    }
+
     return null;
   }
 
   const callLog = await CallLog.findOne({ callSid: twilioCallSid }).select("customerId");
-  return callLog?.customerId || null;
+  if (callLog?.customerId) {
+    return callLog.customerId;
+  }
+
+  const inboundNumber =
+    call?.metadata?.called_number ||
+    call?.metadata?.calledNumber ||
+    call?.to_number ||
+    null;
+
+  if (inboundNumber) {
+    const clinic = await User.findOne({ role: "customer", twilioPhoneNumber: inboundNumber }).select(
+      "_id"
+    );
+    return clinic?._id || null;
+  }
+
+  return null;
 }
 
 async function upsertRetellCallFromWebhook(event, call) {
+  const existingCall = await RetellCall.findOne({ retellCallId: call.call_id }).lean();
   const customerId = await findCustomerIdForRetellCall(call);
   const twilioCallSid = call?.metadata?.twilioCallSid || call?.telephony_identifier?.twilio_call_sid || null;
+  const incomingCallAnalysis = mapCallAnalysis(call?.call_analysis);
 
   return RetellCall.findOneAndUpdate(
     { retellCallId: call.call_id },
     {
-      customerId: customerId || null,
-      twilioCallSid,
-      agentId: call?.agent_id || null,
-      agentVersion: typeof call?.agent_version === "number" ? call.agent_version : null,
-      callType: call?.call_type || "phone_call",
-      direction: call?.direction || "inbound",
-      fromNumber: call?.from_number || null,
-      toNumber: call?.to_number || null,
-      callStatus: call?.call_status || null,
-      disconnectionReason: call?.disconnection_reason || null,
-      startTimestamp: call?.start_timestamp ? new Date(call.start_timestamp) : null,
-      endTimestamp: call?.end_timestamp ? new Date(call.end_timestamp) : null,
-      durationMs: typeof call?.duration_ms === "number" ? call.duration_ms : null,
-      recordingUrl: call?.recording_url || null,
-      transcript: call?.transcript || null,
-      transcriptObject: Array.isArray(call?.transcript_object) ? call.transcript_object : undefined,
-      transcriptWithToolCalls: Array.isArray(call?.transcript_with_tool_calls)
-        ? call.transcript_with_tool_calls
-        : undefined,
-      metadata: call?.metadata || undefined,
-      retellLlmDynamicVariables: call?.retell_llm_dynamic_variables || undefined,
-      collectedDynamicVariables: call?.collected_dynamic_variables || undefined,
-      customSipHeaders: call?.custom_sip_headers || undefined,
-      callAnalysis: mapCallAnalysis(call?.call_analysis),
+      customerId: preferIncomingValue(customerId, existingCall?.customerId),
+      twilioCallSid: preferIncomingValue(twilioCallSid, existingCall?.twilioCallSid),
+      agentId: preferIncomingValue(call?.agent_id, existingCall?.agentId),
+      agentVersion:
+        typeof call?.agent_version === "number"
+          ? call.agent_version
+          : preferIncomingValue(null, existingCall?.agentVersion),
+      callType: preferIncomingValue(call?.call_type, existingCall?.callType ?? "phone_call"),
+      direction: preferIncomingValue(call?.direction, existingCall?.direction ?? "inbound"),
+      fromNumber: preferIncomingValue(call?.from_number, existingCall?.fromNumber),
+      toNumber: preferIncomingValue(call?.to_number, existingCall?.toNumber),
+      callStatus: preferIncomingValue(call?.call_status, existingCall?.callStatus),
+      disconnectionReason: preferIncomingValue(
+        call?.disconnection_reason,
+        existingCall?.disconnectionReason
+      ),
+      startTimestamp: preferIncomingValue(
+        call?.start_timestamp ? new Date(call.start_timestamp) : null,
+        existingCall?.startTimestamp
+      ),
+      endTimestamp: preferIncomingValue(
+        call?.end_timestamp ? new Date(call.end_timestamp) : null,
+        existingCall?.endTimestamp
+      ),
+      durationMs: preferIncomingValue(
+        typeof call?.duration_ms === "number" ? call.duration_ms : null,
+        existingCall?.durationMs
+      ),
+      recordingUrl: preferIncomingValue(call?.recording_url, existingCall?.recordingUrl),
+      transcript: preferIncomingValue(call?.transcript, existingCall?.transcript),
+      transcriptObject: preferIncomingValue(
+        Array.isArray(call?.transcript_object) ? call.transcript_object : undefined,
+        existingCall?.transcriptObject
+      ),
+      transcriptWithToolCalls: preferIncomingValue(
+        Array.isArray(call?.transcript_with_tool_calls) ? call.transcript_with_tool_calls : undefined,
+        existingCall?.transcriptWithToolCalls
+      ),
+      metadata: preferIncomingValue(call?.metadata, existingCall?.metadata),
+      retellLlmDynamicVariables: preferIncomingValue(
+        call?.retell_llm_dynamic_variables,
+        existingCall?.retellLlmDynamicVariables
+      ),
+      collectedDynamicVariables: preferIncomingValue(
+        call?.collected_dynamic_variables,
+        existingCall?.collectedDynamicVariables
+      ),
+      customSipHeaders: preferIncomingValue(call?.custom_sip_headers, existingCall?.customSipHeaders),
+      callAnalysis: mergeCallAnalysis(existingCall?.callAnalysis, incomingCallAnalysis),
       lastWebhookEvent: event,
-      rawCall: call,
+      rawCall: preferIncomingValue(call, existingCall?.rawCall),
       $addToSet: {
         webhookEvents: event,
       },
@@ -125,7 +275,8 @@ router.post("/webhook", async (req, res) => {
 
   try {
     const payload = JSON.parse(rawBody || "{}");
-    const { event, call } = payload;
+    const event = payload?.event || payload?.event_type || null;
+    const { call } = payload;
 
     if (!event || !call?.call_id) {
       return res.status(400).json({ error: "Invalid Retell webhook payload" });

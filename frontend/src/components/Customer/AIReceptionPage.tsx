@@ -38,6 +38,7 @@ interface RetellCall {
     preferredLocation?: string | null;
     bestNextAction?: string | null;
     bookingReadiness?: string | null;
+    raw?: Record<string, unknown> | null;
   };
 }
 
@@ -62,15 +63,86 @@ const formatLabel = (value?: string | null) => {
     .join(' ');
 };
 
+const readAnalysisValue = (call: RetellCall, ...keys: string[]) => {
+  const analysis = call.callAnalysis;
+  const raw = (analysis?.raw ?? {}) as Record<string, unknown>;
+  const candidateObjects: Array<Record<string, unknown> | undefined> = [
+    analysis as unknown as Record<string, unknown>,
+    raw,
+    raw.custom_analysis_data as Record<string, unknown> | undefined,
+    raw.custom_analysis as Record<string, unknown> | undefined,
+    raw.analysis_data as Record<string, unknown> | undefined,
+    raw.extracted_data as Record<string, unknown> | undefined,
+  ];
+
+  for (const key of keys) {
+    for (const candidate of candidateObjects) {
+      const value = candidate?.[key];
+      if (value !== undefined && value !== null && value !== '') {
+        return value;
+      }
+    }
+  }
+
+  return null;
+};
+
+const getReason = (call: RetellCall) =>
+  (readAnalysisValue(call, 'reasonForCall', 'reason_for_call', 'serviceRequested', 'service_requested') as string | null) ||
+  'Not captured';
+
+const getUrgency = (call: RetellCall) =>
+  (readAnalysisValue(call, 'urgencyLevel', 'urgency_level') as string | null) || null;
+
+const getFieldRows = (call: RetellCall) => {
+  const rows = [
+    {
+      label: 'Patient',
+      value: readAnalysisValue(call, 'callerName', 'caller_name', 'name'),
+    },
+    {
+      label: 'Callback',
+      value: readAnalysisValue(call, 'callbackNumber', 'callback_number', 'phone_number'),
+    },
+    {
+      label: 'Patient Type',
+      value: readAnalysisValue(call, 'patientType', 'patient_type'),
+    },
+    {
+      label: 'Reason',
+      value: readAnalysisValue(call, 'reasonForCall', 'reason_for_call'),
+    },
+    {
+      label: 'Urgency',
+      value: readAnalysisValue(call, 'urgencyLevel', 'urgency_level'),
+      formatter: (value: unknown) => formatLabel(String(value)),
+    },
+    {
+      label: 'Symptoms',
+      value: readAnalysisValue(call, 'symptomsMentioned', 'symptoms_mentioned'),
+    },
+    {
+      label: 'Callback Time',
+      value: readAnalysisValue(call, 'preferredCallbackTime', 'preferred_callback_time'),
+    },
+    {
+      label: 'Location Fit',
+      value: readAnalysisValue(call, 'locationWorksForCaller', 'location_works_for_caller'),
+    },
+  ];
+
+  return rows.filter((row) => row.value !== undefined && row.value !== null && row.value !== '');
+};
+
 const getCallerName = (call: RetellCall) =>
-  call.callAnalysis?.callerName ||
-  call.callAnalysis?.callbackNumber ||
+  (readAnalysisValue(call, 'callerName', 'caller_name', 'name') as string | null) ||
+  (readAnalysisValue(call, 'callbackNumber', 'callback_number', 'phone_number') as string | null) ||
   call.fromNumber ||
   'Unknown caller';
 
 const getCallSummary = (call: RetellCall) =>
-  call.callAnalysis?.callSummary ||
-  call.callAnalysis?.reasonForCall ||
+  (readAnalysisValue(call, 'callSummary', 'call_summary') as string | null) ||
+  (readAnalysisValue(call, 'reasonForCall', 'reason_for_call') as string | null) ||
   'AI receptionist handled this call. Open to view the handoff details.';
 
 type TimeRange = 'all' | 'today' | '7d' | '30d';
@@ -153,8 +225,11 @@ const AIReceptionPage: React.FC = () => {
   }, []);
 
   const summaryStats = useMemo(() => {
-    const urgentCount = calls.filter((call) => ['high', 'emergency'].includes(call.callAnalysis?.urgencyLevel || '')).length;
-    const callbackCount = calls.filter((call) => !!call.callAnalysis?.callbackNumber || !!call.fromNumber).length;
+    const urgentCount = calls.filter((call) => {
+      const urgency = String(getUrgency(call) || '').toLowerCase();
+      return ['high', 'emergency', 'urgent', 'urgent dental'].includes(urgency);
+    }).length;
+    const callbackCount = calls.filter((call) => !!readAnalysisValue(call, 'callbackNumber', 'callback_number', 'phone_number') || !!call.fromNumber).length;
     return {
       total: calls.length,
       urgent: urgentCount,
@@ -290,11 +365,11 @@ const AIReceptionPage: React.FC = () => {
                                 <p className="line-clamp-2">{getCallSummary(call)}</p>
                                 <p>
                                   <span className="font-medium text-gray-700">Reason:</span>{' '}
-                                  {call.callAnalysis?.reasonForCall || call.callAnalysis?.serviceRequested || 'Not captured'}
+                                  {getReason(call)}
                                 </p>
                                 <p>
                                   <span className="font-medium text-gray-700">Urgency:</span>{' '}
-                                  {formatLabel(call.callAnalysis?.urgencyLevel)}
+                                  {formatLabel(getUrgency(call))}
                                 </p>
                               </div>
                               <button
@@ -331,6 +406,22 @@ const AIReceptionPage: React.FC = () => {
                     <div>
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Recording</p>
                       <audio controls className="w-full" src={selectedCall.recordingUrl} />
+                    </div>
+                  )}
+
+                  {getFieldRows(selectedCall).length > 0 && (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Key Details</p>
+                      <div className="grid grid-cols-1 gap-3 rounded-lg bg-gray-50 p-4 md:grid-cols-2">
+                        {getFieldRows(selectedCall).map((row) => (
+                          <div key={row.label}>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{row.label}</p>
+                            <p className="mt-1 text-sm text-gray-800">
+                              {row.formatter ? row.formatter(row.value) : String(row.value)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

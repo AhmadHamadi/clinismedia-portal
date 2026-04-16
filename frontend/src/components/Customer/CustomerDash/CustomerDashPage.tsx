@@ -16,6 +16,60 @@ interface Booking {
 
 type MediaDay = { date: string; time: string };
 
+interface RetellDashboardCall {
+  retellCallId: string;
+  fromNumber: string | null;
+  startTimestamp: string | null;
+  durationMs: number | null;
+  recordingUrl: string | null;
+  callAnalysis?: {
+    callSummary?: string | null;
+    callerName?: string | null;
+    callbackNumber?: string | null;
+    reasonForCall?: string | null;
+    urgencyLevel?: string | null;
+    patientType?: string | null;
+    symptomsMentioned?: string | null;
+    preferredCallbackTime?: string | null;
+    locationWorksForCaller?: string | null;
+  };
+}
+
+const formatRetellDateTime = (value: string | null) => {
+  if (!value) return 'Unknown time';
+  return new Date(value).toLocaleString();
+};
+
+const formatRetellDuration = (durationMs: number | null) => {
+  if (!durationMs || durationMs <= 0) return '0m';
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+};
+
+const formatRetellLabel = (value?: string | null) => {
+  if (!value) return 'Not captured';
+  return value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const getRetellCallScore = (call: RetellDashboardCall) => {
+  let score = 0;
+  if (call.callAnalysis?.callSummary) score += 5;
+  if (call.recordingUrl) score += 4;
+  if (call.callAnalysis?.callerName) score += 3;
+  if (call.callAnalysis?.reasonForCall) score += 3;
+  if (call.callAnalysis?.urgencyLevel) score += 2;
+  if (call.callAnalysis?.callbackNumber || call.fromNumber) score += 2;
+  if (call.callAnalysis?.symptomsMentioned) score += 1;
+  if (call.callAnalysis?.preferredCallbackTime) score += 1;
+  if (call.callAnalysis?.locationWorksForCaller) score += 1;
+  return score;
+};
+
 const CustomerDashboard = () => {
   const navigate = useNavigate();
   const { customer, loading, error, handleLogout } = useCustomerDashboard();
@@ -34,6 +88,8 @@ const CustomerDashboard = () => {
   });
   const [unpaidInvoicesCount, setUnpaidInvoicesCount] = useState(0);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [latestAiCall, setLatestAiCall] = useState<RetellDashboardCall | null>(null);
+  const [loadingLatestAiCall, setLoadingLatestAiCall] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,6 +108,38 @@ const CustomerDashboard = () => {
       }
     };
     fetchBookings();
+  }, []);
+
+  useEffect(() => {
+    const fetchLatestAiCall = async () => {
+      try {
+        const token = localStorage.getItem('customerToken');
+        if (!token) return;
+
+        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/retell/calls?limit=10`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const calls: RetellDashboardCall[] = response.data?.calls ?? [];
+        const latestCall =
+          calls
+            .slice()
+            .sort((a, b) => {
+              const scoreDiff = getRetellCallScore(b) - getRetellCallScore(a);
+              if (scoreDiff !== 0) return scoreDiff;
+              return new Date(b.startTimestamp || 0).getTime() - new Date(a.startTimestamp || 0).getTime();
+            })[0] ?? null;
+        setLatestAiCall(latestCall);
+      } catch (err) {
+        console.error('Failed to fetch latest AI reception call:', err);
+      } finally {
+        setLoadingLatestAiCall(false);
+      }
+    };
+
+    fetchLatestAiCall();
   }, []);
 
   // Fetch unread counts
@@ -255,6 +343,17 @@ const CustomerDashboard = () => {
     }
     return logo;
   };
+
+  const latestAiCaller =
+    latestAiCall?.callAnalysis?.callerName ||
+    latestAiCall?.callAnalysis?.callbackNumber ||
+    latestAiCall?.fromNumber ||
+    'Unknown caller';
+
+  const latestAiSummary =
+    latestAiCall?.callAnalysis?.callSummary ||
+    latestAiCall?.callAnalysis?.reasonForCall ||
+    'No AI handoff summary is available yet.';
 
   if (loading) {
     return (
@@ -600,6 +699,101 @@ const CustomerDashboard = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="cm-panel p-4">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Latest AI Reception Handoff</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              The most recent after-hours AI call, organized for quick front-desk follow-up.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("/customer/ai-reception")}
+            className="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-md transition-colors"
+          >
+            Open AI Reception
+          </button>
+        </div>
+
+        {loadingLatestAiCall ? (
+          <p className="text-sm text-gray-500">Loading latest AI call...</p>
+        ) : !latestAiCall ? (
+          <p className="text-sm text-gray-500">No AI reception calls have been captured yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4">
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-lg font-bold text-slate-900">{latestAiCaller}</p>
+                  <p className="text-sm text-slate-600 mt-1">{formatRetellDateTime(latestAiCall.startTimestamp)}</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                  {formatRetellDuration(latestAiCall.durationMs)}
+                </span>
+              </div>
+              <div className="rounded-lg bg-white/80 p-4 border border-blue-100">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-600 mb-1">What Happened</p>
+                <p className="text-sm text-slate-800 leading-6">{latestAiSummary}</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Key Details</h4>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Callback</p>
+                  <p className="text-sm text-gray-800 mt-1">
+                    {latestAiCall.callAnalysis?.callbackNumber || latestAiCall.fromNumber || 'Not captured'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Reason</p>
+                  <p className="text-sm text-gray-800 mt-1">
+                    {latestAiCall.callAnalysis?.reasonForCall || 'Not captured'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Urgency</p>
+                  <p className="text-sm text-gray-800 mt-1">
+                    {formatRetellLabel(latestAiCall.callAnalysis?.urgencyLevel)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Patient Type</p>
+                  <p className="text-sm text-gray-800 mt-1">
+                    {formatRetellLabel(latestAiCall.callAnalysis?.patientType)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Symptoms</p>
+                  <p className="text-sm text-gray-800 mt-1">
+                    {latestAiCall.callAnalysis?.symptomsMentioned || 'Not captured'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Callback Time</p>
+                  <p className="text-sm text-gray-800 mt-1">
+                    {latestAiCall.callAnalysis?.preferredCallbackTime || 'Not captured'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Location Fit</p>
+                  <p className="text-sm text-gray-800 mt-1">
+                    {formatRetellLabel(latestAiCall.callAnalysis?.locationWorksForCaller)}
+                  </p>
+                </div>
+                {latestAiCall.recordingUrl && (
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Recording</p>
+                    <audio controls className="w-full mt-2" src={latestAiCall.recordingUrl} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       </div>
     </div>
