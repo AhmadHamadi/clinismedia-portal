@@ -138,6 +138,46 @@ const getFieldRows = (call: RetellCall) => {
   return rows.filter((row) => row.value !== undefined && row.value !== null && row.value !== '');
 };
 
+const getFieldCardStyle = (label: string) => {
+  if (label === 'Urgency') {
+    return {
+      card: 'border-amber-200 bg-amber-50',
+      label: 'text-amber-700',
+      value: 'text-amber-950',
+    };
+  }
+
+  if (label === 'Recommended Follow-Up') {
+    return {
+      card: 'border-emerald-200 bg-emerald-50',
+      label: 'text-emerald-700',
+      value: 'text-emerald-950',
+    };
+  }
+
+  if (label === 'Reason' || label === 'Symptoms') {
+    return {
+      card: 'border-blue-200 bg-blue-50',
+      label: 'text-blue-700',
+      value: 'text-slate-900',
+    };
+  }
+
+  if (label === 'Callback' || label === 'Callback Time') {
+    return {
+      card: 'border-violet-200 bg-violet-50',
+      label: 'text-violet-700',
+      value: 'text-violet-950',
+    };
+  }
+
+  return {
+    card: 'border-slate-200 bg-white',
+    label: 'text-slate-500',
+    value: 'text-slate-900',
+  };
+};
+
 const getCallerName = (call: RetellCall) =>
   (readAnalysisValue(call, 'callerName', 'caller_name', 'name') as string | null) ||
   (readAnalysisValue(call, 'callbackNumber', 'callback_number', 'phone_number') as string | null) ||
@@ -415,16 +455,31 @@ const AIReceptionPage: React.FC = () => {
 
                   {getFieldRows(selectedCall).length > 0 && (
                     <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Key Details</p>
-                      <div className="grid grid-cols-1 gap-3 rounded-lg bg-gray-50 p-4 md:grid-cols-2">
-                        {getFieldRows(selectedCall).map((row) => (
-                          <div key={row.label}>
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{row.label}</p>
-                            <p className="mt-1 text-sm text-gray-800">
-                              {row.formatter ? row.formatter(row.value) : String(row.value)}
-                            </p>
-                          </div>
-                        ))}
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Key Details</p>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Front Desk Handoff
+                        </span>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/40 p-4">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {getFieldRows(selectedCall).map((row) => {
+                            const style = getFieldCardStyle(row.label);
+                            return (
+                              <div
+                                key={row.label}
+                                className={`rounded-xl border p-3 shadow-sm ${style.card}`}
+                              >
+                                <p className={`text-[11px] font-semibold uppercase tracking-wide ${style.label}`}>
+                                  {row.label}
+                                </p>
+                                <p className={`mt-2 text-sm leading-6 ${style.value}`}>
+                                  {row.formatter ? row.formatter(row.value) : String(row.value)}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   )}
