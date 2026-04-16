@@ -1,34 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { FaCheckCircle, FaClock, FaPhone, FaRobot, FaSpinner, FaTimesCircle } from 'react-icons/fa';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FaClock, FaRobot, FaSpinner, FaTimesCircle } from 'react-icons/fa';
 import axios from 'axios';
 
 const API = import.meta.env.VITE_API_BASE_URL;
-
-interface BusinessHoursDay {
-  enabled: boolean;
-  start: string;
-  end: string;
-}
-
-interface AIConfig {
-  clinicName: string;
-  twilioPhoneNumber: string | null;
-  aiReceptionistSettings: {
-    enabled: boolean;
-    routingMode: 'off' | 'after_hours' | 'always_ai';
-    telephonyMode: string;
-    retellAgentId: string | null;
-    timezone: string;
-    sendMissedCallsToAi: boolean;
-    afterHoursMessage: string | null;
-    businessHours: Record<string, BusinessHoursDay>;
-  };
-  routingSummary: {
-    enabled: boolean;
-    routingMode: string;
-    destination: string;
-  };
-}
 
 interface RetellCall {
   retellCallId: string;
@@ -67,29 +41,8 @@ interface RetellCall {
   };
 }
 
-const DAY_LABELS: Record<string, string> = {
-  monday: 'Monday',
-  tuesday: 'Tuesday',
-  wednesday: 'Wednesday',
-  thursday: 'Thursday',
-  friday: 'Friday',
-  saturday: 'Saturday',
-  sunday: 'Sunday',
-};
-
-const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-
-const ROUTING_LABELS: Record<string, string> = {
-  off: 'Off',
-  after_hours: 'After Hours',
-  always_ai: 'Always Active',
-};
-
 const formatDuration = (durationMs: number | null) => {
-  if (!durationMs || durationMs <= 0) {
-    return '0m';
-  }
-
+  if (!durationMs || durationMs <= 0) return '0m';
   const totalSeconds = Math.round(durationMs / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -101,7 +54,7 @@ const formatDateTime = (value: string | null) => {
   return new Date(value).toLocaleString();
 };
 
-const formatSentiment = (value?: string | null) => {
+const formatLabel = (value?: string | null) => {
   if (!value) return 'n/a';
   return value
     .split('_')
@@ -109,17 +62,59 @@ const formatSentiment = (value?: string | null) => {
     .join(' ');
 };
 
-const formatBoolean = (value?: boolean | null) => {
-  if (value == null) return 'n/a';
-  return value ? 'Yes' : 'No';
+const getCallerName = (call: RetellCall) =>
+  call.callAnalysis?.callerName ||
+  call.callAnalysis?.callbackNumber ||
+  call.fromNumber ||
+  'Unknown caller';
+
+const getCallSummary = (call: RetellCall) =>
+  call.callAnalysis?.callSummary ||
+  call.callAnalysis?.reasonForCall ||
+  'AI receptionist handled this call. Open to view the handoff details.';
+
+type TimeRange = 'all' | 'today' | '7d' | '30d';
+
+const isWithinRange = (call: RetellCall, range: TimeRange) => {
+  if (range === 'all') return true;
+  if (!call.startTimestamp) return false;
+
+  const now = new Date();
+  const callTime = new Date(call.startTimestamp);
+  const diffMs = now.getTime() - callTime.getTime();
+
+  if (range === 'today') {
+    return callTime.toDateString() === now.toDateString();
+  }
+  if (range === '7d') {
+    return diffMs <= 7 * 24 * 60 * 60 * 1000;
+  }
+  return diffMs <= 30 * 24 * 60 * 60 * 1000;
+};
+
+const getGroupLabel = (value: string | null) => {
+  if (!value) return 'Older Calls';
+  const now = new Date();
+  const date = new Date(value);
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (24 * 60 * 60 * 1000));
+
+  if (date.toDateString() === now.toDateString()) return 'Today';
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+
+  if (diffDays <= 7) return 'This Week';
+  if (now.getMonth() === date.getMonth() && now.getFullYear() === date.getFullYear()) return 'This Month';
+  return 'Older Calls';
 };
 
 const AIReceptionPage: React.FC = () => {
-  const [config, setConfig] = useState<AIConfig | null>(null);
   const [calls, setCalls] = useState<RetellCall[]>([]);
   const [selectedCall, setSelectedCall] = useState<RetellCall | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [timeRange, setTimeRange] = useState<TimeRange>('7d');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -131,17 +126,13 @@ const AIReceptionPage: React.FC = () => {
           return;
         }
 
-        const [configRes, callsRes] = await Promise.all([
-          axios.get(`${API}/retell/configuration`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          axios.get(`${API}/retell/calls?limit=10`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
+        const callsRes = await axios.get(`${API}/retell/calls?limit=100`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-        setConfig(configRes.data);
-        setCalls(callsRes.data?.calls ?? []);
+        const nextCalls = callsRes.data?.calls ?? [];
+        setCalls(nextCalls);
+        setSelectedCall(nextCalls[0] ?? null);
 
         try {
           await axios.post(`${API}/customer-notifications/mark-read/aiReception`, {}, {
@@ -152,7 +143,7 @@ const AIReceptionPage: React.FC = () => {
           console.error('Failed to mark AI reception notifications as read:', markReadError);
         }
       } catch (err: any) {
-        setError(err.response?.data?.error ?? 'Failed to load AI reception configuration.');
+        setError(err.response?.data?.error ?? 'Failed to load AI receptionist calls.');
       } finally {
         setIsLoading(false);
       }
@@ -161,19 +152,56 @@ const AIReceptionPage: React.FC = () => {
     fetchData();
   }, []);
 
-  const settings = config?.aiReceptionistSettings;
-  const openDays = settings ? DAY_ORDER.filter((day) => settings.businessHours[day]?.enabled) : [];
-  const closedDays = settings ? DAY_ORDER.filter((day) => !settings.businessHours[day]?.enabled) : [];
+  const summaryStats = useMemo(() => {
+    const urgentCount = calls.filter((call) => ['high', 'emergency'].includes(call.callAnalysis?.urgencyLevel || '')).length;
+    const callbackCount = calls.filter((call) => !!call.callAnalysis?.callbackNumber || !!call.fromNumber).length;
+    return {
+      total: calls.length,
+      urgent: urgentCount,
+      callbacks: callbackCount,
+    };
+  }, [calls]);
+
+  const filteredCalls = useMemo(
+    () => calls.filter((call) => isWithinRange(call, timeRange)),
+    [calls, timeRange]
+  );
+
+  const groupedCalls = useMemo(() => {
+    const groups: Record<string, RetellCall[]> = {};
+    for (const call of filteredCalls) {
+      const label = getGroupLabel(call.startTimestamp);
+      groups[label] = groups[label] || [];
+      groups[label].push(call);
+    }
+
+    const orderedLabels = ['Today', 'Yesterday', 'This Week', 'This Month', 'Older Calls'];
+    return orderedLabels
+      .filter((label) => groups[label]?.length)
+      .map((label) => ({ label, calls: groups[label] }));
+  }, [filteredCalls]);
+
+  useEffect(() => {
+    if (!selectedCall) {
+      setSelectedCall(filteredCalls[0] ?? null);
+      return;
+    }
+
+    const stillVisible = filteredCalls.find((call) => call.retellCallId === selectedCall.retellCallId);
+    if (!stillVisible) {
+      setSelectedCall(filteredCalls[0] ?? null);
+    }
+  }, [filteredCalls, selectedCall]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
+    <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
       <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex items-center gap-3">
           <FaRobot className="text-2xl text-blue-500" />
           <div>
             <h1 className="text-xl font-bold text-gray-900">AI Receptionist</h1>
             <p className="mt-0.5 text-sm text-gray-500">
-              Your after-hours AI reception status, routing settings, and recent AI-handled calls.
+              A simple after-hours handoff for your team: who called, when they called, and what needs follow-up.
             </p>
           </div>
         </div>
@@ -191,350 +219,124 @@ const AIReceptionPage: React.FC = () => {
         </div>
       )}
 
-      {config && settings && !isLoading && (
+      {!isLoading && !error && (
         <>
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500">Status</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-full ${settings.enabled ? 'bg-green-100' : 'bg-gray-100'}`}>
-                  {settings.enabled ? <FaCheckCircle className="text-green-500" /> : <FaTimesCircle className="text-gray-400" />}
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">AI Status</p>
-                  <p className={`text-sm font-semibold ${settings.enabled ? 'text-green-700' : 'text-gray-500'}`}>
-                    {settings.enabled ? 'Active' : 'Inactive'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
-                  <FaPhone className="text-sm text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Routing Mode</p>
-                  <p className="text-sm font-semibold text-gray-700">
-                    {ROUTING_LABELS[settings.routingMode] ?? settings.routingMode}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100">
-                  <FaClock className="text-sm text-purple-500" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Timezone</p>
-                  <p className="text-sm font-semibold text-gray-700">{settings.timezone.replace('America/', '')}</p>
-                </div>
-              </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Recent AI Calls</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900">{summaryStats.total}</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Urgent Follow-Ups</p>
+              <p className="mt-2 text-2xl font-bold text-red-600">{summaryStats.urgent}</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Callback Numbers Captured</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900">{summaryStats.callbacks}</p>
             </div>
           </div>
 
-          {settings.routingMode === 'after_hours' && (
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[360px_1fr]">
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500">Business Hours</h2>
-              <p className="mb-4 text-xs text-gray-400">
-                During these hours, calls go to your clinic phone. Outside these hours, the AI receptionist answers.
-              </p>
-
-              <div className="space-y-2">
-                {DAY_ORDER.map((day) => {
-                  const currentDay = settings.businessHours[day];
-                  return (
-                    <div
-                      key={day}
-                      className={`flex items-center justify-between rounded-lg px-4 py-2.5 text-sm ${
-                        currentDay?.enabled ? 'border border-blue-100 bg-blue-50' : 'border border-gray-100 bg-gray-50'
-                      }`}
-                    >
-                      <span className={`w-28 font-medium ${currentDay?.enabled ? 'text-blue-800' : 'text-gray-400'}`}>
-                        {DAY_LABELS[day]}
-                      </span>
-                      {currentDay?.enabled ? (
-                        <span className="text-blue-700">
-                          {currentDay.start} - {currentDay.end}
-                        </span>
-                      ) : (
-                        <span className="text-xs italic text-gray-400">Closed - AI answers</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {openDays.length > 0 && (
-                <div className="mt-4 rounded-lg border border-green-100 bg-green-50 p-3">
-                  <p className="text-xs text-green-700">
-                    <strong>Open:</strong> {openDays.map((day) => DAY_LABELS[day]).join(', ')}
-                    {' | '}
-                    AI active on: {closedDays.length > 0 ? closedDays.map((day) => DAY_LABELS[day]).join(', ') : 'No closed days configured'}
-                  </p>
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">Recent Calls</h2>
+                  <p className="mt-1 text-xs text-gray-400">{filteredCalls.length} shown</p>
                 </div>
-              )}
-            </div>
-          )}
-
-          {settings.routingMode === 'always_ai' && (
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-              <div className="flex items-center gap-2">
-                <FaRobot className="text-blue-500" />
-                <p className="text-sm font-medium text-blue-800">
-                  AI Receptionist is set to always answer - all inbound calls go directly to Retell AI.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {settings.routingMode === 'off' && (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <p className="text-sm text-gray-500">AI reception is currently off. All calls follow standard Twilio routing.</p>
-            </div>
-          )}
-
-          {settings.afterHoursMessage && (
-            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">Fallback Message</h2>
-              <p className="text-sm italic leading-relaxed text-gray-600">"{settings.afterHoursMessage}"</p>
-              <p className="mt-2 text-xs text-gray-400">Played if the AI receptionist is unavailable.</p>
-            </div>
-          )}
-
-          {settings.sendMissedCallsToAi && (
-            <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
-              <div className="flex items-center gap-2">
-                <FaCheckCircle className="text-yellow-500" />
-                <p className="text-sm font-medium text-yellow-800">
-                  Missed calls during business hours are also routed to the AI receptionist.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">Configuration</h2>
-            <p className="mb-3 text-xs text-gray-400">
-              To change your AI reception settings, contact your CliniMedia account manager.
-            </p>
-            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-              <div className="rounded-lg bg-gray-50 px-4 py-3">
-                <p className="mb-1 text-xs text-gray-400">Clinic Name</p>
-                <p className="font-medium text-gray-800">{config.clinicName}</p>
-              </div>
-              {config.twilioPhoneNumber && (
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Tracking Number</p>
-                  <p className="font-medium text-gray-800">{config.twilioPhoneNumber}</p>
-                </div>
-              )}
-              {settings.retellAgentId && (
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">AI Agent</p>
-                  <p className="break-all font-mono text-xs text-gray-600">{settings.retellAgentId}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">Recent AI Calls</h2>
-            {calls.length === 0 ? (
-              <p className="text-sm text-gray-500">No AI receptionist calls have been recorded yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {calls.map((call) => (
-                  <button
-                    key={call.retellCallId}
-                    onClick={() => setSelectedCall(call)}
-                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-left hover:bg-gray-100"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">
-                          {call.callAnalysis?.callerName || call.fromNumber || 'Unknown caller'}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatDateTime(call.startTimestamp)}
-                        </p>
-                        {call.callAnalysis?.callSummary && (
-                          <p className="mt-2 line-clamp-2 text-sm text-gray-600">
-                            {call.callAnalysis.callSummary}
-                          </p>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600 sm:text-right">
-                        <span>Status: {call.callStatus || 'unknown'}</span>
-                        <span>Urgency: {call.callAnalysis?.urgencyLevel || 'n/a'}</span>
-                        <span>Duration: {formatDuration(call.durationMs)}</span>
-                        <span>Patient: {call.callAnalysis?.patientType || 'n/a'}</span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {selectedCall && (
-            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">Selected AI Call</h2>
-                <button
-                  onClick={() => setSelectedCall(null)}
-                  className="text-xs font-semibold uppercase tracking-wide text-gray-400 hover:text-gray-600"
+                <select
+                  value={timeRange}
+                  onChange={(event) => setTimeRange(event.target.value as TimeRange)}
+                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700"
                 >
-                  Close
-                </button>
+                  <option value="today">Today</option>
+                  <option value="7d">Last 7 days</option>
+                  <option value="30d">Last 30 days</option>
+                  <option value="all">All time</option>
+                </select>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Call Time</p>
-                  <p className="text-sm font-medium text-gray-800">{formatDateTime(selectedCall.startTimestamp)}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Caller</p>
-                  <p className="text-sm font-medium text-gray-800">
-                    {selectedCall.callAnalysis?.callerName || selectedCall.fromNumber || 'Unknown caller'}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Callback Number</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.callbackNumber || selectedCall.fromNumber || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Status</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callStatus || 'Unknown'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Duration</p>
-                  <p className="text-sm font-medium text-gray-800">{formatDuration(selectedCall.durationMs)}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Urgency</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.urgencyLevel || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Patient Type</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.patientType || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Service Requested</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.serviceRequested || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Disconnection Reason</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.disconnectionReason || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Email</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.email || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Sentiment</p>
-                  <p className="text-sm font-medium text-gray-800">{formatSentiment(selectedCall.callAnalysis?.userSentiment)}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Preferred Callback Time</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.preferredCallbackTime || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Preferred Location</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.preferredLocation || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Location Works</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.locationWorksForCaller || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Appointment Intent</p>
-                  <p className="text-sm font-medium text-gray-800">{formatBoolean(selectedCall.callAnalysis?.appointmentIntent)}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Call Successful</p>
-                  <p className="text-sm font-medium text-gray-800">
-                    {selectedCall.callAnalysis?.callSuccessful == null ? 'n/a' : selectedCall.callAnalysis.callSuccessful ? 'Yes' : 'No'}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Booking Readiness</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.bookingReadiness || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Best Next Action</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.bestNextAction || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Insurance Mentioned</p>
-                  <p className="text-sm font-medium text-gray-800">{formatBoolean(selectedCall.callAnalysis?.insuranceMentioned)}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Insurance Provider</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.insuranceProvider || 'n/a'}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs text-gray-400">Pain Level</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedCall.callAnalysis?.painLevel ?? 'n/a'}</p>
-                </div>
-                {selectedCall.twilioCallSid && (
-                  <div className="rounded-lg bg-gray-50 px-4 py-3">
-                    <p className="mb-1 text-xs text-gray-400">Twilio Call SID</p>
-                    <p className="break-all font-mono text-xs text-gray-700">{selectedCall.twilioCallSid}</p>
-                  </div>
-                )}
-              </div>
-
-              {selectedCall.callAnalysis?.callSummary && (
-                <div className="mt-4 rounded-lg bg-blue-50 px-4 py-3">
-                  <p className="mb-1 text-xs uppercase tracking-wide text-blue-500">Summary</p>
-                  <p className="text-sm text-blue-900">{selectedCall.callAnalysis.callSummary}</p>
-                </div>
-              )}
-
-              {selectedCall.callAnalysis?.reasonForCall && (
-                <div className="mt-4 rounded-lg bg-gray-50 px-4 py-3">
-                  <p className="mb-1 text-xs uppercase tracking-wide text-gray-400">Reason For Call</p>
-                  <p className="text-sm text-gray-700">{selectedCall.callAnalysis.reasonForCall}</p>
-                </div>
-              )}
-
-              {selectedCall.callAnalysis?.symptomsMentioned && (
-                <div className="mt-4 rounded-lg bg-red-50 px-4 py-3">
-                  <p className="mb-1 text-xs uppercase tracking-wide text-red-500">Symptoms Mentioned</p>
-                  <p className="text-sm text-red-900">{selectedCall.callAnalysis.symptomsMentioned}</p>
-                </div>
-              )}
-
-              {selectedCall.callAnalysis?.recommendedFollowUp && (
-                <div className="mt-4 rounded-lg bg-yellow-50 px-4 py-3">
-                  <p className="mb-1 text-xs uppercase tracking-wide text-yellow-600">Recommended Follow Up</p>
-                  <p className="text-sm text-yellow-900">{selectedCall.callAnalysis.recommendedFollowUp}</p>
-                </div>
-              )}
-
-              {selectedCall.callAnalysis?.bestNextAction && (
-                <div className="mt-4 rounded-lg bg-green-50 px-4 py-3">
-                  <p className="mb-1 text-xs uppercase tracking-wide text-green-600">Reception Next Action</p>
-                  <p className="text-sm text-green-900">{selectedCall.callAnalysis.bestNextAction}</p>
-                </div>
-              )}
-
-              {selectedCall.recordingUrl && (
-                <div className="mt-4">
-                  <p className="mb-2 text-xs uppercase tracking-wide text-gray-400">Recording</p>
-                  <audio controls className="w-full" src={selectedCall.recordingUrl} />
-                </div>
-              )}
-
-              {selectedCall.transcript && (
-                <div className="mt-4 rounded-lg border border-gray-200 px-4 py-3">
-                  <p className="mb-2 text-xs uppercase tracking-wide text-gray-400">Transcript</p>
-                  <pre className="whitespace-pre-wrap text-sm text-gray-700">{selectedCall.transcript}</pre>
+              {filteredCalls.length === 0 ? (
+                <p className="text-sm text-gray-500">No after-hours AI calls were found for this time range.</p>
+              ) : (
+                <div className="space-y-4">
+                  {groupedCalls.map((group) => (
+                    <div key={group.label}>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{group.label}</p>
+                      <div className="space-y-3">
+                        {group.calls.map((call) => {
+                          const active = selectedCall?.retellCallId === call.retellCallId;
+                          return (
+                            <div
+                              key={call.retellCallId}
+                              className={`rounded-lg border px-4 py-3 transition ${
+                                active
+                                  ? 'border-blue-300 bg-blue-50'
+                                  : 'border-gray-200 bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-gray-900">{getCallerName(call)}</p>
+                                  <p className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                                    <FaClock className="text-[10px]" />
+                                    {formatDateTime(call.startTimestamp)}
+                                  </p>
+                                </div>
+                                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-gray-600">
+                                  {formatDuration(call.durationMs)}
+                                </span>
+                              </div>
+                              <div className="mt-2 space-y-1 text-sm text-gray-600">
+                                <p className="line-clamp-2">{getCallSummary(call)}</p>
+                                <p>
+                                  <span className="font-medium text-gray-700">Reason:</span>{' '}
+                                  {call.callAnalysis?.reasonForCall || call.callAnalysis?.serviceRequested || 'Not captured'}
+                                </p>
+                                <p>
+                                  <span className="font-medium text-gray-700">Urgency:</span>{' '}
+                                  {formatLabel(call.callAnalysis?.urgencyLevel)}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => setSelectedCall(call)}
+                                className="mt-3 text-xs font-semibold uppercase tracking-wide text-blue-600 hover:text-blue-800"
+                              >
+                                Click to see more details
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          )}
+
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              {!selectedCall ? (
+                <p className="text-sm text-gray-500">Select a call to see the handoff details.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="border-b border-gray-100 pb-4">
+                    <h2 className="text-lg font-bold text-gray-900">{getCallerName(selectedCall)}</h2>
+                    <p className="mt-1 text-sm text-gray-500">{formatDateTime(selectedCall.startTimestamp)}</p>
+                    <div className="mt-3 rounded-lg bg-blue-50 px-4 py-3">
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-blue-500">What Happened</p>
+                      <p className="text-sm text-blue-950">{getCallSummary(selectedCall)}</p>
+                    </div>
+                  </div>
+
+                  {selectedCall.recordingUrl && (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Recording</p>
+                      <audio controls className="w-full" src={selectedCall.recordingUrl} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </>
       )}
     </div>
