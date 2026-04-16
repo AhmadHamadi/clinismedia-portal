@@ -126,6 +126,10 @@ const getFieldRows = (call: RetellCall) => {
       value: readAnalysisValue(call, 'preferredCallbackTime', 'preferred_callback_time'),
     },
     {
+      label: 'Recommended Follow-Up',
+      value: readAnalysisValue(call, 'recommendedFollowUp', 'recommended_follow_up'),
+    },
+    {
       label: 'Location Fit',
       value: readAnalysisValue(call, 'locationWorksForCaller', 'location_works_for_caller'),
     },
