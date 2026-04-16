@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCustomerDashboard, Customer } from "./CustomerDashLogic";
 import { UserCircleIcon, MapPinIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
-import { FaCalendarAlt, FaTasks, FaGoogle, FaInstagram, FaShare, FaImages, FaDollarSign, FaPhone, FaFacebook, FaCamera } from 'react-icons/fa';
+import { FaCalendarAlt, FaTasks, FaGoogle, FaInstagram, FaShare, FaImages, FaDollarSign, FaPhone, FaFacebook, FaCamera, FaRobot } from 'react-icons/fa';
 import axios from 'axios';
 
 // Booking type
@@ -29,6 +29,7 @@ const CustomerDashboard = () => {
     onboarding: 0,
     instagramInsights: 0,
     metaLeads: 0,
+    aiReception: 0,
     callLogs: 0
   });
   const [unpaidInvoicesCount, setUnpaidInvoicesCount] = useState(0);
@@ -313,7 +314,7 @@ const CustomerDashboard = () => {
         <div className="cm-panel p-3">
           <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Unread Updates</p>
           <p className="text-2xl font-bold text-gray-900">
-            {unreadCounts.metaInsights + unreadCounts.gallery + unreadCounts.onboarding + unreadCounts.instagramInsights + unreadCounts.metaLeads + unreadCounts.callLogs}
+            {unreadCounts.metaInsights + unreadCounts.gallery + unreadCounts.onboarding + unreadCounts.instagramInsights + unreadCounts.metaLeads + unreadCounts.aiReception + unreadCounts.callLogs}
           </p>
         </div>
         <div className="cm-panel p-3">
@@ -568,6 +569,19 @@ const CustomerDashboard = () => {
                   )}
                   <FaPhone className="w-5 h-5 text-gray-600 group-hover:text-gray-900 mb-1.5" />
                   <span className="text-[10px] font-medium text-gray-700 text-center leading-tight">Call Logs</span>
+                </button>
+                {/* AI Reception */}
+                <button
+                  onClick={() => navigate("/customer/ai-reception")}
+                  className="flex flex-col items-center p-3 bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors group relative"
+                >
+                  {unreadCounts.aiReception > 0 && (
+                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center min-w-[16px] h-4.5 px-1 text-[9px] font-semibold text-white bg-red-500 rounded-full">
+                      {unreadCounts.aiReception}
+                    </span>
+                  )}
+                  <FaRobot className="w-5 h-5 text-blue-600 group-hover:text-blue-800 mb-1.5" />
+                  <span className="text-[10px] font-medium text-gray-700 text-center leading-tight">AI Reception</span>
                 </button>
                 {/* Meta Leads */}
                 <button

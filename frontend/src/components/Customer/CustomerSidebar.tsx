@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaHome, FaCalendarAlt, FaTasks, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt, FaGoogle, FaShare, FaInstagram, FaPhone, FaDollarSign, FaStar } from 'react-icons/fa';
+import { FaHome, FaCalendarAlt, FaTasks, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt, FaGoogle, FaShare, FaInstagram, FaPhone, FaDollarSign, FaStar, FaRobot } from 'react-icons/fa';
 import axios from 'axios';
 import logo1 from '../../assets/CliniMedia_Logo1.png';
 import { logout } from '../../utils/auth';
@@ -16,7 +16,7 @@ interface NavItem {
   path: string;
   icon: React.ReactNode;
   pageKey: string;
-  section?: 'metaInsights' | 'gallery' | 'invoices' | 'onboarding' | 'instagramInsights' | 'metaLeads' | 'quickbooksInvoices' | 'callLogs';
+  section?: 'metaInsights' | 'gallery' | 'invoices' | 'onboarding' | 'instagramInsights' | 'metaLeads' | 'quickbooksInvoices' | 'callLogs' | 'aiReception';
   group?: string;
   comingSoon?: boolean;
 }
@@ -30,6 +30,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
     onboarding: 0,
     instagramInsights: 0,
     metaLeads: 0,
+    aiReception: 0,
     callLogs: 0
   });
   const [unpaidInvoicesCount, setUnpaidInvoicesCount] = useState(0);
@@ -59,6 +60,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
   // TRACKING section items
   const trackingItems: NavItem[] = [
     { label: "Call Logs", path: "/customer/call-logs", icon: <FaPhone />, pageKey: "call-logs", group: "tracking", section: "callLogs" },
+    { label: "AI Reception", path: "/customer/ai-reception", icon: <FaRobot />, pageKey: "ai-reception", group: "tracking", section: "aiReception" },
     { label: "Meta Leads", path: "/customer/meta-leads", icon: <FaFacebook />, pageKey: "meta-leads", group: "tracking", section: "metaLeads" },
   ];
 

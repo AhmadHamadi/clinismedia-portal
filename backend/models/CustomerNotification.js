@@ -26,6 +26,9 @@ const customerNotificationSchema = new mongoose.Schema({
     unreadCount: { type: Number, default: 0 },
     lastUpdated: { type: Date, default: Date.now }
   },
+  aiReception: {
+    lastViewed: { type: Date, default: null } // Track when customer last viewed AI Reception page
+  },
   callLogs: {
     lastViewed: { type: Date, default: null } // Track when customer last viewed Call Logs page
   }

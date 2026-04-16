@@ -3,6 +3,7 @@ const router = express.Router();
 const CustomerNotification = require('../models/CustomerNotification');
 const MetaLead = require('../models/MetaLead');
 const CallLog = require('../models/CallLog');
+const RetellCall = require('../models/RetellCall');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 const resolveEffectiveCustomerId = require('../middleware/resolveEffectiveCustomerId');
@@ -39,6 +40,19 @@ router.get('/unread-counts', authenticateToken, authorizeRole(['customer', 'rece
         customerId
       });
     }
+
+    // Get count of new AI Reception calls (Retell calls created after lastViewed timestamp)
+    let newAiReceptionCount = 0;
+    if (notification.aiReception && notification.aiReception.lastViewed) {
+      newAiReceptionCount = await RetellCall.countDocuments({
+        customerId,
+        startTimestamp: { $gt: notification.aiReception.lastViewed }
+      });
+    } else {
+      newAiReceptionCount = await RetellCall.countDocuments({
+        customerId
+      });
+    }
     
     res.json({
       metaInsights: notification.metaInsights.unreadCount,
@@ -47,6 +61,7 @@ router.get('/unread-counts', authenticateToken, authorizeRole(['customer', 'rece
       onboarding: notification.onboarding.unreadCount,
       instagramInsights: notification.instagramInsights?.unreadCount || 0,
       metaLeads: newMetaLeadsCount,
+      aiReception: newAiReceptionCount,
       callLogs: newCallLogsCount
     });
   } catch (error) {
@@ -60,7 +75,7 @@ router.post('/mark-read/:section', authenticateToken, authorizeRole(['customer',
   try {
     const customerId = req.effectiveCustomerId;
     const { section } = req.params;
-    const validSections = ['metaInsights', 'gallery', 'invoices', 'onboarding', 'instagramInsights', 'metaLeads', 'callLogs'];
+    const validSections = ['metaInsights', 'gallery', 'invoices', 'onboarding', 'instagramInsights', 'metaLeads', 'aiReception', 'callLogs'];
     
     if (!validSections.includes(section)) {
       return res.status(400).json({ message: 'Invalid section' });
@@ -75,24 +90,24 @@ router.post('/mark-read/:section', authenticateToken, authorizeRole(['customer',
       return;
     }
     
-    // Handle callLogs separately - update lastViewed timestamp
-    if (section === 'callLogs') {
+    // Handle sections that use a lastViewed timestamp instead of an unread counter
+    if (section === 'callLogs' || section === 'aiReception') {
       let notification = await CustomerNotification.findOne({ customerId });
       
       if (!notification) {
         notification = new CustomerNotification({ customerId });
       }
       
-      // Update lastViewed to current time
-      if (!notification.callLogs) {
-        notification.callLogs = { lastViewed: new Date() };
+      const currentTimestamp = new Date();
+      if (!notification[section]) {
+        notification[section] = { lastViewed: currentTimestamp };
       } else {
-        notification.callLogs.lastViewed = new Date();
+        notification[section].lastViewed = currentTimestamp;
       }
       
       await notification.save();
       
-      res.json({ message: 'callLogs section accessed', unreadCount: 0 });
+      res.json({ message: `${section} section accessed`, unreadCount: 0 });
       return;
     }
     
@@ -134,6 +149,8 @@ router.post('/mark-all-read', authenticateToken, authorizeRole(['customer', 'rec
       notification = new CustomerNotification({ customerId });
     }
     
+    const now = new Date();
+
     // Clear all unread counts
     notification.metaInsights.unreadCount = 0;
     notification.gallery.unreadCount = 0;
@@ -141,6 +158,11 @@ router.post('/mark-all-read', authenticateToken, authorizeRole(['customer', 'rec
     notification.onboarding.unreadCount = 0;
     if (notification.instagramInsights) {
       notification.instagramInsights.unreadCount = 0;
+    }
+    if (!notification.aiReception) {
+      notification.aiReception = { lastViewed: now };
+    } else {
+      notification.aiReception.lastViewed = now;
     }
     
     // callLogs: set lastViewed so unread count (calls after lastViewed) resets
@@ -151,7 +173,6 @@ router.post('/mark-all-read', authenticateToken, authorizeRole(['customer', 'rec
     }
     
     // Update timestamps
-    const now = new Date();
     notification.metaInsights.lastUpdated = now;
     notification.gallery.lastUpdated = now;
     notification.invoices.lastUpdated = now;

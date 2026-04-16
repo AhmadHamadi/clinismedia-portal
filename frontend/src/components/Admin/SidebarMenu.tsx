@@ -2,7 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FaHome, FaCalendarAlt, FaTasks, FaUsers, FaUserTie, FaFileInvoice, FaGoogle, FaFacebook, FaPhone, FaImages, FaFolderOpen, FaDollarSign, FaSignOutAlt, FaBars, FaStar } from 'react-icons/fa';
+import { FaHome, FaCalendarAlt, FaTasks, FaUsers, FaUserTie, FaFileInvoice, FaGoogle, FaFacebook, FaPhone, FaImages, FaFolderOpen, FaDollarSign, FaSignOutAlt, FaBars, FaStar, FaRobot } from 'react-icons/fa';
 import logo1 from "../../assets/CliniMedia_Logo1.png";
 import { logout } from "../../utils/auth";
 
@@ -90,6 +90,7 @@ const SidebarMenu = () => {
     { label: "Manage Google Business", path: "/admin/google-business", icon: <FaGoogle /> },
     { label: "Manage Facebook", path: "/admin/facebook", icon: <FaFacebook /> },
     { label: "Manage Twilio", path: "/admin/twilio", icon: <FaPhone /> },
+    { label: "Manage AI Reception", path: "/admin/ai-reception", icon: <FaRobot /> },
     { label: "Manage Instagram Insights", path: "/admin/instagram-insights", icon: <FaImages /> },
     { label: "Manage QuickBooks", path: "/admin/quickbooks", icon: <FaDollarSign /> },
   ];

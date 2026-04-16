@@ -6,6 +6,12 @@ const CallLog = require('../models/CallLog');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 const resolveEffectiveCustomerId = require('../middleware/resolveEffectiveCustomerId');
+const {
+  sanitizeAiReceptionistSettings,
+  getRetellReadiness,
+  isWithinBusinessHours,
+  registerRetellPhoneCall,
+} = require('../services/retellService');
 
 // ============================================
 // Voice Validation - 100% Verified Twilio Voices
@@ -25,6 +31,7 @@ const TTS_VOICE = 'Google.en-US-Chirp3-HD-Aoede';
 
 // Silent TwiML when clinic ends call or on error—no Say, no message. Caller hears nothing.
 const SILENT_HANGUP_TWIML = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Hangup/>\n</Response>';
+const RETELL_FALLBACK_MESSAGE = 'Thank you for calling. The office is currently unavailable. Please leave a message or call back during business hours.';
 
 // Valid Twilio voice names (only this one voice is allowed)
 const VALID_TWILIO_VOICES = [
@@ -56,6 +63,42 @@ function escapeTwiML(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+function getRetellFallbackMessage(settings) {
+  const normalized = sanitizeAiReceptionistSettings(settings);
+  return normalized.afterHoursMessage || RETELL_FALLBACK_MESSAGE;
+}
+
+function buildSayAndHangupTwiML(message) {
+  const safeText = escapeTwiML(String(message || RETELL_FALLBACK_MESSAGE));
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="${TTS_VOICE}" language="en-US">${safeText}</Say>\n  <Hangup/>\n</Response>`;
+}
+
+async function buildRetellDialTwiML({ clinic, fromNumber, toNumber, callSid }) {
+  const readiness = getRetellReadiness(clinic.aiReceptionistSettings || {});
+  if (!readiness.ready) {
+    return buildSayAndHangupTwiML(getRetellFallbackMessage(clinic.aiReceptionistSettings));
+  }
+
+  if (readiness.settings.telephonyMode === 'phone_number') {
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Dial timeout="30">\n    <Number>${escapeTwiML(readiness.settings.retellPhoneNumber)}</Number>\n  </Dial>\n</Response>`;
+  }
+
+  if (readiness.settings.telephonyMode === 'custom') {
+    return buildSayAndHangupTwiML(getRetellFallbackMessage(clinic.aiReceptionistSettings));
+  }
+
+  const retellCall = await registerRetellPhoneCall({
+    settings: readiness.settings,
+    fromNumber,
+    toNumber,
+    twilioCallSid: callSid,
+    customerId: clinic._id,
+    customerName: clinic.name,
+  });
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Dial timeout="30">\n    <Sip>${escapeTwiML(retellCall.sipUri)}</Sip>\n  </Dial>\n</Response>`;
 }
 
 // Voice validation function - ensures only valid voices are used
@@ -1074,23 +1117,54 @@ router.post('/voice/incoming', async (req, res) => {
       });
     }
     
-    // Check if clinic exists and has at least one forward number configured
-    const hasForwardNumber = clinic && (
-      clinic.twilioForwardNumber || 
-      clinic.twilioForwardNumberNew || 
+    if (!clinic) {
+      console.error(`❌ No clinic found for phone number: ${To}`);
+      // Get voice for error message - use clinic's voice if available, otherwise default
+      const requestedErrorVoice = clinic?.twilioVoice || TTS_VOICE;
+      const errorVoice = validateAndGetVoice(requestedErrorVoice);
+      const generateSayVerb = (text, voiceSetting = errorVoice) => {
+        // Twilio requires language attribute for all voices (per official docs)
+        // FORCE the voice to be our constant - never trust the parameter
+        const finalVoice = TTS_VOICE;
+        console.log(`[VOICE DEBUG] Error handler generateSayVerb: "${voiceSetting}" → using: "${finalVoice}"`);
+        return `<Say voice="${finalVoice}" language="en-US">${text}</Say>`;
+      };
+      const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  ${generateSayVerb('Sorry, this number is not configured. Please contact your administrator.')}
+  <Hangup/>
+</Response>`;
+      res.type('text/xml');
+      return res.send(errorTwiML);
+    }
+
+    const aiSettings = sanitizeAiReceptionistSettings(clinic.aiReceptionistSettings || {});
+    const aiReadiness = getRetellReadiness(aiSettings);
+    const routeDirectlyToAi =
+      aiReadiness.ready && (
+        aiSettings.routingMode === 'always_ai' ||
+        (aiSettings.routingMode === 'after_hours' && !isWithinBusinessHours(aiSettings))
+      );
+
+    // Only require a clinic forwarding number when the call should ring the clinic.
+    const hasForwardNumber = !!(
+      clinic.twilioForwardNumber ||
+      clinic.twilioForwardNumberNew ||
       clinic.twilioForwardNumberExisting
     );
-    
-    if (!clinic || !hasForwardNumber) {
-      console.error(`❌ No clinic found for phone number: ${To} or no forward number configured`);
-      console.error(`   Clinic found: ${!!clinic}`);
-      if (clinic) {
-        console.error(`   Forward numbers: ${JSON.stringify({
-          twilioForwardNumber: clinic.twilioForwardNumber,
-          twilioForwardNumberNew: clinic.twilioForwardNumberNew,
-          twilioForwardNumberExisting: clinic.twilioForwardNumberExisting
-        })}`);
-      }
+
+    if (!routeDirectlyToAi && !hasForwardNumber) {
+      console.error(`❌ Clinic ${clinic.name} has no forward number configured for daytime Twilio routing`);
+      console.error(`   Forward numbers: ${JSON.stringify({
+        twilioForwardNumber: clinic.twilioForwardNumber,
+        twilioForwardNumberNew: clinic.twilioForwardNumberNew,
+        twilioForwardNumberExisting: clinic.twilioForwardNumberExisting
+      })}`);
+      console.error(`   AI readiness: ${JSON.stringify({
+        ready: aiReadiness.ready,
+        routingMode: aiSettings.routingMode,
+        timezone: aiSettings.timezone
+      })}`);
       // Get voice for error message - use clinic's voice if available, otherwise default
       const requestedErrorVoice = clinic?.twilioVoice || TTS_VOICE;
       const errorVoice = validateAndGetVoice(requestedErrorVoice);
@@ -1133,8 +1207,8 @@ router.post('/voice/incoming', async (req, res) => {
       }
     }
     
-    // Final fallback - if still no forward number, error (should not happen due to check above)
-    if (!forwardNumber) {
+    // Final fallback - if still no forward number, error only when clinic routing is required.
+    if (!forwardNumber && !routeDirectlyToAi) {
       console.error(`❌ No forward number configured for clinic: ${clinic.name}`);
       console.error(`   Available forward numbers: ${JSON.stringify({
         twilioForwardNumber: clinic.twilioForwardNumber,
@@ -1159,11 +1233,13 @@ router.post('/voice/incoming', async (req, res) => {
       return res.send(errorTwiML);
     }
     
-    console.log(`✅ Forward number determined: ${forwardNumber}`);
-    console.log(`   Forward number format check: ${/^\+[1-9]\d{1,14}$/.test(forwardNumber) ? '✅ Valid E.164 format' : '❌ Invalid format - must be +1XXXXXXXXXX'}`);
+    if (!routeDirectlyToAi) {
+      console.log(`✅ Forward number determined: ${forwardNumber}`);
+      console.log(`   Forward number format check: ${/^\+[1-9]\d{1,14}$/.test(forwardNumber) ? '✅ Valid E.164 format' : '❌ Invalid format - must be +1XXXXXXXXXX'}`);
+    }
     
-    // Validate forward number format
-    if (!/^\+[1-9]\d{1,14}$/.test(forwardNumber)) {
+    // Validate forward number format only when clinic routing is required.
+    if (!routeDirectlyToAi && !/^\+[1-9]\d{1,14}$/.test(forwardNumber)) {
       console.error(`❌ Invalid forward number format: ${forwardNumber}`);
       console.error(`   Forward number must be in E.164 format: +1XXXXXXXXXX`);
       // Get voice for error message (before main voice declaration) - use clinic's voice if available
@@ -1226,15 +1302,22 @@ router.post('/voice/incoming', async (req, res) => {
     }
     const callbackUrl = `${baseUrl}/api/twilio/voice/incoming`;
     
-    console.log(`✅ Call routing to clinic: ${clinic.name}`);
-    console.log(`   Menu enabled: ${enableMenu}`);
-    if (enableMenu && Digits) {
-      console.log(`   Menu choice: ${Digits} (${Digits === '1' ? 'New Patient' : 'Existing Patient'})`);
+    if (routeDirectlyToAi) {
+      console.log(`🤖 AI routing is active for clinic: ${clinic.name}`);
+      console.log(`   Routing mode: ${aiSettings.routingMode}`);
+      console.log(`   Telephony mode: ${aiSettings.telephonyMode}`);
+      console.log(`   Business hours active now: ${isWithinBusinessHours(aiSettings)}`);
+    } else {
+      console.log(`✅ Call routing to clinic: ${clinic.name}`);
+      console.log(`   Menu enabled: ${enableMenu}`);
+      if (enableMenu && Digits) {
+        console.log(`   Menu choice: ${Digits} (${Digits === '1' ? 'New Patient' : 'Existing Patient'})`);
+      }
+      console.log(`   Forwarding to: ${forwardNumber}`);
+      // Caller ID: we do NOT set callerId on <Dial>. Twilio default = inbound caller's ID, so clinic sees
+      // patient's number when available, or Private/Unknown when patient blocks ID. Never override = can't mess up.
+      console.log(`   Caller ID: From="${From}" (stored in CallLog); Dial=no callerId (Twilio default: clinic sees patient number or Private/Unknown)`);
     }
-    console.log(`   Forwarding to: ${forwardNumber}`);
-    // Caller ID: we do NOT set callerId on <Dial>. Twilio default = inbound caller's ID, so clinic sees
-    // patient's number when available, or Private/Unknown when patient blocks ID. Never override = can't mess up.
-    console.log(`   Caller ID: From="${From}" (stored in CallLog); Dial=no callerId (Twilio default: clinic sees patient number or Private/Unknown)`);
     
     let twiML;
     
@@ -1264,6 +1347,23 @@ router.post('/voice/incoming', async (req, res) => {
       ).catch(err => console.error('Error creating/updating call log:', err));
     }
     
+    if (routeDirectlyToAi) {
+      console.log(`🤖 Routing inbound call directly to Retell AI for clinic: ${clinic.name}`);
+      twiML = await buildRetellDialTwiML({
+        clinic,
+        fromNumber: From,
+        toNumber: To,
+        callSid: CallSid,
+      });
+
+      res.type('text/xml');
+      res.send(twiML);
+
+      console.log('📤 Retell TwiML Response sent:');
+      console.log(twiML);
+      return;
+    }
+
     // Check if call recording is enabled
     const enableRecording = process.env.TWILIO_ENABLE_RECORDING === 'true';
     const enableTranscription = process.env.TWILIO_ENABLE_TRANSCRIPTION === 'true';
@@ -1687,6 +1787,37 @@ router.get('/voice/voicemail', async (req, res) => {
   try {
     const { CallSid, DialCallStatus, DialCallDuration } = req.query;
     console.log(`📞 Voicemail triggered for CallSid: ${CallSid}, DialCallStatus: ${DialCallStatus}, DialCallDuration: ${DialCallDuration}`);
+
+    if (CallSid) {
+      try {
+        const aiCallLog = await CallLog.findOne({ callSid: CallSid }).select('customerId');
+        if (aiCallLog?.customerId) {
+          const clinicForAi = await User.findById(aiCallLog.customerId).select('name aiReceptionistSettings');
+          const aiSettings = sanitizeAiReceptionistSettings(clinicForAi?.aiReceptionistSettings || {});
+          const readiness = getRetellReadiness(aiSettings);
+
+          if (
+            clinicForAi &&
+            readiness.ready &&
+            aiSettings.sendMissedCallsToAi === true &&
+            aiSettings.routingMode === 'after_hours' &&
+            isWithinBusinessHours(aiSettings)
+          ) {
+            console.log(`🤖 Routing missed business-hours call to Retell AI for clinic: ${clinicForAi.name}`);
+            const twiml = await buildRetellDialTwiML({
+              clinic: clinicForAi,
+              fromNumber: null,
+              toNumber: null,
+              callSid: CallSid,
+            });
+            res.type('text/xml');
+            return res.status(200).send(twiml);
+          }
+        }
+      } catch (aiRoutingError) {
+        console.error('Error checking missed-call Retell routing:', aiRoutingError);
+      }
+    }
 
     // Call was NOT answered - proceed with voicemail prompt
     // IMPORTANT: Mark this as a missed call (no-answer) immediately
@@ -3200,4 +3331,3 @@ router.get('/ai-status', authenticateToken, authorizeRole(['admin']), (req, res)
 });
 
 module.exports = router;
-

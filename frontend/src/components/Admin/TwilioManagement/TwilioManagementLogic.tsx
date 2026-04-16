@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import type { AiReceptionistSettings } from "../../../types/aiReception";
 
 export interface Customer {
   _id: string;
@@ -13,6 +14,7 @@ export interface Customer {
   twilioForwardNumberExisting?: string;
   twilioMenuMessage?: string;
   twilioVoice?: string;
+  aiReceptionistSettings?: AiReceptionistSettings;
 }
 
 export interface TwilioPhoneNumber {
@@ -179,4 +181,3 @@ export const useTwilioManagement = () => {
     getTwilioStatus,
   };
 };
-

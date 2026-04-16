@@ -19,6 +19,7 @@ import InstagramInsightsManagementPage from './InstagramInsightsManagement/Insta
 import MetaLeadsManagementPage from './MetaLeadsManagementPage';
 import QuickBooksManagementPage from './QuickBooksManagement/QuickBooksManagementPage';
 import QRReviewsPage from './QRReviews/QRReviewsPage';
+import AIReceptionManagementPage from './AIReceptionManagement/AIReceptionManagementPage';
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -61,6 +62,7 @@ const AdminLayout = () => {
             <Route path="/meta-leads" element={<MetaLeadsManagementPage />} />
             <Route path="/quickbooks" element={<QuickBooksManagementPage />} />
             <Route path="/qr-reviews" element={<QRReviewsPage />} />
+            <Route path="/ai-reception" element={<AIReceptionManagementPage />} />
           </Routes>
         </main>
       </div>

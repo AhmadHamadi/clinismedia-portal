@@ -75,6 +75,7 @@ app.use(cors({
 
 connectDB();
 
+app.use("/api/retell/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 // Support URL-encoded bodies (for Twilio webhooks)
 app.use(express.urlencoded({ extended: true }));
@@ -99,6 +100,7 @@ const emailNotificationSettingsRoutes = require('./routes/emailNotificationSetti
 const customerNotificationsRoutes = require('./routes/customerNotifications');
 const googleBusinessRoutes = require('./routes/googleBusiness');
 const twilioRoutes = require('./routes/twilio');
+const retellRoutes = require('./routes/retell');
 const metaLeadsRoutes = require('./routes/metaLeads');
 const quickbooksRoutes = require('./routes/quickbooks');
 const qrReviewsRoutes = require('./routes/qrReviews');
@@ -122,6 +124,7 @@ app.use('/api/email-notification-settings', emailNotificationSettingsRoutes);
 app.use('/api/customer-notifications', customerNotificationsRoutes);
 app.use('/api/google-business', googleBusinessRoutes);
 app.use('/api/twilio', twilioRoutes);
+app.use('/api/retell', retellRoutes);
 app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/api/quickbooks', quickbooksRoutes);
 app.use('/api/qr-reviews', qrReviewsRoutes);

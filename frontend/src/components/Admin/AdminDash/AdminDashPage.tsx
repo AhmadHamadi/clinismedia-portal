@@ -127,6 +127,11 @@ const AdminDash = () => {
           onClick={() => navigate("/admin/twilio")}
         />
         <DashboardBox
+          title="Manage AI Reception"
+          description="Configure Retell AI routing, business hours, and clinic AI settings"
+          onClick={() => navigate("/admin/ai-reception")}
+        />
+        <DashboardBox
           title="Manage Instagram Insights"
           description="Upload and manage Instagram insight images"
           onClick={() => navigate("/admin/instagram-insights")}

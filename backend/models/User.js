@@ -1,5 +1,15 @@
 const mongoose = require("mongoose");
 
+const defaultAiReceptionBusinessHours = () => ({
+  monday: { enabled: true, start: "09:00", end: "17:00" },
+  tuesday: { enabled: true, start: "09:00", end: "17:00" },
+  wednesday: { enabled: true, start: "09:00", end: "17:00" },
+  thursday: { enabled: true, start: "09:00", end: "17:00" },
+  friday: { enabled: false, start: "09:00", end: "17:00" },
+  saturday: { enabled: false, start: "09:00", end: "17:00" },
+  sunday: { enabled: false, start: "09:00", end: "17:00" },
+});
+
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -55,6 +65,55 @@ const userSchema = new mongoose.Schema({
   customerSettings: {
     displayName: String,
     logoUrl: String,
+  },
+  aiReceptionistSettings: {
+    enabled: {
+      type: Boolean,
+      default: false,
+    },
+    provider: {
+      type: String,
+      enum: ["retell"],
+      default: "retell",
+    },
+    routingMode: {
+      type: String,
+      enum: ["off", "after_hours", "always_ai"],
+      default: "off",
+    },
+    telephonyMode: {
+      type: String,
+      enum: ["sip_uri", "phone_number", "custom"],
+      default: "sip_uri",
+    },
+    retellAgentId: {
+      type: String,
+      default: null,
+    },
+    retellSipUri: {
+      type: String,
+      default: null,
+    },
+    retellPhoneNumber: {
+      type: String,
+      default: null,
+    },
+    timezone: {
+      type: String,
+      default: "America/Toronto",
+    },
+    sendMissedCallsToAi: {
+      type: Boolean,
+      default: false,
+    },
+    afterHoursMessage: {
+      type: String,
+      default: null,
+    },
+    businessHours: {
+      type: Object,
+      default: defaultAiReceptionBusinessHours,
+    },
   },
   facebookPageId: {
     type: String,
