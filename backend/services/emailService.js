@@ -6,6 +6,10 @@ class EmailService {
     return process.env.MEDIA_DAY_TRACKING_EMAIL || 'notifications@clinimedia.ca';
   }
 
+  static getPortalBaseUrl() {
+    return process.env.FRONTEND_URL || 'https://www.clinimediaportal.ca';
+  }
+
   // Common email template
   static createEmailTemplate(content) {
     return `
@@ -70,6 +74,59 @@ class EmailService {
       }
       throw error;
     }
+  }
+
+  static async sendAiReceptionistMissedCallEmail(clinic, retellCall) {
+    const portalUrl = `${EmailService.getPortalBaseUrl().replace(/\/$/, '')}/customer/ai-reception`;
+    const analysis = retellCall?.callAnalysis || {};
+    const clinicTimezone = clinic?.aiReceptionistSettings?.timezone || 'America/Toronto';
+    const callerName = analysis.callerName || analysis.callbackNumber || retellCall?.fromNumber || 'Unknown caller';
+    const callbackNumber = analysis.callbackNumber || retellCall?.fromNumber || 'Not captured';
+    const callDate = retellCall?.startTimestamp
+      ? new Date(retellCall.startTimestamp).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZone: clinicTimezone,
+        })
+      : 'Unknown time';
+    const summary =
+      analysis.callSummary ||
+      analysis.reasonForCall ||
+      'An after-hours AI receptionist call was captured and is ready for review in the portal.';
+
+    const subject = `AI Receptionist: ${callerName} - ${callDate}`;
+    const content = `
+      <p>Hi ${clinic.name},</p>
+      <p>You have a new after-hours AI receptionist call to review.</p>
+      <div style="margin: 18px 0; padding: 16px; background: #f8fbff; border: 1px solid #dbeafe; border-radius: 12px;">
+        <p style="margin: 0 0 10px 0;"><strong>Caller:</strong> ${callerName}</p>
+        <p style="margin: 0 0 10px 0;"><strong>Callback Number:</strong> ${callbackNumber}</p>
+        <p style="margin: 0 0 10px 0;"><strong>Call Time:</strong> ${callDate}</p>
+        <p style="margin: 0 0 10px 0;"><strong>Reason:</strong> ${analysis.reasonForCall || 'Not captured'}</p>
+        <p style="margin: 0 0 10px 0;"><strong>Urgency:</strong> ${analysis.urgencyLevel || 'Not captured'}</p>
+        <p style="margin: 0 0 10px 0;"><strong>Preferred Callback Time:</strong> ${analysis.preferredCallbackTime || 'Not captured'}</p>
+        <p style="margin: 0 0 10px 0;"><strong>Recommended Follow-Up:</strong> ${analysis.recommendedFollowUp || 'Review in portal'}</p>
+        <p style="margin: 0;"><strong>Summary:</strong> ${summary}</p>
+      </div>
+      <p>
+        <a href="${portalUrl}" style="display: inline-block; padding: 12px 16px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: 600;">
+          View AI Reception Details
+        </a>
+      </p>
+      <p>You can review the full handoff, recording, and extracted details in the portal.</p>
+    `;
+
+    await EmailService.sendEmail(
+      subject,
+      content,
+      clinic.email,
+      'Failed to send AI receptionist missed-call email:',
+      'info@clinimedia.ca',
+      { replyTo: 'info@clinimedia.ca' }
+    );
   }
 
   static async sendBookingConfirmation(customerName, requestedDate, customerEmail) {

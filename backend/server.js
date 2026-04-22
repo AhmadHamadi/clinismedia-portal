@@ -156,18 +156,8 @@ app.listen(PORT, () => {
     }
   }, 60000); // Check every minute
   
-  // Set up daily reminder emails (runs every day at 9 AM)
-  setInterval(async () => {
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    
-    // Run at 9:00 AM daily
-    if (hours === 9 && minutes === 0) {
-      await ScheduledEmailService.sendDailyReminders();
-      await ScheduledEmailService.sendProactiveBookingReminders();
-    }
-  }, 60000); // Check every minute
+  // Media Day reminder emails are intentionally disabled.
+  // Transactional emails still send when users/admins take actions.
   
   // Set up session cleanup (runs every hour)
   setInterval(() => {

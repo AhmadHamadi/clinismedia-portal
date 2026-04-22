@@ -110,6 +110,14 @@ const retellCallSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    aiReceptionEmailSentAt: {
+      type: Date,
+      default: null,
+    },
+    aiReceptionEmailRecipient: {
+      type: String,
+      default: null,
+    },
     rawCall: {
       type: mongoose.Schema.Types.Mixed,
       default: undefined,

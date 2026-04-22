@@ -12,6 +12,7 @@ const {
   getRetellReadiness,
   verifyRetellSignature,
 } = require("../services/retellService");
+const EmailService = require("../services/emailService");
 
 function getSettings(user) {
   return sanitizeAiReceptionistSettings(user?.aiReceptionistSettings || {});
@@ -264,6 +265,48 @@ async function upsertRetellCallFromWebhook(event, call) {
   );
 }
 
+async function maybeSendAiReceptionistEmail(retellCall, event) {
+  if (!retellCall || event !== "call_analyzed") {
+    return;
+  }
+
+  if (retellCall.aiReceptionEmailSentAt || !retellCall.customerId) {
+    return;
+  }
+
+  const clinic = await User.findById(retellCall.customerId).select(
+    "name email role aiReceptionistSettings"
+  );
+
+  if (!clinic || clinic.role !== "customer" || !clinic.email) {
+    return;
+  }
+
+  const settings = getSettings(clinic);
+  if (!settings.enabled || settings.routingMode === "off") {
+    return;
+  }
+
+  const hasUsefulCallContent =
+    !!retellCall.recordingUrl ||
+    !!retellCall.callAnalysis?.callSummary ||
+    !!retellCall.callAnalysis?.reasonForCall ||
+    !!retellCall.callAnalysis?.callbackNumber;
+
+  if (!hasUsefulCallContent) {
+    return;
+  }
+
+  await EmailService.sendAiReceptionistMissedCallEmail(clinic, retellCall);
+  await RetellCall.findOneAndUpdate(
+    { retellCallId: retellCall.retellCallId },
+    {
+      aiReceptionEmailSentAt: new Date(),
+      aiReceptionEmailRecipient: clinic.email,
+    }
+  );
+}
+
 router.post("/webhook", async (req, res) => {
   const rawBody = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : "";
   const signature = req.headers["x-retell-signature"];
@@ -282,7 +325,8 @@ router.post("/webhook", async (req, res) => {
       return res.status(400).json({ error: "Invalid Retell webhook payload" });
     }
 
-    await upsertRetellCallFromWebhook(event, call);
+    const retellCall = await upsertRetellCallFromWebhook(event, call);
+    await maybeSendAiReceptionistEmail(retellCall, event);
     return res.status(204).send();
   } catch (error) {
     console.error("[Retell] Failed to process webhook:", error);
