@@ -16,6 +16,7 @@ import GoogleAdsPage from './GoogleAdsPage';
 import CallLogsPage from './CallLogsPage';
 import ReceptionistCallLogsPage from './ReceptionistCallLogsPage';
 import GoogleBusinessAnalyticsPage from './GoogleBusinessAnalyticsPage';
+import SearchConsolePage from './SearchConsolePage';
 import CustomerQuickBooksInvoicesPage from './CustomerQuickBooksInvoicesPage';
 import MetaLeadsPage from './MetaLeadsPage';
 import CustomerQRReviewsPage from './CustomerQRReviewsPage';
@@ -221,6 +222,7 @@ const CustomerPortalLayout: React.FC = () => {
               <Route path="notifications" element={<NotificationPage />} />
               <Route path="google-ads" element={<GoogleAdsPage />} />
               <Route path="google-business-analytics" element={<GoogleBusinessAnalyticsPage />} />
+              <Route path="search-console" element={<SearchConsolePage />} />
               <Route path="call-logs" element={(() => {
                 try {
                   const u = JSON.parse(localStorage.getItem('customerData') || '{}');
@@ -243,4 +245,3 @@ const CustomerPortalLayout: React.FC = () => {
 };
 
 export default CustomerPortalLayout; 
-

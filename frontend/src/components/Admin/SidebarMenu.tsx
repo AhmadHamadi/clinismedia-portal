@@ -2,7 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FaHome, FaCalendarAlt, FaTasks, FaUsers, FaUserTie, FaFileInvoice, FaGoogle, FaFacebook, FaPhone, FaImages, FaFolderOpen, FaDollarSign, FaSignOutAlt, FaBars, FaStar, FaRobot } from 'react-icons/fa';
+import { FaHome, FaCalendarAlt, FaTasks, FaUsers, FaUserTie, FaFileInvoice, FaGoogle, FaFacebook, FaPhone, FaImages, FaFolderOpen, FaDollarSign, FaSignOutAlt, FaBars, FaStar, FaRobot, FaChartLine, FaSearch } from 'react-icons/fa';
 import logo1 from "../../assets/CliniMedia_Logo1.png";
 import { logout } from "../../utils/auth";
 
@@ -82,12 +82,14 @@ const SidebarMenu = () => {
     { label: "Onboarding Tasks", path: "/admin/onboarding", icon: <FaTasks /> },
     { label: "Manage Customers", path: "/admin/customers", icon: <FaUsers /> },
     { label: "Manage Employees", path: "/admin/employees", icon: <FaUserTie /> },
+    { label: "Marketing Reports", path: "/admin/reports", icon: <FaChartLine /> },
   ];
 
   // INTEGRATIONS section items
   const integrationsItems = [
     { label: "Manage Google Ads", path: "/admin/google-ads", icon: <FaGoogle /> },
     { label: "Manage Google Business", path: "/admin/google-business", icon: <FaGoogle /> },
+    { label: "Manage Search Console", path: "/admin/search-console", icon: <FaSearch /> },
     { label: "Manage Facebook", path: "/admin/facebook", icon: <FaFacebook /> },
     { label: "Manage Twilio", path: "/admin/twilio", icon: <FaPhone /> },
     { label: "Manage AI Reception", path: "/admin/ai-reception", icon: <FaRobot /> },

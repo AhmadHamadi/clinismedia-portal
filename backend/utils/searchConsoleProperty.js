@@ -1,0 +1,87 @@
+class SearchConsoleValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'SearchConsoleValidationError';
+  }
+}
+
+function normalizeWebsiteUrl(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  let url;
+  try {
+    url = new URL(withProtocol);
+  } catch (_) {
+    throw new SearchConsoleValidationError('Website URL must be a valid URL.');
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new SearchConsoleValidationError('Website URL must start with http:// or https://.');
+  }
+
+  url.hash = '';
+  url.search = '';
+
+  if (!url.hostname) {
+    throw new SearchConsoleValidationError('Website URL must include a valid domain.');
+  }
+
+  return url.toString();
+}
+
+function normalizeSearchConsoleProperty(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('sc-domain:')) {
+    const domain = trimmed.slice('sc-domain:'.length).trim().toLowerCase();
+
+    if (!domain) {
+      throw new SearchConsoleValidationError('Search Console domain property must include a domain after sc-domain:.');
+    }
+
+    if (/^https?:\/\//i.test(domain) || domain.includes('/') || domain.includes(' ')) {
+      throw new SearchConsoleValidationError('Search Console domain property must look like sc-domain:example.com.');
+    }
+
+    return `sc-domain:${domain}`;
+  }
+
+  const normalizedUrl = normalizeWebsiteUrl(trimmed);
+
+  if (!normalizedUrl) {
+    return null;
+  }
+
+  return normalizedUrl;
+}
+
+function buildSearchConsoleUpdate(input) {
+  const updateData = {};
+
+  if (Object.prototype.hasOwnProperty.call(input, 'websiteUrl')) {
+    updateData.websiteUrl = normalizeWebsiteUrl(input.websiteUrl);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'searchConsolePropertyUrl')) {
+    updateData.searchConsolePropertyUrl = normalizeSearchConsoleProperty(input.searchConsolePropertyUrl);
+  }
+
+  return updateData;
+}
+
+module.exports = {
+  SearchConsoleValidationError,
+  normalizeWebsiteUrl,
+  normalizeSearchConsoleProperty,
+  buildSearchConsoleUpdate,
+};

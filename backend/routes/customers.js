@@ -13,6 +13,7 @@ const Invoice = require('../models/Invoice');
 const multer = require('multer');
 const path = require('path');
 const storageService = require('../services/storageService');
+const { buildSearchConsoleUpdate, SearchConsoleValidationError } = require('../utils/searchConsoleProperty');
 
 // Set up multer storage for customer logos
 const fs = require('fs');
@@ -97,7 +98,7 @@ router.get("/", authenticateToken, authorizeRole(['admin']), async (req, res) =>
       query = { role: { $in: ["customer", "admin"] } };
     }
     
-    const customers = await User.find(query).select("name username email location address _id role facebookPageId facebookPageName facebookAccessToken facebookTokenExpiry facebookUserAccessToken facebookUserTokenExpiry bookingIntervalMonths googleAdsAccessToken googleAdsRefreshToken googleAdsTokenExpiry googleAdsCustomerId googleBusinessProfileId googleBusinessProfileName googleBusinessAccessToken googleBusinessRefreshToken googleBusinessTokenExpiry twilioPhoneNumber twilioForwardNumber twilioForwardNumberNew twilioForwardNumberExisting twilioMenuMessage twilioVoice aiReceptionistSettings");
+    const customers = await User.find(query).select("name username email location address websiteUrl searchConsolePropertyUrl _id role facebookPageId facebookPageName facebookAccessToken facebookTokenExpiry facebookUserAccessToken facebookUserTokenExpiry bookingIntervalMonths googleAdsAccessToken googleAdsRefreshToken googleAdsTokenExpiry googleAdsCustomerId googleBusinessProfileId googleBusinessProfileName googleBusinessAccessToken googleBusinessRefreshToken googleBusinessTokenExpiry twilioPhoneNumber twilioForwardNumber twilioForwardNumberNew twilioForwardNumberExisting twilioMenuMessage twilioVoice aiReceptionistSettings");
     res.status(200).json(customers);
   } catch (err) {
     console.error("❌ Failed to fetch customers:", err.message);
@@ -354,7 +355,7 @@ router.delete("/:id", authenticateToken, authorizeRole(['admin']), async (req, r
 // PUT update customer by ID (admin only)
 router.put("/:id", authenticateToken, authorizeRole(['admin']), uploadLogo.single('logo'), async (req, res) => {
   try {
-    const { name, username, email, location, address, bookingIntervalMonths } = req.body;
+    const { name, username, email, location, address, websiteUrl, searchConsolePropertyUrl, bookingIntervalMonths } = req.body;
     let logoUrl;
     if (req.file) {
       const uploaded = await storageService.uploadCustomerLogo(
@@ -367,6 +368,7 @@ router.put("/:id", authenticateToken, authorizeRole(['admin']), uploadLogo.singl
     }
 
     const updateData = { name, username, email, location, address, bookingIntervalMonths };
+    Object.assign(updateData, buildSearchConsoleUpdate({ websiteUrl, searchConsolePropertyUrl }));
     if (logoUrl) {
       const existingCustomer = await User.findById(req.params.id);
       const oldLogo = existingCustomer?.customerSettings?.logoUrl || null;
@@ -392,6 +394,9 @@ router.put("/:id", authenticateToken, authorizeRole(['admin']), uploadLogo.singl
     res.status(200).json(customer);
   } catch (err) {
     console.error("❌ Failed to update customer:", err.message);
+    if (err instanceof SearchConsoleValidationError) {
+      return res.status(400).json({ error: err.message });
+    }
     res.status(500).json({ error: "Server error updating customer" });
   }
 });

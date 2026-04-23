@@ -183,6 +183,26 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  websiteUrl: {
+    type: String,
+    default: null,
+  },
+  searchConsolePropertyUrl: {
+    type: String,
+    default: null,
+  },
+  searchConsoleAccessToken: {
+    type: String,
+    default: null,
+  },
+  searchConsoleRefreshToken: {
+    type: String,
+    default: null,
+  },
+  searchConsoleTokenExpiry: {
+    type: Date,
+    default: null,
+  },
   twilioPhoneNumber: {
     type: String,
     default: null,

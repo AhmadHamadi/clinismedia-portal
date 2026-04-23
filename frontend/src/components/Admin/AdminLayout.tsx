@@ -20,6 +20,8 @@ import MetaLeadsManagementPage from './MetaLeadsManagementPage';
 import QuickBooksManagementPage from './QuickBooksManagement/QuickBooksManagementPage';
 import QRReviewsPage from './QRReviews/QRReviewsPage';
 import AIReceptionManagementPage from './AIReceptionManagement/AIReceptionManagementPage';
+import MarketingReportsPage from './Reports/MarketingReportsPage';
+import SearchConsoleManagementPage from './SearchConsoleManagement/SearchConsoleManagementPage';
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -63,6 +65,8 @@ const AdminLayout = () => {
             <Route path="/quickbooks" element={<QuickBooksManagementPage />} />
             <Route path="/qr-reviews" element={<QRReviewsPage />} />
             <Route path="/ai-reception" element={<AIReceptionManagementPage />} />
+            <Route path="/reports" element={<MarketingReportsPage />} />
+            <Route path="/search-console" element={<SearchConsoleManagementPage />} />
           </Routes>
         </main>
       </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaHome, FaCalendarAlt, FaTasks, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt, FaGoogle, FaShare, FaInstagram, FaPhone, FaDollarSign, FaStar, FaRobot } from 'react-icons/fa';
+import { FaHome, FaCalendarAlt, FaTasks, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt, FaGoogle, FaShare, FaInstagram, FaPhone, FaDollarSign, FaStar, FaRobot, FaSearch } from 'react-icons/fa';
 import axios from 'axios';
 import logo1 from '../../assets/CliniMedia_Logo1.png';
 import { logout } from '../../utils/auth';
@@ -53,6 +53,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
     { label: "Meta Insights", path: "/customer/facebook-insights", icon: <FaFacebook />, pageKey: "facebook-insights", section: "metaInsights" },
     { label: "Google Ads", path: "/customer/google-ads", icon: <FaGoogle />, pageKey: "google-ads" },
     { label: "Google Business", path: "/customer/google-business-analytics", icon: <FaGoogle />, pageKey: "google-business-analytics" },
+    { label: "Search Console", path: "/customer/search-console", icon: <FaSearch />, pageKey: "search-console" },
     { label: "Instagram Insights", path: "/customer/instagram-insights", icon: <FaInstagram />, pageKey: "instagram-insights", section: "instagramInsights" },
     { label: "QR Reviews", path: "/customer/qr-reviews", icon: <FaStar />, pageKey: "qr-reviews" },
   ];

@@ -9,6 +9,10 @@ const INTEGRATION_FIELDS = {
     accessToken: 'googleBusinessAccessToken',
     refreshToken: 'googleBusinessRefreshToken',
   },
+  searchConsole: {
+    accessToken: 'searchConsoleAccessToken',
+    refreshToken: 'searchConsoleRefreshToken',
+  },
 };
 
 function getIntegrationFields(integration) {

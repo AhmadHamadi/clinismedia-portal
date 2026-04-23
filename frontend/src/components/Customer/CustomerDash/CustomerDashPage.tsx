@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCustomerDashboard, Customer } from "./CustomerDashLogic";
 import { UserCircleIcon, MapPinIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
-import { FaCalendarAlt, FaTasks, FaGoogle, FaInstagram, FaShare, FaImages, FaDollarSign, FaPhone, FaFacebook, FaCamera, FaRobot } from 'react-icons/fa';
+import { FaCalendarAlt, FaTasks, FaGoogle, FaInstagram, FaShare, FaImages, FaDollarSign, FaPhone, FaFacebook, FaCamera, FaRobot, FaSearch } from 'react-icons/fa';
 import axios from 'axios';
 
 // Booking type
@@ -635,6 +635,13 @@ const CustomerDashboard = () => {
                 >
                   <FaGoogle className="w-5 h-5 text-[#4285f4] group-hover:text-[#357ae8] mb-1.5" />
                   <span className="text-[10px] font-medium text-gray-700 text-center leading-tight">Google Business</span>
+                </button>
+                <button
+                  onClick={() => navigate("/customer/search-console")}
+                  className="flex flex-col items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors group"
+                >
+                  <FaSearch className="w-5 h-5 text-[#2563eb] group-hover:text-[#1d4ed8] mb-1.5" />
+                  <span className="text-[10px] font-medium text-gray-700 text-center leading-tight">Search Console</span>
                 </button>
                 {/* Instagram Insights */}
                 <button

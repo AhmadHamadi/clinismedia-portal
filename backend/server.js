@@ -104,6 +104,8 @@ const retellRoutes = require('./routes/retell');
 const metaLeadsRoutes = require('./routes/metaLeads');
 const quickbooksRoutes = require('./routes/quickbooks');
 const qrReviewsRoutes = require('./routes/qrReviews');
+const reportsRoutes = require('./routes/reports');
+const searchConsoleRoutes = require('./routes/searchConsole');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
@@ -128,6 +130,8 @@ app.use('/api/retell', retellRoutes);
 app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/api/quickbooks', quickbooksRoutes);
 app.use('/api/qr-reviews', qrReviewsRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/search-console', searchConsoleRoutes);
 
 app.use('/uploads/instagram-insights', express.static(__dirname + '/uploads/instagram-insights'));
 app.use('/uploads/invoices', express.static(__dirname + '/uploads/invoices'));
