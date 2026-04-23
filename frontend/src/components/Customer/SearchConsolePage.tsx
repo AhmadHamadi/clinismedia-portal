@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { FaSearch, FaSpinner, FaCheckCircle, FaExclamationTriangle, FaLink, FaGlobe, FaMousePointer, FaEye, FaChartLine } from 'react-icons/fa';
+import { FaSearch, FaSpinner, FaExclamationTriangle, FaLink, FaGlobe, FaMousePointer, FaEye, FaChartLine } from 'react-icons/fa';
 import {
   ResponsiveContainer,
   CartesianGrid,
@@ -203,26 +203,16 @@ const SearchConsolePage: React.FC = () => {
     <div className="customer-page min-h-screen p-4 sm:p-6 md:p-8 overflow-x-hidden">
       <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-7xl mx-auto">
         <div className="cm-page-hero mb-6 px-5 py-4">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center mb-2">
-            <FaSearch className="mr-3 text-blue-600" />
+          <h1 className="text-2xl font-bold text-white flex items-center mb-2">
+            <FaSearch className="mr-3 text-white" />
             Search Console
           </h1>
-          <p className="text-gray-600">
+          <p className="text-blue-100">
             {performance ? 'Google Search performance for your clinic website' : 'Connection status for your clinic&apos;s Search Console property'}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="cm-panel p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Property Status</p>
-                <p className="text-2xl font-bold text-gray-900 mt-2">{isConnected ? 'Mapped' : 'Not Mapped'}</p>
-              </div>
-              {isConnected ? <FaCheckCircle className="text-2xl text-green-600" /> : <FaExclamationTriangle className="text-2xl text-yellow-500" />}
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div className="cm-panel p-5">
             <div className="flex items-start justify-between">
               <div>
