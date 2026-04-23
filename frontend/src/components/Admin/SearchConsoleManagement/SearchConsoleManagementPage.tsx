@@ -32,30 +32,9 @@ const normalizeWebsiteSuggestion = (value?: string | null) => {
   }
 };
 
-const buildPropertySuggestions = (websiteUrl?: string | null) => {
-  const normalizedWebsite = normalizeWebsiteSuggestion(websiteUrl);
-  if (!normalizedWebsite) return [];
-
-  const suggestions = [normalizedWebsite];
-
-  try {
-    const hostname = new URL(normalizedWebsite).hostname.toLowerCase();
-    const rootHostname = hostname.replace(/^www\./, '');
-    const domainSuggestions = [`sc-domain:${hostname}`];
-
-    if (rootHostname && rootHostname !== hostname) {
-      domainSuggestions.push(`sc-domain:${rootHostname}`);
-    }
-
-    return [...suggestions, ...domainSuggestions];
-  } catch {
-    return suggestions;
-  }
-};
-
 const SearchConsoleManagementPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, { websiteUrl: string; searchConsolePropertyUrl: string }>>({});
+  const [drafts, setDrafts] = useState<Record<string, { websiteUrl: string }>>({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +72,6 @@ const SearchConsoleManagementPage: React.FC = () => {
             customer._id,
             {
               websiteUrl: customer.websiteUrl || '',
-              searchConsolePropertyUrl: customer.searchConsolePropertyUrl || '',
             },
           ])
         )
@@ -120,7 +98,7 @@ const SearchConsoleManagementPage: React.FC = () => {
   }, []);
 
   const connectedCount = useMemo(
-    () => customers.filter((customer) => !!customer.searchConsolePropertyUrl).length,
+    () => customers.filter((customer) => !!customer.websiteUrl).length,
     [customers]
   );
 
@@ -137,13 +115,10 @@ const SearchConsoleManagementPage: React.FC = () => {
       .sort((a, b) => a.localeCompare(b));
   }, [customers]);
 
-  const handleDraftChange = (customerId: string, key: 'websiteUrl' | 'searchConsolePropertyUrl', value: string) => {
+  const handleDraftChange = (customerId: string, websiteUrl: string) => {
     setDrafts((prev) => ({
       ...prev,
-      [customerId]: {
-        ...(prev[customerId] || { websiteUrl: '', searchConsolePropertyUrl: '' }),
-        [key]: value,
-      },
+      [customerId]: { websiteUrl },
     }));
   };
 
@@ -169,13 +144,12 @@ const SearchConsoleManagementPage: React.FC = () => {
       setSavingId(customerId);
       setError(null);
 
-      const draft = drafts[customerId] || { websiteUrl: '', searchConsolePropertyUrl: '' };
+      const draft = drafts[customerId] || { websiteUrl: '' };
       const response = await axios.post(
         `${apiBaseUrl}/search-console/save-mapping`,
         {
           customerId,
           websiteUrl: draft.websiteUrl,
-          searchConsolePropertyUrl: draft.searchConsolePropertyUrl,
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -211,14 +185,11 @@ const SearchConsoleManagementPage: React.FC = () => {
       );
       setDrafts((prev) => ({
         ...prev,
-        [customerId]: {
-          ...(prev[customerId] || { websiteUrl: '', searchConsolePropertyUrl: '' }),
-          searchConsolePropertyUrl: '',
-        },
+        [customerId]: { websiteUrl: '' },
       }));
     } catch (err: any) {
       console.error('Failed to disconnect Search Console mapping', err);
-      setError(err.response?.data?.error || 'Failed to disconnect Search Console property.');
+      setError(err.response?.data?.error || 'Failed to clear Search Console mapping.');
     } finally {
       setSavingId(null);
     }
@@ -243,7 +214,7 @@ const SearchConsoleManagementPage: React.FC = () => {
             <FaGoogle className="text-4xl text-[#4285f4] mr-3" />
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Search Console Mapping</h1>
-              <p className="text-gray-600">Map each clinic to the website and Search Console property we should query.</p>
+              <p className="text-gray-600">Map each clinic to its website and we&apos;ll handle the Search Console property in the background.</p>
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm">
@@ -262,7 +233,7 @@ const SearchConsoleManagementPage: React.FC = () => {
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Portal Search Console Connection</h2>
               <p className="text-sm text-gray-600 mt-1">
-                This connects the portal to Google Search Console so customer dashboards and reports can pull live SEO data.
+                This is the one-time Google connection for the whole portal so customer dashboards and reports can pull live SEO data.
               </p>
               <div className="mt-3">
                 {integrationStatus?.connected ? (
@@ -293,9 +264,9 @@ const SearchConsoleManagementPage: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Clinic Property Assignments</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Clinic Website Assignments</h2>
               <p className="text-sm text-gray-600 mt-1">
-                Save the exact Search Console property string for each clinic, like `https://example.com/` or `sc-domain:example.com`.
+                Save the clinic website URL and we&apos;ll derive the Search Console property automatically.
               </p>
             </div>
             <button
@@ -315,7 +286,6 @@ const SearchConsoleManagementPage: React.FC = () => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clinic</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Website</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Search Console Property</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -324,10 +294,9 @@ const SearchConsoleManagementPage: React.FC = () => {
                 {customers.map((customer) => {
                   const draft = drafts[customer._id] || {
                     websiteUrl: customer.websiteUrl || '',
-                    searchConsolePropertyUrl: customer.searchConsolePropertyUrl || '',
                   };
                   const isSaving = savingId === customer._id;
-                  const isConnected = !!customer.searchConsolePropertyUrl;
+                  const isConnected = !!customer.websiteUrl;
                   const websiteSuggestions = Array.from(
                     new Set(
                       [
@@ -337,7 +306,7 @@ const SearchConsoleManagementPage: React.FC = () => {
                       ].filter((value): value is string => !!value)
                     )
                   );
-                  const propertySuggestions = buildPropertySuggestions(draft.websiteUrl);
+                  const derivedProperty = normalizeWebsiteSuggestion(draft.websiteUrl) || 'Will be derived after save';
 
                   return (
                     <tr key={customer._id} className="hover:bg-gray-50 align-top">
@@ -347,10 +316,10 @@ const SearchConsoleManagementPage: React.FC = () => {
                         <div className="text-xs text-gray-400 mt-1">{customer.location || 'No location set'}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="space-y-2 min-w-[260px]">
+                        <div className="space-y-2 min-w-[320px]">
                           <select
                             value={draft.websiteUrl}
-                            onChange={(event) => handleDraftChange(customer._id, 'websiteUrl', event.target.value)}
+                            onChange={(event) => handleDraftChange(customer._id, event.target.value)}
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white"
                           >
                             <option value="">Select a managed website</option>
@@ -363,44 +332,20 @@ const SearchConsoleManagementPage: React.FC = () => {
                           <input
                             type="text"
                             value={draft.websiteUrl}
-                            onChange={(event) => handleDraftChange(customer._id, 'websiteUrl', event.target.value)}
+                            onChange={(event) => handleDraftChange(customer._id, event.target.value)}
                             placeholder="https://clinicwebsite.com/"
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
                           />
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="space-y-2 min-w-[320px]">
-                          <select
-                            value={propertySuggestions.includes(draft.searchConsolePropertyUrl) ? draft.searchConsolePropertyUrl : ''}
-                            onChange={(event) => {
-                              if (event.target.value) {
-                                handleDraftChange(customer._id, 'searchConsolePropertyUrl', event.target.value);
-                              }
-                            }}
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white"
-                          >
-                            <option value="">Choose a suggested property</option>
-                            {propertySuggestions.map((property) => (
-                              <option key={property} value={property}>
-                                {property}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            type="text"
-                            value={draft.searchConsolePropertyUrl}
-                            onChange={(event) => handleDraftChange(customer._id, 'searchConsolePropertyUrl', event.target.value)}
-                            placeholder="https://clinicwebsite.com/ or sc-domain:clinicwebsite.com"
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-                          />
+                          <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                            Search Console property: <span className="font-semibold text-gray-800 break-all">{derivedProperty}</span>
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         {isConnected ? (
                           <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
                             <FaCheckCircle className="mr-1" />
-                            Connected
+                            Website mapped
                           </span>
                         ) : (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
@@ -426,7 +371,7 @@ const SearchConsoleManagementPage: React.FC = () => {
                               className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
                             >
                               <FaUnlink className="mr-2" />
-                              Disconnect
+                              Clear
                             </button>
                           )}
                         </div>
@@ -440,12 +385,11 @@ const SearchConsoleManagementPage: React.FC = () => {
         </div>
 
         <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-3">What to put here</h3>
+          <h3 className="text-lg font-semibold text-blue-900 mb-3">How this works now</h3>
           <div className="space-y-2 text-sm text-blue-800">
-            <p>- For URL-prefix properties, use the exact property string, like `https://www.hamiltoncitydental.ca/`.</p>
-            <p>- For domain properties, use the Search Console domain-property format, like `sc-domain:sevenstoneslandscape.ca`.</p>
-            <p>- The website dropdown pulls from managed sites already stored in the portal, and the property dropdown suggests valid Search Console formats from that website.</p>
-            <p>- The website field is just your clinic's main website link. The Search Console property field is the property we&apos;ll query in the API.</p>
+            <p>- Just map each clinic to its main website URL.</p>
+            <p>- The portal derives the Search Console property automatically from that website URL.</p>
+            <p>- The Google connection at the top is still needed once for the portal, because Google requires OAuth before we can read private Search Console data.</p>
           </div>
         </div>
       </div>

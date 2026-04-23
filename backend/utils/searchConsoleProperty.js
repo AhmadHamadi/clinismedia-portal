@@ -65,15 +65,26 @@ function normalizeSearchConsoleProperty(value) {
   return normalizedUrl;
 }
 
+function deriveSearchConsolePropertyFromWebsite(websiteUrl) {
+  const normalizedWebsite = normalizeWebsiteUrl(websiteUrl);
+  return normalizedWebsite || null;
+}
+
 function buildSearchConsoleUpdate(input) {
   const updateData = {};
+  const hasWebsiteUrl = Object.prototype.hasOwnProperty.call(input, 'websiteUrl');
+  const hasPropertyUrl = Object.prototype.hasOwnProperty.call(input, 'searchConsolePropertyUrl');
+  let normalizedWebsite;
 
-  if (Object.prototype.hasOwnProperty.call(input, 'websiteUrl')) {
-    updateData.websiteUrl = normalizeWebsiteUrl(input.websiteUrl);
+  if (hasWebsiteUrl) {
+    normalizedWebsite = normalizeWebsiteUrl(input.websiteUrl);
+    updateData.websiteUrl = normalizedWebsite;
   }
 
-  if (Object.prototype.hasOwnProperty.call(input, 'searchConsolePropertyUrl')) {
+  if (hasPropertyUrl) {
     updateData.searchConsolePropertyUrl = normalizeSearchConsoleProperty(input.searchConsolePropertyUrl);
+  } else if (hasWebsiteUrl) {
+    updateData.searchConsolePropertyUrl = normalizedWebsite ? deriveSearchConsolePropertyFromWebsite(normalizedWebsite) : null;
   }
 
   return updateData;
@@ -81,6 +92,7 @@ function buildSearchConsoleUpdate(input) {
 
 module.exports = {
   SearchConsoleValidationError,
+  deriveSearchConsolePropertyFromWebsite,
   normalizeWebsiteUrl,
   normalizeSearchConsoleProperty,
   buildSearchConsoleUpdate,

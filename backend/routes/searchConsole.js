@@ -5,7 +5,11 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
-const { buildSearchConsoleUpdate, SearchConsoleValidationError } = require('../utils/searchConsoleProperty');
+const {
+  buildSearchConsoleUpdate,
+  deriveSearchConsolePropertyFromWebsite,
+  SearchConsoleValidationError,
+} = require('../utils/searchConsoleProperty');
 const { findGoogleIntegrationAdminUser } = require('../utils/googleIntegrationAdminUser');
 
 const router = express.Router();
@@ -330,13 +334,13 @@ router.get('/mappings', authenticateToken, authorizeRole(['admin']), async (req,
 
 router.post('/save-mapping', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    const { customerId, websiteUrl, searchConsolePropertyUrl } = req.body;
+    const { customerId, websiteUrl } = req.body;
 
     if (!customerId) {
       return res.status(400).json({ error: 'customerId is required' });
     }
 
-    const updateData = buildSearchConsoleUpdate({ websiteUrl, searchConsolePropertyUrl });
+    const updateData = buildSearchConsoleUpdate({ websiteUrl });
 
     const customer = await User.findOneAndUpdate(
       { _id: customerId, role: 'customer' },
@@ -352,8 +356,9 @@ router.post('/save-mapping', authenticateToken, authorizeRole(['admin']), async 
 
     res.json({
       success: true,
-      message: 'Search Console mapping saved successfully',
+      message: 'Search Console website mapping saved successfully',
       customer,
+      derivedProperty: customer.websiteUrl ? deriveSearchConsolePropertyFromWebsite(customer.websiteUrl) : null,
     });
   } catch (error) {
     console.error('Error saving Search Console mapping:', error);
@@ -458,7 +463,7 @@ router.patch('/disconnect/:customerId', authenticateToken, authorizeRole(['admin
 
     const customer = await User.findOneAndUpdate(
       { _id: customerId, role: 'customer' },
-      { searchConsolePropertyUrl: null },
+      { websiteUrl: null, searchConsolePropertyUrl: null },
       { new: true }
     )
       .select('name email location websiteUrl searchConsolePropertyUrl')
