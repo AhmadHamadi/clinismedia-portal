@@ -15,7 +15,6 @@ import SharedFolderManagementPage from './SharedFolderManagement/SharedFolderMan
 import GoogleAdsManagementPage from './GoogleAdsManagement/GoogleAdsManagementPage';
 import GoogleBusinessManagementPage from './GoogleBusinessManagement/GoogleBusinessManagementPage';
 import TwilioManagementPage from './TwilioManagement/TwilioManagementPage';
-import InstagramInsightsManagementPage from './InstagramInsightsManagement/InstagramInsightsManagementPage';
 import MetaLeadsManagementPage from './MetaLeadsManagementPage';
 import QuickBooksManagementPage from './QuickBooksManagement/QuickBooksManagementPage';
 import QRReviewsPage from './QRReviews/QRReviewsPage';
@@ -60,7 +59,6 @@ const AdminLayout = () => {
             <Route path="/google-ads" element={<GoogleAdsManagementPage />} />
             <Route path="/google-business" element={<GoogleBusinessManagementPage />} />
             <Route path="/twilio" element={<TwilioManagementPage />} />
-            <Route path="/instagram-insights" element={<InstagramInsightsManagementPage />} />
             <Route path="/meta-leads" element={<MetaLeadsManagementPage />} />
             <Route path="/quickbooks" element={<QuickBooksManagementPage />} />
             <Route path="/qr-reviews" element={<QRReviewsPage />} />

@@ -132,11 +132,6 @@ const AdminDash = () => {
           onClick={() => navigate("/admin/ai-reception")}
         />
         <DashboardBox
-          title="Manage Instagram Insights"
-          description="Upload and manage Instagram insight images"
-          onClick={() => navigate("/admin/instagram-insights")}
-        />
-        <DashboardBox
           title="Manage QuickBooks"
           description="Connect and manage QuickBooks integration"
           onClick={() => navigate("/admin/quickbooks")}

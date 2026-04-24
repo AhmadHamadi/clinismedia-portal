@@ -93,7 +93,6 @@ const SidebarMenu = () => {
     { label: "Manage Facebook", path: "/admin/facebook", icon: <FaFacebook /> },
     { label: "Manage Twilio", path: "/admin/twilio", icon: <FaPhone /> },
     { label: "Manage AI Reception", path: "/admin/ai-reception", icon: <FaRobot /> },
-    { label: "Manage Instagram Insights", path: "/admin/instagram-insights", icon: <FaImages /> },
     { label: "Manage QuickBooks", path: "/admin/quickbooks", icon: <FaDollarSign /> },
   ];
 

@@ -14,14 +14,6 @@ import {
 } from 'react-icons/fa';
 import { format, subDays } from 'date-fns';
 
-interface InstagramInsightImage {
-  _id: string;
-  month: string;
-  imageUrl: string;
-  uploadedAt: string;
-  url?: string;
-}
-
 interface InstagramTopPost {
   media_id: string;
   caption: string;
@@ -77,12 +69,9 @@ interface InsightRangeOption {
 }
 
 const InstagramInsightsPage: React.FC = () => {
-  const [images, setImages] = useState<InstagramInsightImage[]>([]);
-  const [imagesLoading, setImagesLoading] = useState(true);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<InstagramInsightImage | null>(null);
   const [selectedRangeKey, setSelectedRangeKey] = useState<string>('last30Days');
   const [insights, setInsights] = useState<InstagramInsightsResponse | null>(null);
 
@@ -109,44 +98,11 @@ const InstagramInsightsPage: React.FC = () => {
   ]), [now]);
 
   const selectedRange = rangeOptions.find((range) => range.key === selectedRangeKey) || rangeOptions[1];
-  const selectedMonthImage = images.find((image) => image.month === format(now, 'yyyy-MM')) || null;
-
-  useEffect(() => {
-    void fetchImages();
-  }, []);
-
   useEffect(() => {
     void fetchInsights(selectedRange.key);
   }, [selectedRange.key]);
 
   const getCustomerToken = () => localStorage.getItem('customerToken');
-
-  const fetchImages = async () => {
-    setImagesLoading(true);
-    try {
-      const token = getCustomerToken();
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/instagram-insights/my-images`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      const sortedImages = response.data.sort((a: InstagramInsightImage, b: InstagramInsightImage) => {
-        if (a.month !== b.month) {
-          return b.month.localeCompare(a.month);
-        }
-        return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
-      });
-
-      setImages(sortedImages);
-    } catch (err: any) {
-      console.error('Error fetching Instagram insight images:', err);
-      setError(err.response?.data?.error || 'Failed to fetch Instagram insights');
-    } finally {
-      setImagesLoading(false);
-    }
-  };
 
   const fetchInsights = async (rangeKey: string) => {
     setInsightsLoading(true);
@@ -179,10 +135,7 @@ const InstagramInsightsPage: React.FC = () => {
   const refreshAll = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
-        fetchImages(),
-        fetchInsights(selectedRange.key),
-      ]);
+      await fetchInsights(selectedRange.key);
     } finally {
       setRefreshing(false);
     }
@@ -199,15 +152,6 @@ const InstagramInsightsPage: React.FC = () => {
     const rounded = Math.round(value);
     if (rounded > 0) return `+${rounded}%`;
     return `${rounded}%`;
-  };
-
-  const buildImageUrl = (image: InstagramInsightImage) => {
-    if (image.url) return image.url;
-    if (image.imageUrl.startsWith('http')) return image.imageUrl;
-    if (image.imageUrl.startsWith('/uploads/')) {
-      return `${import.meta.env.VITE_BACKEND_BASE_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5000'}${image.imageUrl}`;
-    }
-    return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/instagram-insights/image/${image._id}`;
   };
 
   const hasAnyNumericData = Boolean(
@@ -231,7 +175,7 @@ const InstagramInsightsPage: React.FC = () => {
             Instagram Insights
           </h1>
           <p>
-            Live Instagram metrics for the selected month, with uploaded report images still available below.
+            Live Instagram metrics for your connected Instagram professional account.
           </p>
         </div>
 
@@ -302,33 +246,6 @@ const InstagramInsightsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="cm-panel-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Image Report</h2>
-              {imagesLoading ? (
-                <div className="flex items-center justify-center py-8 text-gray-500">
-                  <FaSpinner className="animate-spin mr-2" />
-                  Loading uploaded reports...
-                </div>
-              ) : selectedMonthImage ? (
-                <button
-                  onClick={() => setSelectedImage(selectedMonthImage)}
-                  className="block w-full text-left"
-                >
-                  <img
-                    src={buildImageUrl(selectedMonthImage)}
-                    alt={`Instagram report for ${selectedMonthImage.month}`}
-                    className="w-full rounded-lg border border-gray-200"
-                  />
-                  <p className="text-sm text-gray-600 mt-3">
-                    Uploaded {formatDate(selectedMonthImage.uploadedAt)}
-                  </p>
-                </button>
-              ) : (
-                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-600">
-                  No uploaded image report for this month.
-                </div>
-              )}
-            </div>
           </div>
 
           <div className="space-y-6">
@@ -483,28 +400,6 @@ const InstagramInsightsPage: React.FC = () => {
           </div>
         </div>
 
-        {selectedImage && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
-            onClick={() => setSelectedImage(null)}
-          >
-            <div className="max-w-6xl max-h-[90vh] overflow-auto">
-              <img
-                src={buildImageUrl(selectedImage)}
-                alt={`Instagram Insights - ${selectedImage.month}`}
-                className="w-full h-auto rounded-lg shadow-2xl"
-                style={{ minWidth: '100%', maxWidth: 'none' }}
-                onClick={(event) => event.stopPropagation()}
-              />
-              <div className="text-center mt-4 text-white">
-                <p className="text-lg font-semibold flex items-center justify-center">
-                  {selectedImage.month}
-                </p>
-                <p className="text-sm text-gray-300">Uploaded: {formatDate(selectedImage.uploadedAt)}</p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
