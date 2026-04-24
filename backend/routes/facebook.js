@@ -348,13 +348,18 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
     };
     
     // Fetch Facebook insights for current period
-    // ✅ FIXED: page_impressions is deprecated, use page_impressions_unique instead
-    // ✅ FIXED: page_fans requires period=lifetime, not period=day
+    // 2026 metric set: per Meta's Page Insights deprecation (page_impressions
+    // sunset Nov 15 2025, page_impressions_unique sunset Jun 15 2025), use
+    // page_media_view (total impressions, counts repeats) and
+    // page_total_media_view_unique (reach, unique users). These are DIFFERENT
+    // metrics — reach <= impressions. Mapping the same metric to both was
+    // hiding the distinction.
+    // page_fans was also deprecated; we already use page_follows.
     const metrics = [
-      { key: 'impressions', metric: 'page_impressions_unique', period: 'day' },  // Use unique impressions (same as reach)
-      { key: 'reach', metric: 'page_impressions_unique', period: 'day' },
+      { key: 'impressions', metric: 'page_media_view', period: 'day' },
+      { key: 'reach', metric: 'page_total_media_view_unique', period: 'day' },
       { key: 'engagements', metric: 'page_post_engagements', period: 'day' },
-      { key: 'followers', metric: 'page_follows', period: 'day' },  // ✅ FIXED: page_fans deprecated, use page_follows
+      { key: 'followers', metric: 'page_follows', period: 'day' },
       { key: 'pageViews', metric: 'page_views_total', period: 'day' },
       { key: 'videoViews', metric: 'page_video_views', period: 'day' },
     ];

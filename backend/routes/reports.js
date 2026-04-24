@@ -1240,9 +1240,14 @@ async function buildFacebookSection(customer, start, end) {
     return null;
   }
 
+  // Mirrors live /api/facebook/insights/:customerId metric set.
+  // page_impressions / page_impressions_unique were both fully deprecated in
+  // 2025 — replaced by page_media_view (total impressions) and
+  // page_total_media_view_unique (unique reach). They produce DIFFERENT
+  // numbers, as expected for reach vs impressions.
   const metrics = [
-    { key: 'impressions', metric: 'page_impressions_unique' },
-    { key: 'reach', metric: 'page_impressions_unique' },
+    { key: 'impressions', metric: 'page_media_view' },
+    { key: 'reach', metric: 'page_total_media_view_unique' },
     { key: 'engagements', metric: 'page_post_engagements' },
     { key: 'followers', metric: 'page_follows' },
     { key: 'pageViews', metric: 'page_views_total' },
