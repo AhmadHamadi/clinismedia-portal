@@ -118,6 +118,7 @@ router.get('/customer/:customerId', authenticateToken, authorizeRole(['admin']),
     userInsights.forEach(insight => {
       switch (insight.metric) {
         case 'impressions':
+        case 'views':
           totals.totalImpressions += insight.value;
           break;
         case 'reach':
@@ -247,6 +248,7 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
     userInsights.forEach(insight => {
       switch (insight.metric) {
         case 'impressions':
+        case 'views':
           currentTotals.totalImpressions += insight.value;
           break;
         case 'reach':
@@ -293,6 +295,7 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
     previousUserInsights.forEach(insight => {
       switch (insight.metric) {
         case 'impressions':
+        case 'views':
           previousTotals.totalImpressions += insight.value;
           break;
         case 'reach':

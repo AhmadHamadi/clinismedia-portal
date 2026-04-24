@@ -4,7 +4,7 @@ const InstaUserInsight = require('../models/InstaUserInsight');
 const InstaMediaInsight = require('../models/InstaMediaInsight');
 const User = require('../models/User');
 
-const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
+const GRAPH_API_BASE = 'https://graph.facebook.com/v22.0';
 
 function createIdemKey(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -164,7 +164,7 @@ async function fetchInstagramProfile(instagramAccountId, accessTokens) {
   return data || {};
 }
 
-const TOTAL_VALUE_USER_METRICS = ['reach', 'impressions', 'profile_views', 'website_clicks'];
+const TOTAL_VALUE_USER_METRICS = ['reach', 'views', 'profile_views', 'website_clicks'];
 
 async function fetchUserMetric({ instagramAccountId, accessTokens, metric, metricType, since, until }) {
   const { data } = await graphGetWithFallback(
@@ -248,7 +248,7 @@ function getMediaMetricCandidates(media) {
     return ['reach', 'likes', 'comments', 'saved', 'shares', 'plays', 'views'];
   }
 
-  return ['reach', 'impressions', 'likes', 'comments', 'saved', 'shares'];
+  return ['reach', 'views', 'likes', 'comments', 'saved', 'shares'];
 }
 
 async function fetchMediaInsights(media, accessTokens) {
@@ -283,7 +283,7 @@ async function fetchMediaInsights(media, accessTokens) {
 
   return {
     reach: Number(metrics.reach || 0),
-    impressions: Number(metrics.impressions || 0),
+    impressions: Number(metrics.views || metrics.impressions || 0),
     likes: Number(metrics.likes || 0),
     comments: Number(metrics.comments || 0),
     saves: Number(metrics.saved || 0),
