@@ -2,7 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
+const GRAPH_API_BASE = 'https://graph.facebook.com/v22.0';
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 const User = require('../models/User');
@@ -406,13 +406,14 @@ async function buildMarketingReportPayload(req, customer, range) {
       name: customer.customerSettings?.displayName || customer.name,
       email: customer.email,
       location: customer.location,
+      website: customer.customerSettings?.website || customer.website || null,
       logoUrl: customer.customerSettings?.logoUrl || null,
     },
     overview,
     sections,
     recommendations,
     availableIntegrations: {
-      metaLeads: true,
+      metaLeads: !!sectionMap.metaLeads,
       googleAds: !!customer.googleAdsCustomerId,
       googleBusiness: !!customer.googleBusinessProfileId,
       facebook: !!(customer.facebookPageId && customer.facebookAccessToken),
@@ -1043,6 +1044,7 @@ async function buildInstagramSection(customerId, start, end) {
   userInsights.forEach((insight) => {
     switch (insight.metric) {
       case 'impressions':
+      case 'views':
         totals.totalImpressions += insight.value;
         break;
       case 'reach':
@@ -1055,10 +1057,8 @@ async function buildInstagramSection(customerId, start, end) {
         totals.totalWebsiteClicks += insight.value;
         break;
       case 'follower_count':
-        totals.followerCount = insight.value;
-        break;
       case 'followers_count_snapshot':
-        totals.followerCount = insight.value;
+        if (totals.followerCount === 0) totals.followerCount = insight.value;
         break;
       default:
         break;
@@ -1141,7 +1141,7 @@ async function buildFacebookSection(customer, start, end) {
   }
 
   const metrics = [
-    { key: 'impressions', metric: 'page_impressions_unique' },
+    { key: 'impressions', metric: 'page_impressions' },
     { key: 'reach', metric: 'page_impressions_unique' },
     { key: 'engagements', metric: 'page_post_engagements' },
     { key: 'followers', metric: 'page_follows' },

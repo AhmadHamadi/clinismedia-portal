@@ -56,6 +56,7 @@ interface ReportPayload {
     name: string;
     email: string;
     location?: string;
+    website?: string | null;
     logoUrl?: string | null;
   };
   overview: {
@@ -340,9 +341,37 @@ function getPrintSectionIcon(sectionId: string) {
   `;
 }
 
-function buildPrintHtml(report: ReportPayload, emailDraft: EmailDraftPayload | null, logoSrc: string) {
-  const visibleSections = report.sections.filter(hasRenderableSectionContent);
-  const topHighlights = getTopHighlights(report);
+const SECTION_ORDER: Record<string, number> = {
+  metaLeads: 1,
+  callTracking: 2,
+  aiReception: 3,
+  facebook: 4,
+  instagram: 5,
+  googleBusiness: 6,
+  qrReviews: 7,
+  googleAds: 8,
+};
+
+function formatDateLongRange(startIso: string, endIso: string) {
+  const start = new Date(`${startIso}T00:00:00`);
+  const end = new Date(`${endIso}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return `${startIso} — ${endIso}`;
+  }
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const startFmt = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: sameYear ? undefined : 'numeric' });
+  const endFmt = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `${startFmt} — ${endFmt}`;
+}
+
+function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | null, logoSrc: string) {
+  const visibleSections = report.sections
+    .filter(hasRenderableSectionContent)
+    .sort((a, b) => (SECTION_ORDER[a.id] || 99) - (SECTION_ORDER[b.id] || 99));
+
+  const coverDateRange = formatDateLongRange(report.period.start, report.period.end);
+  const endYear = new Date(`${report.period.end}T00:00:00`).getFullYear() || new Date().getFullYear();
+
   const overviewHtml = overviewCards.map((card) => `
     <div class="stat-card">
       <div class="stat-label">${escapeHtml(card.label)}</div>
@@ -350,27 +379,18 @@ function buildPrintHtml(report: ReportPayload, emailDraft: EmailDraftPayload | n
     </div>
   `).join('');
 
-  const keyNotesHtml = topHighlights.length
-    ? `
-      <section class="callout">
-        <h3>Key Notes</h3>
-        <ul>${topHighlights.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-      </section>
-    `
-    : '';
-
-  const sectionsHtml = visibleSections.map((section) => {
-    const accentMap: Record<string, { border: string; badge: string; icon: string }> = {
-      metaLeads: { border: '#ec4899', badge: '#fce7f3', icon: '#be185d' },
-      callTracking: { border: '#10b981', badge: '#d1fae5', icon: '#047857' },
-      aiReception: { border: '#8b5cf6', badge: '#ede9fe', icon: '#6d28d9' },
-      googleBusiness: { border: '#2563eb', badge: '#dbeafe', icon: '#1d4ed8' },
-      googleAds: { border: '#f59e0b', badge: '#fef3c7', icon: '#b45309' },
-      instagram: { border: '#d946ef', badge: '#fae8ff', icon: '#a21caf' },
-      facebook: { border: '#0ea5e9', badge: '#e0f2fe', icon: '#0369a1' },
-      qrReviews: { border: '#eab308', badge: '#fef9c3', icon: '#a16207' },
+  const sectionsHtml = visibleSections.map((section, idx) => {
+    const accentMap: Record<string, { border: string; badge: string; icon: string; kicker: string }> = {
+      metaLeads: { border: '#ec4899', badge: '#fce7f3', icon: '#be185d', kicker: 'Lead Generation' },
+      callTracking: { border: '#10b981', badge: '#d1fae5', icon: '#047857', kicker: 'Phone Performance' },
+      aiReception: { border: '#8b5cf6', badge: '#ede9fe', icon: '#6d28d9', kicker: 'AI Receptionist' },
+      googleBusiness: { border: '#2563eb', badge: '#dbeafe', icon: '#1d4ed8', kicker: 'Google Business & Reviews' },
+      googleAds: { border: '#f59e0b', badge: '#fef3c7', icon: '#b45309', kicker: 'Paid Search' },
+      instagram: { border: '#d946ef', badge: '#fae8ff', icon: '#a21caf', kicker: 'Instagram Insights' },
+      facebook: { border: '#0ea5e9', badge: '#e0f2fe', icon: '#0369a1', kicker: 'Facebook Insights' },
+      qrReviews: { border: '#eab308', badge: '#fef9c3', icon: '#a16207', kicker: 'QR Review Program' },
     };
-    const accent = accentMap[section.id] || { border: '#94a3b8', badge: '#f1f5f9', icon: '#334155' };
+    const accent = accentMap[section.id] || { border: '#94a3b8', badge: '#f1f5f9', icon: '#334155', kicker: 'Channel Performance' };
     const summaryEntries = Object.entries(section.summary || {}).filter(([, value]) => value !== null && value !== undefined && value !== '');
     const summaryHtml = summaryEntries.length
       ? `<div class="summary-grid">${summaryEntries.map(([key, value]) => `
@@ -382,27 +402,31 @@ function buildPrintHtml(report: ReportPayload, emailDraft: EmailDraftPayload | n
       : '';
 
     const highlightsHtml = section.highlights?.length
-      ? `<div class="detail-block"><div class="detail-title">Highlights</div><ul class="pill-list">${section.highlights.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`
+      ? `<div class="detail-block"><div class="detail-title">Highlights</div><ul class="pill-list">${section.highlights.slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`
       : '';
 
     const campaignsHtml = section.campaigns?.length
       ? `<div class="detail-block"><div class="detail-title">Campaign Snapshot</div>${buildTableHtml(section.campaigns.slice(0, 5))}</div>`
       : '';
 
+    const recentLeadsHtml = section.recentLeads?.length
+      ? `<div class="detail-block"><div class="detail-title">Recent Leads</div>${buildTableHtml(section.recentLeads.slice(0, 5))}</div>`
+      : '';
+
     const topPostsHtml = section.topPosts?.length
       ? `<div class="detail-block"><div class="detail-title">Top Posts</div><div class="card-list">${section.topPosts.slice(0, 3).map((post) => `
           <div class="mini-card">
             <strong>${escapeHtml(post.caption || 'Instagram post')}</strong>
-            <div>${escapeHtml(`Reach ${formatMetricValue(post.reach)} | Engagement ${formatMetricValue(post.engagement)} | Plays ${formatMetricValue(post.plays)}`)}</div>
+            <div class="mini-meta">${escapeHtml(`Reach ${formatMetricValue(post.reach)} · Engagement ${formatMetricValue(post.engagement)} · Plays ${formatMetricValue(post.plays)}`)}</div>
           </div>
         `).join('')}</div></div>`
       : '';
 
     const topReasonsHtml = section.topReasons?.length
-      ? `<div class="detail-block"><div class="detail-title">Top Reasons For Calling</div><div class="card-list">${section.topReasons.slice(0, 4).map((item) => `
+      ? `<div class="detail-block"><div class="detail-title">Top Reasons for Calling</div><div class="card-list">${section.topReasons.slice(0, 4).map((item) => `
           <div class="mini-card">
             <strong>${escapeHtml(item.reason || 'Reason')}</strong>
-            <div>${escapeHtml(`${formatMetricValue(item.count)} calls`)}</div>
+            <div class="mini-meta">${escapeHtml(`${formatMetricValue(item.count)} calls`)}</div>
           </div>
         `).join('')}</div></div>`
       : '';
@@ -411,35 +435,51 @@ function buildPrintHtml(report: ReportPayload, emailDraft: EmailDraftPayload | n
       ? `<div class="detail-block"><div class="detail-title">Recent Reviews</div><div class="card-list">${section.recentReviews.slice(0, 3).map((review) => `
           <div class="mini-card">
             <strong>${escapeHtml(review.reviewerName || 'Reviewer')}</strong>
-            <div>${escapeHtml(`Rating ${formatMetricValue(review.starRating)} | ${review.createTime ? new Date(review.createTime).toLocaleDateString() : ''}`)}</div>
+            <div class="mini-meta">${escapeHtml(`Rating ${formatMetricValue(review.starRating)} · ${review.createTime ? new Date(review.createTime).toLocaleDateString() : ''}`)}</div>
             ${review.comment ? `<p>${escapeHtml(review.comment)}</p>` : ''}
           </div>
         `).join('')}</div></div>`
       : '';
 
+    const errorHtml = section.error
+      ? `<div class="section-error">${escapeHtml(section.error)}</div>`
+      : '';
+
     return `
-      <section class="report-section">
-        <div class="section-head" style="border-left: 6px solid ${accent.border}; padding-left: 14px;">
+      <section class="report-section" style="--accent: ${accent.border};">
+        <div class="section-head">
           <div class="section-title-wrap">
             <div class="section-logo" style="background:${accent.badge}; color:${accent.icon};">
               ${getPrintSectionIcon(section.id)}
             </div>
             <div>
-              <div class="section-kicker" style="color: ${accent.icon};">Channel Performance</div>
+              <div class="section-kicker" style="color: ${accent.icon};">${escapeHtml(accent.kicker)}</div>
               <h2>${escapeHtml(section.title)}</h2>
-              ${section.error ? `<div class="section-error">${escapeHtml(section.error)}</div>` : ''}
             </div>
           </div>
+          <div class="section-number" style="color: ${accent.icon};">${String(idx + 1).padStart(2, '0')}</div>
         </div>
+        ${errorHtml}
         ${summaryHtml}
         ${highlightsHtml}
         ${campaignsHtml}
+        ${recentLeadsHtml}
         ${topPostsHtml}
         ${topReasonsHtml}
         ${recentReviewsHtml}
       </section>
     `;
   }).join('');
+
+  const websiteLine = report.clinic.website
+    ? `<div class="footer-row"><span class="footer-label">Website</span><span class="footer-value">${escapeHtml(report.clinic.website)}</span></div>`
+    : '';
+  const emailLine = report.clinic.email
+    ? `<div class="footer-row"><span class="footer-label">Email</span><span class="footer-value">${escapeHtml(report.clinic.email)}</span></div>`
+    : '';
+  const locationLine = report.clinic.location
+    ? `<div class="footer-row"><span class="footer-label">Location</span><span class="footer-value">${escapeHtml(report.clinic.location)}</span></div>`
+    : '';
 
   return `<!doctype html>
     <html>
@@ -448,60 +488,194 @@ function buildPrintHtml(report: ReportPayload, emailDraft: EmailDraftPayload | n
         <title>${escapeHtml(report.exportFileName.replace(/\.pdf$/i, ''))}</title>
         <style>
           * { box-sizing: border-box; }
-          body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #0f172a; background: #f8fafc; }
-          .page { max-width: 980px; margin: 0 auto; padding: 28px 24px 48px; }
-          .hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; background: linear-gradient(135deg, #10213d 0%, #21467f 55%, #4382dd 100%); color: #fff; border-radius: 24px; padding: 24px; }
-          .hero img { width: 110px; height: auto; object-fit: contain; }
-          .hero h1 { margin: 8px 0 6px; font-size: 30px; line-height: 1.1; }
-          .hero-meta, .hero-submeta { font-size: 13px; line-height: 1.6; color: rgba(255,255,255,0.88); }
-          .section-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: #64748b; }
-          .overview-grid, .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
-          .stat-card, .summary-item, .email-card, .report-section, .callout { background: #fff; border: 1px solid #dbe4f0; border-radius: 18px; }
-          .stat-card { padding: 16px; }
-          .stat-label, .summary-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }
-          .stat-value, .summary-value { margin-top: 6px; font-size: 28px; font-weight: 700; color: #0f172a; }
-          .summary-item { padding: 14px; }
-          .report-section { margin-top: 18px; padding: 18px; }
-          .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-          .section-title-wrap { display: flex; align-items: flex-start; gap: 12px; }
-          .section-logo { width: 44px; height: 44px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-          .section-logo svg { width: 24px; height: 24px; display: block; }
-          .report-section h2, .email-card h3 { margin: 6px 0 0; font-size: 22px; line-height: 1.2; }
-          .section-error { margin-top: 8px; color: #b91c1c; font-size: 13px; font-weight: 600; }
-          .detail-block { margin-top: 16px; }
-          .detail-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 8px; }
-          .pill-list, .callout ul { margin: 0; padding-left: 18px; }
-          .pill-list li, .callout li { margin: 6px 0; }
+          @page { size: Letter; margin: 0; }
+          html, body { margin: 0; padding: 0; color: #0f172a; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #f4f3fb; }
+
+          /* --------- COVER PAGE --------- */
+          .cover {
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+            padding: 56px 64px;
+            background: linear-gradient(135deg, #eeecfa 0%, #f2eaf6 55%, #efe8f5 100%);
+            overflow: hidden;
+            page-break-after: always;
+            break-after: page;
+          }
+          .cover::before {
+            content: '';
+            position: absolute;
+            top: -120px;
+            right: -120px;
+            width: 620px;
+            height: 620px;
+            background:
+              radial-gradient(circle at 30% 30%, rgba(189, 163, 232, 0.95), rgba(189, 163, 232, 0) 60%),
+              radial-gradient(circle at 70% 40%, rgba(229, 144, 196, 0.85), rgba(229, 144, 196, 0) 65%),
+              radial-gradient(circle at 55% 75%, rgba(136, 152, 222, 0.85), rgba(136, 152, 222, 0) 60%);
+            filter: blur(12px);
+            border-radius: 50%;
+          }
+          .cover::after {
+            content: '';
+            position: absolute;
+            top: 8%;
+            left: 6%;
+            width: 110px;
+            height: 110px;
+            background: radial-gradient(circle, rgba(99,91,145,0.12) 1.5px, transparent 2px);
+            background-size: 10px 10px;
+          }
+          .cover-inner { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; min-height: calc(100vh - 112px); }
+          .cover-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+          .cover-brand { display: flex; align-items: center; gap: 12px; }
+          .cover-brand img { width: 42px; height: 42px; object-fit: contain; }
+          .cover-brand-text { font-size: 12px; font-weight: 700; color: #2a2457; line-height: 1.25; letter-spacing: 0.02em; }
+          .cover-brand-sub { font-size: 11px; font-weight: 500; color: #6c6596; letter-spacing: 0.06em; text-transform: uppercase; }
+          .cover-period { text-align: right; font-size: 13px; color: #2a2457; font-weight: 600; letter-spacing: 0.04em; }
+          .cover-title { font-size: 84px; line-height: 0.95; font-weight: 800; color: #2a2457; letter-spacing: -0.02em; margin: 0; }
+          .cover-subtitle { margin-top: 22px; max-width: 420px; font-size: 17px; color: #4d4679; line-height: 1.5; font-weight: 500; }
+          .cover-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-top: 24px; border-top: 2px solid rgba(42,36,87,0.18); }
+          .cover-address { font-size: 12px; font-weight: 700; color: #2a2457; text-transform: uppercase; letter-spacing: 0.12em; max-width: 320px; line-height: 1.5; }
+          .cover-year { font-size: 56px; font-weight: 800; color: #2a2457; letter-spacing: -0.02em; line-height: 1; }
+          .cover-clinic { font-size: 22px; font-weight: 700; color: #2a2457; margin-top: 4px; }
+
+          /* --------- CONTENT PAGES --------- */
+          .page {
+            max-width: 840px;
+            margin: 0 auto;
+            padding: 48px 56px 64px;
+            background: #ffffff;
+          }
+          .page-break { page-break-before: always; break-before: page; }
+
+          .overview-header { margin-bottom: 24px; }
+          .overview-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; color: #6c6596; }
+          .overview-title { margin: 6px 0 4px; font-size: 30px; font-weight: 800; color: #1f1b41; letter-spacing: -0.02em; }
+          .overview-desc { color: #52537e; font-size: 14px; line-height: 1.6; max-width: 620px; }
+          .overview-meta { margin-top: 16px; font-size: 12px; color: #6c6596; letter-spacing: 0.04em; }
+
+          .overview-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 8px; }
+          .stat-card { padding: 18px 18px 20px; background: linear-gradient(180deg, #faf9ff 0%, #ffffff 100%); border: 1px solid #e4e1f3; border-radius: 18px; }
+          .stat-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #6c6596; }
+          .stat-value { margin-top: 10px; font-size: 30px; font-weight: 800; color: #1f1b41; line-height: 1; letter-spacing: -0.02em; }
+
+          .section-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
+
+          .report-section {
+            margin-top: 28px;
+            padding: 26px 28px 28px;
+            background: #ffffff;
+            border: 1px solid #e4e1f3;
+            border-radius: 22px;
+            position: relative;
+            border-left: 6px solid var(--accent, #6c6596);
+            box-shadow: 0 1px 0 rgba(31,27,65,0.04);
+          }
+          .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+          .section-title-wrap { display: flex; align-items: flex-start; gap: 14px; }
+          .section-logo { width: 46px; height: 46px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+          .section-logo svg { width: 26px; height: 26px; display: block; }
+          .section-number { font-size: 40px; font-weight: 800; opacity: 0.22; letter-spacing: -0.02em; line-height: 1; }
+          .report-section h2 { margin: 6px 0 0; font-size: 24px; line-height: 1.15; color: #1f1b41; letter-spacing: -0.01em; }
+
+          .section-error { margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; background: #fef2f2; color: #b91c1c; font-size: 13px; font-weight: 600; border: 1px solid #fecaca; }
+
+          .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 4px; }
+          .summary-item { padding: 14px 14px 16px; background: #faf9ff; border: 1px solid #e9e6f5; border-radius: 14px; }
+          .summary-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #6c6596; }
+          .summary-value { margin-top: 6px; font-size: 22px; font-weight: 800; color: #1f1b41; letter-spacing: -0.01em; }
+
+          .detail-block { margin-top: 20px; }
+          .detail-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #6c6596; margin-bottom: 10px; }
+          .pill-list { margin: 0; padding-left: 18px; color: #1f1b41; }
+          .pill-list li { margin: 6px 0; font-size: 13.5px; line-height: 1.55; }
           .card-list { display: grid; gap: 10px; }
-          .mini-card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px 14px; background: #f8fafc; font-size: 13px; line-height: 1.5; }
-          .mini-card p { margin: 8px 0 0; }
-          .table-wrap { overflow: hidden; border: 1px solid #dbe4f0; border-radius: 14px; }
+          .mini-card { border: 1px solid #e9e6f5; border-radius: 14px; padding: 14px 16px; background: #faf9ff; font-size: 13px; line-height: 1.5; color: #1f1b41; }
+          .mini-card strong { color: #1f1b41; }
+          .mini-meta { margin-top: 4px; color: #52537e; font-size: 12.5px; }
+          .mini-card p { margin: 10px 0 0; color: #4b4973; }
+
+          .table-wrap { overflow: hidden; border: 1px solid #e4e1f3; border-radius: 14px; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th, td { padding: 9px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
-          th { background: #f8fafc; color: #475569; font-weight: 700; }
-          .email-card, .callout { margin-top: 18px; padding: 18px; }
-          .email-card pre { white-space: pre-wrap; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6; color: #334155; margin: 14px 0 0; }
-          .warning { background: #fff7ed; border-color: #fed7aa; }
-          .warning h3 { margin: 0 0 10px; color: #9a3412; }
-          .meta-line { font-size: 13px; color: #475569; line-height: 1.6; }
-          .sep { padding: 0 8px; color: #94a3b8; }
-          @media print { body { background: #fff; } .page { max-width: none; margin: 0; padding: 0; } .report-section, .email-card, .callout, .hero, .stat-card, .summary-item { break-inside: avoid; } }
+          th, td { padding: 10px 12px; border-bottom: 1px solid #ede9f8; text-align: left; vertical-align: top; color: #1f1b41; }
+          th { background: #f8f6ff; color: #4d4679; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; }
+          tr:last-child td { border-bottom: none; }
+
+          /* --------- FOOTER --------- */
+          .footer-page { padding: 56px 56px 72px; background: linear-gradient(135deg, #efedfa 0%, #f6eef5 100%); }
+          .footer-card { background: #ffffff; border: 1px solid #e4e1f3; border-radius: 22px; padding: 36px 40px; }
+          .footer-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; color: #6c6596; }
+          .footer-title { margin: 6px 0 22px; font-size: 28px; font-weight: 800; color: #1f1b41; letter-spacing: -0.02em; }
+          .footer-row { display: flex; align-items: baseline; gap: 14px; padding: 10px 0; border-bottom: 1px solid #ede9f8; font-size: 13px; color: #1f1b41; }
+          .footer-row:last-child { border-bottom: none; }
+          .footer-label { flex: 0 0 100px; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10.5px; font-weight: 700; color: #6c6596; }
+          .footer-value { flex: 1; word-break: break-word; font-weight: 500; }
+          .footer-brand { display: flex; align-items: center; gap: 12px; margin-top: 28px; padding-top: 20px; border-top: 2px solid #ede9f8; color: #6c6596; font-size: 12px; }
+          .footer-brand img { width: 32px; height: 32px; object-fit: contain; }
+
+          @media print {
+            body { background: #ffffff; }
+            .page { max-width: none; margin: 0; padding: 48px 56px 64px; }
+            .cover, .page, .footer-page { min-height: auto; }
+            .report-section, .stat-card, .summary-item, .mini-card { break-inside: avoid; }
+          }
         </style>
       </head>
       <body>
-        <div class="page">
-          <section class="hero">
-            <div>
-              <div class="section-kicker" style="color: rgba(255,255,255,0.75);">CliniMedia Marketing Report</div>
-              <h1>${escapeHtml(report.clinic.name)}</h1>
-              <div class="hero-meta">${escapeHtml(report.period.label)} | ${escapeHtml(report.period.start)} to ${escapeHtml(report.period.end)}</div>
-              <div class="hero-submeta">Generated ${escapeHtml(new Date(report.generatedAt).toLocaleString())}${report.clinic.location ? ` | ${escapeHtml(report.clinic.location)}` : ''}</div>
+        <!-- ===== COVER PAGE ===== -->
+        <section class="cover">
+          <div class="cover-inner">
+            <div class="cover-top">
+              <div class="cover-brand">
+                <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" />
+                <div>
+                  <div class="cover-brand-text">CliniMedia</div>
+                  <div class="cover-brand-sub">Marketing Analytics</div>
+                </div>
+              </div>
+              <div class="cover-period">${escapeHtml(coverDateRange)}</div>
             </div>
-            <img src="${escapeHtml(logoSrc)}" alt="CliniMedia logo" />
-          </section>
-          <section class="overview-grid">${overviewHtml}</section>
-          ${keyNotesHtml}
+
+            <div>
+              <h1 class="cover-title">MARKETING<br/>REPORT</h1>
+              <div class="cover-subtitle">${escapeHtml(report.period.label)} — performance, reach, and growth across every channel we run for your clinic.</div>
+              <div class="cover-clinic">${escapeHtml(report.clinic.name)}</div>
+            </div>
+
+            <div class="cover-bottom">
+              <div class="cover-address">${escapeHtml(report.clinic.location || report.clinic.email || '')}</div>
+              <div class="cover-year">${escapeHtml(String(endYear))}</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== OVERVIEW PAGE ===== -->
+        <div class="page">
+          <div class="overview-header">
+            <div class="overview-kicker">01 · Overview</div>
+            <h2 class="overview-title">Performance at a Glance</h2>
+            <p class="overview-desc">Six headline metrics summarizing lead volume, phone activity, and AI reception across the ${escapeHtml(report.period.label.toLowerCase())} window. Each channel is broken down in detail on the pages that follow.</p>
+            <div class="overview-meta">Reporting window: ${escapeHtml(coverDateRange)} · Generated ${escapeHtml(new Date(report.generatedAt).toLocaleDateString())}</div>
+          </div>
+          <div class="overview-grid">${overviewHtml}</div>
+
           ${sectionsHtml}
+        </div>
+
+        <!-- ===== FOOTER PAGE ===== -->
+        <div class="footer-page page-break">
+          <div class="footer-card">
+            <div class="footer-kicker">Let's keep growing together</div>
+            <div class="footer-title">${escapeHtml(report.clinic.name)}</div>
+            ${websiteLine}
+            ${emailLine}
+            ${locationLine}
+            <div class="footer-brand">
+              <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" />
+              <span>Prepared by CliniMedia · ${escapeHtml(coverDateRange)}</span>
+            </div>
+          </div>
         </div>
       </body>
     </html>`;
