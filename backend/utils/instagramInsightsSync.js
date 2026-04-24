@@ -217,7 +217,7 @@ function getMediaMetricCandidates(media) {
   const productType = String(media?.media_product_type || '').toUpperCase();
 
   if (mediaType === 'VIDEO' || mediaType === 'REEL' || productType === 'REELS') {
-    return ['reach', 'impressions', 'likes', 'comments', 'saved', 'shares', 'plays', 'views'];
+    return ['reach', 'likes', 'comments', 'saved', 'shares', 'plays', 'views'];
   }
 
   return ['reach', 'impressions', 'likes', 'comments', 'saved', 'shares'];

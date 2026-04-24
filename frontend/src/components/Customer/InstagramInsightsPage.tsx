@@ -368,8 +368,8 @@ const InstagramInsightsPage: React.FC = () => {
                                   <p className="font-semibold text-gray-900">{Number(post.metrics.reach || 0).toLocaleString()}</p>
                                 </div>
                                 <div className="rounded-md bg-gray-50 p-3">
-                                  <p className="text-gray-500">Impressions</p>
-                                  <p className="font-semibold text-gray-900">{Number(post.metrics.impressions || 0).toLocaleString()}</p>
+                                  <p className="text-gray-500">Saves</p>
+                                  <p className="font-semibold text-gray-900">{Number(post.metrics.saves || 0).toLocaleString()}</p>
                                 </div>
                                 <div className="rounded-md bg-gray-50 p-3">
                                   <p className="text-gray-500">Plays</p>
