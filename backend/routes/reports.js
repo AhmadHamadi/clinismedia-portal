@@ -1040,15 +1040,10 @@ async function buildGoogleBusinessSection(req, customer, start, end) {
   const summary = {
     ...totals,
     ...(reviewSummary ? {
-      totalReviewCount: reviewSummary.totalReviewCount,
-      reviewsInRange: reviewSummary.reviewsInRange,
-      averageRatingOverall: reviewSummary.averageRatingOverall,
-      averageRatingInRange: reviewSummary.averageRatingInRange,
-      fiveStarReviews: reviewSummary.fiveStarReviews,
-      fourStarReviews: reviewSummary.fourStarReviews,
-      threeStarReviews: reviewSummary.threeStarReviews,
-      twoStarReviews: reviewSummary.twoStarReviews,
-      oneStarReviews: reviewSummary.oneStarReviews,
+      newReviewsInPeriod: reviewSummary.reviewsInRange,
+      ...(reviewSummary.averageRatingInRange !== null && reviewSummary.averageRatingInRange !== undefined
+        ? { averageRatingInRange: reviewSummary.averageRatingInRange }
+        : {}),
     } : {}),
   };
 
