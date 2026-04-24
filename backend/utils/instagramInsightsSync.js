@@ -4,7 +4,7 @@ const InstaUserInsight = require('../models/InstaUserInsight');
 const InstaMediaInsight = require('../models/InstaMediaInsight');
 const User = require('../models/User');
 
-const GRAPH_API_BASE = 'https://graph.facebook.com/v19.0';
+const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
 
 function createIdemKey(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -148,7 +148,7 @@ async function fetchInstagramProfile(instagramAccountId, accessTokens) {
 }
 
 async function syncUserInsights({ instagramAccountId, customerId, accessTokens, from, to }) {
-  const metrics = ['reach', 'impressions', 'profile_views', 'website_clicks', 'follower_count'];
+  const metrics = ['reach', 'impressions', 'profile_views', 'website_clicks'];
   const docs = [];
 
   const since = toUnixTimestamp(from);
@@ -164,6 +164,7 @@ async function syncUserInsights({ instagramAccountId, customerId, accessTokens, 
           period: 'day',
           since,
           until,
+          metric_type: 'time_series',
         }
       );
 

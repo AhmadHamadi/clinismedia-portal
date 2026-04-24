@@ -5,6 +5,10 @@ const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 
+const GRAPH_API_VERSION = 'v21.0';
+const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+const FB_DIALOG_VERSION = 'v21.0';
+
 function getFacebookClientId() {
   return process.env.FB_APP_ID || '4066501436955681';
 }
@@ -68,7 +72,7 @@ async function fetchLinkedInstagramAccount(pageId, accessTokens = []) {
   for (const accessToken of uniqueTokens) {
     for (const field of candidateFields) {
       try {
-        const response = await axios.get(`https://graph.facebook.com/v19.0/${pageId}`, {
+        const response = await axios.get(`${GRAPH_API_BASE}/${pageId}`, {
           params: {
             fields: field,
             access_token: accessToken,
@@ -114,7 +118,7 @@ router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), (req,
     'instagram_manage_insights',
   ];
 
-  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=${encodeURIComponent(scopes.join(','))}`;
+  const authUrl = `https://www.facebook.com/${FB_DIALOG_VERSION}/dialog/oauth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=${encodeURIComponent(scopes.join(','))}`;
   
   res.json({ authUrl });
 });
@@ -130,7 +134,7 @@ router.get('/callback', async (req, res) => {
   try {
     // Exchange code for user access token
     const tokenRes = await axios.get(
-      `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${clientId}&redirect_uri=${redirectUri}&client_secret=${clientSecret}&code=${code}`
+      `${GRAPH_API_BASE}/oauth/access_token?client_id=${clientId}&redirect_uri=${redirectUri}&client_secret=${clientSecret}&code=${code}`
     );
     const userAccessToken = tokenRes.data.access_token;
     const tokenExpiry = tokenRes.data.expires_in
@@ -167,7 +171,7 @@ router.get('/callback', async (req, res) => {
 
     // Get list of pages
     const pagesRes = await axios.get(
-      `https://graph.facebook.com/v19.0/me/accounts?access_token=${userAccessToken}`
+      `${GRAPH_API_BASE}/me/accounts?access_token=${userAccessToken}`
     );
     const pages = pagesRes.data.data;
 
@@ -196,7 +200,7 @@ router.post('/save-page', authenticateToken, authorizeRole(['admin']), async (re
 
   // Validate that the provided token is a valid Page Access Token for the selected page
   try {
-    const meRes = await axios.get(`https://graph.facebook.com/v19.0/me?access_token=${pageAccessToken}`);
+    const meRes = await axios.get(`${GRAPH_API_BASE}/me?access_token=${pageAccessToken}`);
     const tokenPageId = meRes.data.id;
     console.log('Token validation: /me returned id:', tokenPageId, 'Expected pageId:', pageId);
     if (tokenPageId !== pageId) {
@@ -316,7 +320,7 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
 
     // Validate that the saved token is a valid Page Access Token for the assigned page
     try {
-      const meRes = await axios.get(`https://graph.facebook.com/v19.0/me?access_token=${user.facebookAccessToken}`);
+      const meRes = await axios.get(`${GRAPH_API_BASE}/me?access_token=${user.facebookAccessToken}`);
       const tokenPageId = meRes.data.id;
       console.log('Insights token validation: /me returned id:', tokenPageId, 'Expected pageId:', user.facebookPageId);
       if (tokenPageId !== user.facebookPageId) {
@@ -360,7 +364,7 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
       try {
         // ✅ FIXED: Use page_follows (page_fans is deprecated as of Nov 2025)
         const res = await axios.get(
-          `https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=page_follows&period=day&since=${formatDate(startDate)}&until=${formatDate(endDate)}&access_token=${user.facebookAccessToken}`
+          `${GRAPH_API_BASE}/${user.facebookPageId}/insights?metric=page_follows&period=day&since=${formatDate(startDate)}&until=${formatDate(endDate)}&access_token=${user.facebookAccessToken}`
         );
         
         let values = [];
@@ -393,7 +397,7 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
         }
         
         try {
-          const res = await axios.get(`https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=${metric}&period=${period}&since=${formatDate(startDate)}&until=${formatDate(endDate)}&access_token=${user.facebookAccessToken}`);
+          const res = await axios.get(`${GRAPH_API_BASE}/${user.facebookPageId}/insights?metric=${metric}&period=${period}&since=${formatDate(startDate)}&until=${formatDate(endDate)}&access_token=${user.facebookAccessToken}`);
           
           // Log the API response structure for debugging
           console.log(`📊 Facebook API Response for ${metric} (${key}, period=${period}):`, {
@@ -443,7 +447,7 @@ router.get('/insights/:customerId', authenticateToken, async (req, res) => {
         }
         
         try {
-          const res = await axios.get(`https://graph.facebook.com/v19.0/${user.facebookPageId}/insights?metric=${metric}&period=${period}&since=${formatDate(prevStartDate)}&until=${formatDate(prevEndDate)}&access_token=${user.facebookAccessToken}`);
+          const res = await axios.get(`${GRAPH_API_BASE}/${user.facebookPageId}/insights?metric=${metric}&period=${period}&since=${formatDate(prevStartDate)}&until=${formatDate(prevEndDate)}&access_token=${user.facebookAccessToken}`);
           
           // Extract values array - handle different possible response structures
           let values = [];

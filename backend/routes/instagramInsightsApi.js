@@ -130,7 +130,8 @@ router.get('/customer/:customerId', authenticateToken, authorizeRole(['admin']),
           totals.totalWebsiteClicks += insight.value;
           break;
         case 'follower_count':
-          totals.followerCount = insight.value; // Latest follower count
+        case 'followers_count_snapshot':
+          if (totals.followerCount === 0) totals.followerCount = insight.value;
           break;
       }
     });
@@ -257,10 +258,8 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
           currentTotals.totalWebsiteClicks += insight.value;
           break;
         case 'follower_count':
-          currentTotals.followerCount = insight.value;
-          break;
         case 'followers_count_snapshot':
-          currentTotals.followerCount = insight.value;
+          if (currentTotals.followerCount === 0) currentTotals.followerCount = insight.value;
           break;
       }
     });
@@ -285,6 +284,7 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
       totalReach: 0,
       totalImpressions: 0,
       totalProfileViews: 0,
+      totalWebsiteClicks: 0,
       totalEngagement: 0,
       followerCount: 0
     };
@@ -299,6 +299,9 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
           break;
         case 'profile_views':
           previousTotals.totalProfileViews += insight.value;
+          break;
+        case 'website_clicks':
+          previousTotals.totalWebsiteClicks += insight.value;
           break;
         case 'follower_count':
         case 'followers_count_snapshot':

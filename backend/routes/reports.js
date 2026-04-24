@@ -1,6 +1,8 @@
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
+
+const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 const User = require('../models/User');
@@ -1114,7 +1116,7 @@ async function syncInstagramForReport(customer, start, end) {
 
 async function fetchFacebookMetric(user, metric, start, end) {
   const response = await axios.get(
-    `https://graph.facebook.com/v19.0/${user.facebookPageId}/insights`,
+    `${GRAPH_API_BASE}/${user.facebookPageId}/insights`,
     {
       params: {
         metric,
