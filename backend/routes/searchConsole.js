@@ -485,3 +485,5 @@ router.patch('/disconnect/:customerId', authenticateToken, authorizeRole(['admin
 });
 
 module.exports = router;
+module.exports.buildSearchConsolePerformance = buildSearchConsolePerformance;
+module.exports.getAuthorizedSearchConsoleClient = getAuthorizedSearchConsoleClient;

@@ -18,6 +18,10 @@ const ConcernSubmission = require('../models/ConcernSubmission');
 const ReviewEvent = require('../models/ReviewEvent');
 const { findGoogleIntegrationAdminUser } = require('../utils/googleIntegrationAdminUser');
 const { syncInstagramInsightsForUser } = require('../utils/instagramInsightsSync');
+const {
+  buildSearchConsolePerformance,
+  getAuthorizedSearchConsoleClient,
+} = require('./searchConsole');
 const { google } = require('googleapis');
 
 let OpenAI = null;
@@ -374,6 +378,10 @@ async function buildMarketingReportPayload(req, customer, range) {
 
   sectionBuilders.push(buildQrReviewsSection(customer._id, range.start, range.end));
 
+  if (customer.searchConsolePropertyUrl) {
+    sectionBuilders.push(buildSearchConsoleSection(req, customer, range.start, range.end));
+  }
+
   const sections = (await Promise.all(sectionBuilders)).filter(Boolean);
   const sectionMap = Object.fromEntries(sections.map((section) => [section.id, section]));
 
@@ -421,6 +429,7 @@ async function buildMarketingReportPayload(req, customer, range) {
       callTracking: !!customer.twilioPhoneNumber,
       aiReception: !!customer.aiReceptionistSettings?.enabled,
       qrReviews: !!sectionMap.qrReviews,
+      searchConsole: !!customer.searchConsolePropertyUrl,
     },
   };
 }
@@ -933,17 +942,28 @@ async function buildGoogleBusinessSection(req, customer, start, end) {
   const coverageEnd = dailySource[dailySource.length - 1]?.date || null;
   const latestInsights = insightRecords[0] || null;
 
-  const totals = dailySource.reduce(
+  // Mirror live /business-insights endpoint:
+  //   totalViews   = SEARCH + MAPS impressions (dailyData.searches + dailyData.views)
+  //   totalSearches= SEARCH impressions only (dailyData.searches)
+  // dailyData.views holds MAPS-only because of how the refresh service buckets them.
+  const dailyTotals = dailySource.reduce(
     (acc, item) => {
-      acc.searches += Number(item.searches || 0);
-      acc.views += Number(item.views || 0);
+      acc.searchOnly += Number(item.searches || 0);
+      acc.mapsOnly += Number(item.views || 0);
       acc.calls += Number(item.calls || 0);
       acc.directions += Number(item.directions || 0);
       acc.websiteClicks += Number(item.websiteClicks || 0);
       return acc;
     },
-    { searches: 0, views: 0, calls: 0, directions: 0, websiteClicks: 0 }
+    { searchOnly: 0, mapsOnly: 0, calls: 0, directions: 0, websiteClicks: 0 }
   );
+  const totals = {
+    totalViews: dailyTotals.searchOnly + dailyTotals.mapsOnly,
+    totalSearches: dailyTotals.searchOnly,
+    totalCalls: dailyTotals.calls,
+    totalDirections: dailyTotals.directions,
+    totalWebsiteClicks: dailyTotals.websiteClicks,
+  };
 
   let reviewSummary = null;
   let reviewError = null;
@@ -980,10 +1000,10 @@ async function buildGoogleBusinessSection(req, customer, start, end) {
   };
 
   const highlights = [
-    `${totals.searches} Google Business searches`,
-    `${totals.views} profile views`,
-    `${totals.calls} calls from profile`,
-    `${totals.websiteClicks} website clicks`,
+    `${totals.totalSearches} Google Business searches`,
+    `${totals.totalViews} total profile impressions`,
+    `${totals.totalCalls} calls from profile`,
+    `${totals.totalWebsiteClicks} website clicks`,
   ];
 
   if (reviewSummary) {
@@ -1367,6 +1387,86 @@ async function buildQrReviewsSection(customerId, start, end) {
       `${summary.concernSubmissions} concern submissions`,
     ],
     campaigns: campaignSummaries,
+  };
+}
+
+async function buildSearchConsoleSection(req, customer, start, end) {
+  if (!customer.searchConsolePropertyUrl) {
+    return null;
+  }
+
+  let webmasters;
+  try {
+    const { oauth2Client } = await getAuthorizedSearchConsoleClient(req);
+    webmasters = google.webmasters({ version: 'v3', auth: oauth2Client });
+  } catch (error) {
+    return {
+      id: 'searchConsole',
+      title: 'Website & SEO',
+      summary: {},
+      highlights: [],
+      error: `Search Console auth unavailable: ${error.message}`,
+    };
+  }
+
+  let performance;
+  try {
+    performance = await buildSearchConsolePerformance(
+      webmasters,
+      customer.searchConsolePropertyUrl,
+      formatDateOnly(start),
+      formatDateOnly(end)
+    );
+  } catch (error) {
+    return {
+      id: 'searchConsole',
+      title: 'Website & SEO',
+      summary: {},
+      highlights: [],
+      error: `Search Console query failed: ${error.message}`,
+    };
+  }
+
+  const { totalClicks, totalImpressions, avgCtr, avgPosition } = performance.summary;
+  if (!totalClicks && !totalImpressions) {
+    return {
+      id: 'searchConsole',
+      title: 'Website & SEO',
+      summary: { totalClicks: 0, totalImpressions: 0, ctrPercent: 0, avgPosition: 0 },
+      highlights: ['No Google search activity recorded for this period.'],
+      property: customer.searchConsolePropertyUrl,
+    };
+  }
+
+  return {
+    id: 'searchConsole',
+    title: 'Website & SEO',
+    summary: {
+      totalClicks,
+      totalImpressions,
+      ctrPercent: Number((avgCtr * 100).toFixed(2)),
+      avgPosition: Number(avgPosition.toFixed(1)),
+    },
+    highlights: [
+      `${totalClicks.toLocaleString()} organic clicks from Google`,
+      `${totalImpressions.toLocaleString()} search impressions`,
+      `${Number((avgCtr * 100).toFixed(2))}% average click-through rate`,
+      `${Number(avgPosition.toFixed(1))} average position in results`,
+    ],
+    topQueries: performance.topQueries.slice(0, 5).map((row) => ({
+      query: row.query,
+      clicks: row.clicks,
+      impressions: row.impressions,
+      ctr: `${(row.ctr * 100).toFixed(1)}%`,
+      position: row.position.toFixed(1),
+    })),
+    topPages: performance.topPages.slice(0, 5).map((row) => ({
+      page: row.page,
+      clicks: row.clicks,
+      impressions: row.impressions,
+      ctr: `${(row.ctr * 100).toFixed(1)}%`,
+    })),
+    property: customer.searchConsolePropertyUrl,
   };
 }
 

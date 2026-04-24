@@ -37,8 +37,11 @@ interface ReportSection {
   topPosts?: Array<Record<string, any>>;
   topReasons?: Array<Record<string, any>>;
   recentReviews?: Array<Record<string, any>>;
+  topQueries?: Array<Record<string, any>>;
+  topPages?: Array<Record<string, any>>;
   pageInfo?: Record<string, any>;
   sourceWindow?: Record<string, any>;
+  property?: string;
   error?: string;
 }
 
@@ -108,6 +111,7 @@ const sectionIcons: Record<string, React.ReactNode> = {
   instagram: <FaInstagram className="text-fuchsia-600" />,
   facebook: <FaFacebookF className="text-sky-600" />,
   qrReviews: <FaStar className="text-yellow-500" />,
+  searchConsole: <FaChartLine className="text-blue-600" />,
 };
 
 function getSectionTheme(sectionId: string) {
@@ -160,6 +164,12 @@ function getSectionTheme(sectionId: string) {
       label: 'text-yellow-700',
       chip: 'bg-yellow-100 text-yellow-800',
     },
+    searchConsole: {
+      shell: 'border-blue-200 bg-gradient-to-br from-blue-50 via-white to-sky-50',
+      iconWrap: 'bg-blue-100 text-blue-700',
+      label: 'text-blue-700',
+      chip: 'bg-blue-100 text-blue-800',
+    },
   };
 
   return themes[sectionId] || {
@@ -191,7 +201,9 @@ function hasRenderableSectionContent(section: ReportSection) {
     section.recentLeads?.length ||
     section.topPosts?.length ||
     section.topReasons?.length ||
-    section.recentReviews?.length
+    section.recentReviews?.length ||
+    section.topQueries?.length ||
+    section.topPages?.length
   );
 }
 
@@ -341,6 +353,14 @@ function getPrintSectionIcon(sectionId: string) {
         <path fill="#a16207" d="M12 2l2.7 5.46L20.7 8l-4.35 4.24L17.4 18 12 15.27 6.6 18l1.05-5.76L3.3 8l6-.54z"/>
       </svg>
     `,
+    searchConsole: `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#1d4ed8" stroke-width="2.2"/>
+        <line x1="15" y1="15" x2="20.5" y2="20.5" stroke="#1d4ed8" stroke-width="2.4" stroke-linecap="round"/>
+        <path fill="#34A853" d="M7.4 10.5h6.2" stroke="#34A853" stroke-width="1.4" stroke-linecap="round"/>
+        <path fill="#FBBC04" d="M9 8.4 12 13.6" stroke="#FBBC04" stroke-width="1.4" stroke-linecap="round" opacity="0"/>
+      </svg>
+    `,
   };
 
   return iconMap[sectionId] || `
@@ -359,6 +379,7 @@ const SECTION_ORDER: Record<string, number> = {
   googleBusiness: 6,
   qrReviews: 7,
   googleAds: 8,
+  searchConsole: 9,
 };
 
 function formatDateLongRange(startIso: string, endIso: string) {
@@ -398,6 +419,7 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       instagram: { border: '#d946ef', badge: '#fae8ff', icon: '#a21caf', kicker: 'Instagram Insights' },
       facebook: { border: '#0ea5e9', badge: '#e0f2fe', icon: '#0369a1', kicker: 'Facebook Insights' },
       qrReviews: { border: '#eab308', badge: '#fef9c3', icon: '#a16207', kicker: 'QR Review Program' },
+      searchConsole: { border: '#0ea5e9', badge: '#e0f7ff', icon: '#0369a1', kicker: 'Website & SEO' },
     };
     const accent = accentMap[section.id] || { border: '#94a3b8', badge: '#f1f5f9', icon: '#334155', kicker: 'Channel Performance' };
     const summaryEntries = Object.entries(section.summary || {}).filter(([, value]) => value !== null && value !== undefined && value !== '');
@@ -450,6 +472,14 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
         `).join('')}</div></div>`
       : '';
 
+    const topQueriesHtml = section.topQueries?.length
+      ? `<div class="detail-block"><div class="detail-title">Top Search Queries</div>${buildTableHtml(section.topQueries.slice(0, 5))}</div>`
+      : '';
+
+    const topPagesHtml = section.topPages?.length
+      ? `<div class="detail-block"><div class="detail-title">Top Landing Pages</div>${buildTableHtml(section.topPages.slice(0, 5))}</div>`
+      : '';
+
     const errorHtml = section.error
       ? `<div class="section-error">${escapeHtml(section.error)}</div>`
       : '';
@@ -476,6 +506,8 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
         ${topPostsHtml}
         ${topReasonsHtml}
         ${recentReviewsHtml}
+        ${topQueriesHtml}
+        ${topPagesHtml}
       </section>
     `;
   }).join('');
