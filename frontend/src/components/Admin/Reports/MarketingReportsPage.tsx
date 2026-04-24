@@ -415,6 +415,31 @@ function formatDateLongRange(startIso: string, endIso: string) {
   return `${startFmt} — ${endFmt}`;
 }
 
+// Featured metric per section + a short narrative caption.
+const SECTION_FEATURE: Record<string, { key: string; label: string; caption: string }> = {
+  metaLeads: { key: 'totalLeads', label: 'Total Leads', caption: 'New leads captured from Meta lead-gen campaigns this period.' },
+  callTracking: { key: 'totalCalls', label: 'Total Calls', caption: 'Tracked phone calls placed to the clinic line during the report window.' },
+  aiReception: { key: 'totalCalls', label: 'AI Calls Handled', caption: 'Calls answered by the AI receptionist after-hours and overflow.' },
+  facebook: { key: 'totalReach', label: 'Total Reach', caption: 'Unique people who saw your Facebook content this period.' },
+  instagram: { key: 'totalReach', label: 'Total Reach', caption: 'Unique Instagram accounts reached by your posts and reels.' },
+  googleBusiness: { key: 'totalViews', label: 'Profile Impressions', caption: 'How many times your Google Business Profile appeared in Search and Maps.' },
+  googleAds: { key: 'impressions', label: 'Ad Impressions', caption: 'Times your Google Ads were shown to potential patients.' },
+  qrReviews: { key: 'scans', label: 'QR Scans', caption: 'Patients who scanned the QR review prompt in-clinic.' },
+  searchConsole: { key: 'totalClicks', label: 'Organic Clicks', caption: 'Clicks from Google search results to your website.' },
+};
+
+const SECTION_DESCRIPTIONS: Record<string, string> = {
+  metaLeads: 'Captured leads, contact follow-up, and bookings from Meta lead-form campaigns.',
+  callTracking: 'Inbound phone activity tracked through the dedicated marketing line.',
+  aiReception: 'After-hours and overflow calls handled by the AI receptionist.',
+  facebook: 'Page reach, post engagement, and audience growth on Facebook.',
+  instagram: 'Reach, engagement, and follower trends across your Instagram content.',
+  googleBusiness: 'Search and Maps impressions, profile actions, and reviews.',
+  googleAds: 'Spend, clicks, conversions, and campaign-level performance.',
+  qrReviews: 'In-clinic QR review program funnel and conversion metrics.',
+  searchConsole: 'Organic search performance, top queries, and landing page visibility.',
+};
+
 function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | null, logoSrc: string) {
   const visibleSections = report.sections
     .filter(hasRenderableSectionContent)
@@ -429,23 +454,82 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
     </div>
   `).join('');
 
-  const sectionsHtml = visibleSections.map((section, idx) => {
-    const accentMap: Record<string, { border: string; badge: string; icon: string; kicker: string }> = {
-      metaLeads: { border: '#ec4899', badge: '#fce7f3', icon: '#be185d', kicker: 'Lead Generation' },
-      callTracking: { border: '#10b981', badge: '#d1fae5', icon: '#047857', kicker: 'Phone Performance' },
-      aiReception: { border: '#8b5cf6', badge: '#ede9fe', icon: '#6d28d9', kicker: 'AI Receptionist' },
-      googleBusiness: { border: '#2563eb', badge: '#dbeafe', icon: '#1d4ed8', kicker: 'Google Business & Reviews' },
-      googleAds: { border: '#f59e0b', badge: '#fef3c7', icon: '#b45309', kicker: 'Paid Search' },
-      instagram: { border: '#d946ef', badge: '#fae8ff', icon: '#a21caf', kicker: 'Instagram Insights' },
-      facebook: { border: '#0ea5e9', badge: '#e0f2fe', icon: '#0369a1', kicker: 'Facebook Insights' },
-      qrReviews: { border: '#eab308', badge: '#fef9c3', icon: '#a16207', kicker: 'QR Review Program' },
-      searchConsole: { border: '#0ea5e9', badge: '#e0f7ff', icon: '#0369a1', kicker: 'Website & SEO' },
+  // ---- Table of Contents ----
+  const tocHtml = visibleSections.map((section, idx) => {
+    const accentMap: Record<string, string> = {
+      metaLeads: '#ec4899', callTracking: '#10b981', aiReception: '#8b5cf6',
+      googleBusiness: '#2563eb', googleAds: '#f59e0b', instagram: '#d946ef',
+      facebook: '#0ea5e9', qrReviews: '#eab308', searchConsole: '#0284c7',
     };
-    const accent = accentMap[section.id] || { border: '#94a3b8', badge: '#f1f5f9', icon: '#334155', kicker: 'Channel Performance' };
+    const accent = accentMap[section.id] || '#64748b';
+    const desc = SECTION_DESCRIPTIONS[section.id] || '';
+    return `
+      <div class="toc-row">
+        <div class="toc-num" style="color: ${accent}; border-color: ${accent};">${String(idx + 2).padStart(2, '0')}</div>
+        <div class="toc-text">
+          <div class="toc-title">${escapeHtml(section.title)}</div>
+          <div class="toc-desc">${escapeHtml(desc)}</div>
+        </div>
+        <div class="toc-bar" style="background: ${accent};"></div>
+      </div>
+    `;
+  }).join('');
+
+  // ---- Sections ----
+  const accentMap: Record<string, { primary: string; soft: string; deep: string; kicker: string }> = {
+    metaLeads: { primary: '#ec4899', soft: '#fce7f3', deep: '#9d174d', kicker: 'Lead Generation' },
+    callTracking: { primary: '#10b981', soft: '#d1fae5', deep: '#065f46', kicker: 'Phone Performance' },
+    aiReception: { primary: '#8b5cf6', soft: '#ede9fe', deep: '#5b21b6', kicker: 'AI Receptionist' },
+    googleBusiness: { primary: '#2563eb', soft: '#dbeafe', deep: '#1e40af', kicker: 'Google Business & Reviews' },
+    googleAds: { primary: '#f59e0b', soft: '#fef3c7', deep: '#92400e', kicker: 'Paid Search' },
+    instagram: { primary: '#d946ef', soft: '#fae8ff', deep: '#86198f', kicker: 'Instagram Insights' },
+    facebook: { primary: '#0ea5e9', soft: '#e0f2fe', deep: '#075985', kicker: 'Facebook Insights' },
+    qrReviews: { primary: '#eab308', soft: '#fef9c3', deep: '#854d0e', kicker: 'QR Review Program' },
+    searchConsole: { primary: '#0284c7', soft: '#e0f2fe', deep: '#075985', kicker: 'Website & SEO' },
+  };
+
+  const sectionsHtml = visibleSections.map((section, idx) => {
+    const accent = accentMap[section.id] || { primary: '#64748b', soft: '#f1f5f9', deep: '#334155', kicker: 'Channel Performance' };
     const summaryEntries = Object.entries(section.summary || {}).filter(([, value]) => value !== null && value !== undefined && value !== '');
-    const summaryHtml = summaryEntries.length
-      ? `<div class="summary-grid">${summaryEntries.map(([key, value]) => `
-          <div class="summary-item">
+
+    // Featured metric: extract from summary using SECTION_FEATURE map.
+    const featureCfg = SECTION_FEATURE[section.id];
+    const featureValue = featureCfg ? section.summary?.[featureCfg.key] : undefined;
+    const featureKey = featureCfg?.key;
+    const featureValueDisplay = featureValue !== undefined && featureValue !== null
+      ? formatMetricValue(featureValue, featureKey)
+      : null;
+    const supportingEntries = summaryEntries.filter(([key]) => key !== featureKey).slice(0, 6);
+
+    const heroHtml = `
+      <div class="section-hero" style="background: linear-gradient(120deg, ${accent.primary} 0%, ${accent.deep} 100%);">
+        <div class="section-hero-inner">
+          <div class="section-hero-left">
+            <div class="section-hero-num">${String(idx + 2).padStart(2, '0')}</div>
+            <div class="section-hero-meta">
+              <div class="section-hero-kicker">${escapeHtml(accent.kicker)}</div>
+              <h2 class="section-hero-title">${escapeHtml(section.title)}</h2>
+            </div>
+          </div>
+          <div class="section-hero-icon">${getPrintSectionIcon(section.id)}</div>
+        </div>
+        <div class="section-hero-desc">${escapeHtml(SECTION_DESCRIPTIONS[section.id] || '')}</div>
+      </div>
+    `;
+
+    const featuredHtml = featureValueDisplay
+      ? `
+        <div class="featured-metric" style="border-color: ${accent.primary}; --accent: ${accent.primary};">
+          <div class="featured-label">${escapeHtml(featureCfg!.label)}</div>
+          <div class="featured-value" style="color: ${accent.deep};">${escapeHtml(featureValueDisplay)}</div>
+          <div class="featured-caption">${escapeHtml(featureCfg!.caption)}</div>
+        </div>
+      `
+      : '';
+
+    const summaryHtml = supportingEntries.length
+      ? `<div class="summary-grid">${supportingEntries.map(([key, value]) => `
+          <div class="summary-item" style="--accent: ${accent.primary};">
             <div class="summary-label">${escapeHtml(humanizeKey(key))}</div>
             <div class="summary-value">${escapeHtml(formatMetricValue(value, key))}</div>
           </div>
@@ -453,20 +537,23 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       : '';
 
     const highlightsHtml = section.highlights?.length
-      ? `<div class="detail-block"><div class="detail-title">Highlights</div><ul class="pill-list">${section.highlights.slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`
+      ? `<div class="pullquote" style="background: ${accent.soft}; border-color: ${accent.primary};">
+          <div class="pullquote-label" style="color: ${accent.deep};">Key Highlights</div>
+          <ul class="pullquote-list">${section.highlights.slice(0, 4).map((item) => `<li><span class="pullquote-bullet" style="background: ${accent.primary};"></span>${escapeHtml(item)}</li>`).join('')}</ul>
+        </div>`
       : '';
 
     const campaignsHtml = section.campaigns?.length
-      ? `<div class="detail-block"><div class="detail-title">Campaign Snapshot</div>${buildTableHtml(section.campaigns.slice(0, 5))}</div>`
+      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">Campaign Snapshot</div>${buildTableHtml(section.campaigns.slice(0, 5))}</div>`
       : '';
 
     const recentLeadsHtml = section.recentLeads?.length
-      ? `<div class="detail-block"><div class="detail-title">Recent Leads</div>${buildTableHtml(section.recentLeads.slice(0, 5))}</div>`
+      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">Recent Leads</div>${buildTableHtml(section.recentLeads.slice(0, 5))}</div>`
       : '';
 
     const topPostsHtml = section.topPosts?.length
-      ? `<div class="detail-block"><div class="detail-title">Top Posts</div><div class="card-list">${section.topPosts.slice(0, 3).map((post) => `
-          <div class="mini-card">
+      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">Top Posts</div><div class="card-list">${section.topPosts.slice(0, 3).map((post) => `
+          <div class="mini-card" style="border-left-color: ${accent.primary};">
             <strong>${escapeHtml(post.caption || 'Instagram post')}</strong>
             <div class="mini-meta">${escapeHtml(`Reach ${formatMetricValue(post.reach)} · Engagement ${formatMetricValue(post.engagement)} · Plays ${formatMetricValue(post.plays)}`)}</div>
           </div>
@@ -474,8 +561,8 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       : '';
 
     const topReasonsHtml = section.topReasons?.length
-      ? `<div class="detail-block"><div class="detail-title">Top Reasons for Calling</div><div class="card-list">${section.topReasons.slice(0, 4).map((item) => `
-          <div class="mini-card">
+      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">Top Reasons for Calling</div><div class="card-list">${section.topReasons.slice(0, 4).map((item) => `
+          <div class="mini-card" style="border-left-color: ${accent.primary};">
             <strong>${escapeHtml(item.reason || 'Reason')}</strong>
             <div class="mini-meta">${escapeHtml(`${formatMetricValue(item.count)} calls`)}</div>
           </div>
@@ -483,8 +570,8 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       : '';
 
     const recentReviewsHtml = section.recentReviews?.length
-      ? `<div class="detail-block"><div class="detail-title">Recent Reviews</div><div class="card-list">${section.recentReviews.slice(0, 3).map((review) => `
-          <div class="mini-card">
+      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">Recent Reviews</div><div class="card-list">${section.recentReviews.slice(0, 3).map((review) => `
+          <div class="mini-card" style="border-left-color: ${accent.primary};">
             <strong>${escapeHtml(review.reviewerName || 'Reviewer')}</strong>
             <div class="mini-meta">${escapeHtml(`Rating ${formatMetricValue(review.starRating)} · ${review.createTime ? new Date(review.createTime).toLocaleDateString() : ''}`)}</div>
             ${review.comment ? `<p>${escapeHtml(review.comment)}</p>` : ''}
@@ -493,11 +580,11 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       : '';
 
     const topQueriesHtml = section.topQueries?.length
-      ? `<div class="detail-block"><div class="detail-title">Top Search Queries</div>${buildTableHtml(section.topQueries.slice(0, 5))}</div>`
+      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">Top Search Queries</div>${buildTableHtml(section.topQueries.slice(0, 5))}</div>`
       : '';
 
     const topPagesHtml = section.topPages?.length
-      ? `<div class="detail-block"><div class="detail-title">Top Landing Pages</div>${buildTableHtml(section.topPages.slice(0, 5))}</div>`
+      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">Top Landing Pages</div>${buildTableHtml(section.topPages.slice(0, 5))}</div>`
       : '';
 
     const errorHtml = section.error
@@ -505,30 +592,28 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       : '';
 
     return `
-      <section class="report-section" style="--accent: ${accent.border};">
-        <div class="section-head">
-          <div class="section-title-wrap">
-            <div class="section-logo" style="background:${accent.badge}; color:${accent.icon};">
-              ${getPrintSectionIcon(section.id)}
-            </div>
-            <div>
-              <div class="section-kicker" style="color: ${accent.icon};">${escapeHtml(accent.kicker)}</div>
-              <h2>${escapeHtml(section.title)}</h2>
-            </div>
+      <div class="report-page" data-pagenum="${idx + 3}">
+        ${heroHtml}
+        <div class="section-body">
+          ${errorHtml}
+          <div class="section-grid">
+            ${featuredHtml}
+            ${summaryHtml ? `<div class="section-grid-stats">${summaryHtml}</div>` : ''}
           </div>
-          <div class="section-number" style="color: ${accent.icon};">${String(idx + 1).padStart(2, '0')}</div>
+          ${highlightsHtml}
+          ${campaignsHtml}
+          ${recentLeadsHtml}
+          ${topPostsHtml}
+          ${topReasonsHtml}
+          ${recentReviewsHtml}
+          ${topQueriesHtml}
+          ${topPagesHtml}
         </div>
-        ${errorHtml}
-        ${summaryHtml}
-        ${highlightsHtml}
-        ${campaignsHtml}
-        ${recentLeadsHtml}
-        ${topPostsHtml}
-        ${topReasonsHtml}
-        ${recentReviewsHtml}
-        ${topQueriesHtml}
-        ${topPagesHtml}
-      </section>
+        <div class="page-footer">
+          <span>${escapeHtml(report.clinic.name)} · ${escapeHtml(coverDateRange)}</span>
+          <span>${String(idx + 3).padStart(2, '0')}</span>
+        </div>
+      </div>
     `;
   }).join('');
 
@@ -624,91 +709,303 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
           }
 
           /* --------- CONTENT PAGES --------- */
-          .page {
-            max-width: 840px;
+          .page, .report-page {
+            position: relative;
+            max-width: none;
             margin: 0 auto;
-            padding: 48px 56px 64px;
+            padding: 56px 64px 80px;
             background: #ffffff;
+            min-height: 100vh;
+            page-break-after: always;
+            break-after: page;
           }
+          .report-page { padding: 0 0 60px; }
+          .section-body { padding: 32px 56px 0; }
           .page-break { page-break-before: always; break-before: page; }
 
-          .overview-header { margin-bottom: 24px; }
-          .overview-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; color: #6c6596; }
-          .overview-title { margin: 6px 0 4px; font-size: 30px; font-weight: 800; color: #1f1b41; letter-spacing: -0.02em; }
-          .overview-desc { color: #52537e; font-size: 14px; line-height: 1.6; max-width: 620px; }
-          .overview-meta { margin-top: 16px; font-size: 12px; color: #6c6596; letter-spacing: 0.04em; }
+          .page-footer {
+            position: absolute;
+            bottom: 28px;
+            left: 56px;
+            right: 56px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 10px;
+            font-weight: 700;
+            color: #94a3b8;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            border-top: 1px solid #eef2f8;
+            padding-top: 10px;
+          }
 
-          .overview-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 8px; }
-          .stat-card { padding: 18px 18px 20px; background: linear-gradient(180deg, #faf9ff 0%, #ffffff 100%); border: 1px solid #e4e1f3; border-radius: 18px; }
-          .stat-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #6c6596; }
-          .stat-value { margin-top: 10px; font-size: 30px; font-weight: 800; color: #1f1b41; line-height: 1; letter-spacing: -0.02em; }
-
-          .section-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
-
-          .report-section {
-            margin-top: 28px;
-            padding: 28px 30px 30px;
-            background: #ffffff;
-            border: 1px solid #e4e1f3;
-            border-radius: 22px;
+          /* TABLE OF CONTENTS */
+          .toc-header { margin-bottom: 28px; }
+          .toc-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 700; color: #2e6bff; }
+          .toc-title { margin: 8px 0 0; font-size: 44px; font-weight: 800; color: #10213d; letter-spacing: -0.02em; }
+          .toc-desc { margin-top: 12px; max-width: 540px; font-size: 14px; color: #60729a; line-height: 1.6; }
+          .toc-list { display: flex; flex-direction: column; gap: 12px; }
+          .toc-row {
             position: relative;
-            box-shadow: 0 1px 0 rgba(31,27,65,0.04);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 18px 24px 18px 30px;
+            background: #f8fbff;
+            border-radius: 14px;
             overflow: hidden;
           }
-          .report-section::before {
+          .toc-bar { position: absolute; top: 0; left: 0; bottom: 0; width: 5px; }
+          .toc-num { font-size: 26px; font-weight: 800; line-height: 1; min-width: 50px; letter-spacing: -0.02em; }
+          .toc-text { flex: 1; }
+          .toc-row .toc-title { margin: 0; font-size: 17px; font-weight: 700; color: #10213d; letter-spacing: 0; }
+          .toc-row .toc-desc { margin: 3px 0 0; font-size: 12.5px; color: #60729a; line-height: 1.5; max-width: none; }
+
+          /* OVERVIEW PAGE */
+          .overview-header { margin-bottom: 30px; }
+          .overview-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 700; color: #2e6bff; }
+          .overview-title { margin: 8px 0 4px; font-size: 44px; font-weight: 800; color: #10213d; letter-spacing: -0.02em; }
+          .overview-desc { color: #60729a; font-size: 14.5px; line-height: 1.6; max-width: 580px; }
+          .overview-meta { margin-top: 18px; font-size: 11px; color: #94a3b8; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; }
+
+          .overview-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+          .stat-card {
+            padding: 22px 22px 24px;
+            background: linear-gradient(160deg, #f8fbff 0%, #ffffff 60%);
+            border: 1px solid #dbe7ff;
+            border-radius: 18px;
+            position: relative;
+            overflow: hidden;
+          }
+          .stat-card::before {
             content: '';
             position: absolute;
-            inset: 0 0 auto 0;
-            height: 6px;
-            background: var(--accent, #6c6596);
+            top: 22px;
+            left: 0;
+            width: 4px;
+            height: 36px;
+            background: #2e6bff;
+            border-radius: 0 4px 4px 0;
           }
-          .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-          .section-title-wrap { display: flex; align-items: flex-start; gap: 14px; }
-          .section-logo { width: 46px; height: 46px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-          .section-logo svg { width: 26px; height: 26px; display: block; }
-          .section-number { font-size: 40px; font-weight: 800; opacity: 0.22; letter-spacing: -0.02em; line-height: 1; }
-          .report-section h2 { margin: 6px 0 0; font-size: 24px; line-height: 1.15; color: #1f1b41; letter-spacing: -0.01em; }
+          .stat-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #60729a; }
+          .stat-value { margin-top: 12px; font-size: 38px; font-weight: 800; color: #10213d; line-height: 1; letter-spacing: -0.025em; }
 
-          .section-error { margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; background: #fef2f2; color: #b91c1c; font-size: 13px; font-weight: 600; border: 1px solid #fecaca; }
+          /* SECTION HERO BAND */
+          .section-hero {
+            color: #ffffff;
+            padding: 52px 64px 36px;
+            position: relative;
+            overflow: hidden;
+          }
+          .section-hero::after {
+            content: '';
+            position: absolute;
+            top: -120px;
+            right: -80px;
+            width: 320px;
+            height: 320px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.12);
+          }
+          .section-hero::before {
+            content: '';
+            position: absolute;
+            bottom: -60px;
+            right: 80px;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+          }
+          .section-hero-inner { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+          .section-hero-left { display: flex; align-items: center; gap: 26px; }
+          .section-hero-num {
+            font-size: 60px;
+            font-weight: 800;
+            line-height: 1;
+            color: rgba(255,255,255,0.55);
+            letter-spacing: -0.025em;
+          }
+          .section-hero-meta { color: #ffffff; }
+          .section-hero-kicker {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            opacity: 0.85;
+          }
+          .section-hero-title {
+            margin: 6px 0 0;
+            font-size: 36px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+          }
+          .section-hero-icon {
+            position: relative;
+            z-index: 2;
+            width: 80px;
+            height: 80px;
+            border-radius: 22px;
+            background: rgba(255,255,255,0.96);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+          }
+          .section-hero-icon svg { width: 46px; height: 46px; display: block; }
+          .section-hero-desc {
+            position: relative;
+            z-index: 2;
+            margin-top: 18px;
+            max-width: 600px;
+            font-size: 13.5px;
+            line-height: 1.6;
+            color: rgba(255,255,255,0.92);
+          }
+
+          /* SECTION GRID — featured metric beside supporting */
+          .section-grid {
+            display: grid;
+            grid-template-columns: 0.95fr 1.5fr;
+            gap: 18px;
+            margin-bottom: 4px;
+          }
+          .featured-metric {
+            background: #ffffff;
+            border: 2px solid;
+            border-radius: 22px;
+            padding: 28px 26px;
+            position: relative;
+            overflow: hidden;
+          }
+          .featured-metric::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 6px;
+            background: var(--accent, #2e6bff);
+          }
+          .featured-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: #60729a;
+            margin-top: 4px;
+          }
+          .featured-value {
+            margin-top: 10px;
+            font-size: 64px;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.03em;
+          }
+          .featured-caption {
+            margin-top: 16px;
+            font-size: 12.5px;
+            color: #60729a;
+            line-height: 1.55;
+          }
+          .section-grid-stats { display: flex; align-items: stretch; }
+          .section-grid-stats .summary-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin: 0;
+            align-content: start;
+          }
+
+          .section-error { margin: 0 0 14px; padding: 12px 16px; border-radius: 12px; background: #fef2f2; color: #b91c1c; font-size: 13px; font-weight: 600; border: 1px solid #fecaca; }
 
           .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 4px; }
-          .summary-item { padding: 14px 14px 16px; background: #faf9ff; border: 1px solid #e9e6f5; border-radius: 14px; }
-          .summary-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #6c6596; }
-          .summary-value { margin-top: 6px; font-size: 22px; font-weight: 800; color: #1f1b41; letter-spacing: -0.01em; }
+          .summary-item {
+            padding: 14px 16px 16px;
+            background: #f8fbff;
+            border: 1px solid #dbe7ff;
+            border-radius: 12px;
+            border-left: 3px solid var(--accent, #2e6bff);
+          }
+          .summary-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #60729a; }
+          .summary-value { margin-top: 6px; font-size: 22px; font-weight: 800; color: #10213d; letter-spacing: -0.015em; }
 
-          .detail-block { margin-top: 20px; }
-          .detail-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #6c6596; margin-bottom: 10px; }
-          .pill-list { margin: 0; padding-left: 18px; color: #1f1b41; }
-          .pill-list li { margin: 6px 0; font-size: 13.5px; line-height: 1.55; }
+          /* PULL QUOTE highlights */
+          .pullquote {
+            margin-top: 22px;
+            padding: 22px 26px;
+            border-radius: 16px;
+            border-left: 5px solid;
+          }
+          .pullquote-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            margin-bottom: 12px;
+          }
+          .pullquote-list { list-style: none; margin: 0; padding: 0; }
+          .pullquote-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin: 8px 0;
+            font-size: 13.5px;
+            line-height: 1.5;
+            color: #10213d;
+          }
+          .pullquote-bullet {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            margin-top: 7px;
+            flex-shrink: 0;
+          }
+
+          .detail-block { margin-top: 24px; }
+          .detail-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 12px; }
           .card-list { display: grid; gap: 10px; }
-          .mini-card { border: 1px solid #e9e6f5; border-radius: 14px; padding: 14px 16px; background: #faf9ff; font-size: 13px; line-height: 1.5; color: #1f1b41; }
-          .mini-card strong { color: #1f1b41; }
-          .mini-meta { margin-top: 4px; color: #52537e; font-size: 12.5px; }
-          .mini-card p { margin: 10px 0 0; color: #4b4973; }
+          .mini-card {
+            border: 1px solid #e4ecf7;
+            border-left: 4px solid #2e6bff;
+            border-radius: 12px;
+            padding: 14px 16px;
+            background: #f8fbff;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #10213d;
+          }
+          .mini-card strong { color: #10213d; }
+          .mini-meta { margin-top: 4px; color: #60729a; font-size: 12.5px; }
+          .mini-card p { margin: 10px 0 0; color: #475471; font-style: italic; }
 
-          .table-wrap { overflow: hidden; border: 1px solid #e4e1f3; border-radius: 14px; }
+          .table-wrap { overflow: hidden; border: 1px solid #dbe7ff; border-radius: 14px; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th, td { padding: 10px 12px; border-bottom: 1px solid #ede9f8; text-align: left; vertical-align: top; color: #1f1b41; }
-          th { background: #f8f6ff; color: #4d4679; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; }
-          tr:last-child td { border-bottom: none; }
+          th, td { padding: 11px 14px; text-align: left; vertical-align: top; color: #10213d; }
+          th { background: #2e6bff; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10.5px; }
+          tbody tr { border-bottom: 1px solid #eef2f8; }
+          tbody tr:nth-child(even) { background: #f8fbff; }
+          tbody tr:last-child { border-bottom: none; }
 
           /* --------- FOOTER --------- */
-          .footer-page { padding: 56px 56px 72px; background: linear-gradient(135deg, #efedfa 0%, #f6eef5 100%); }
-          .footer-card { background: #ffffff; border: 1px solid #e4e1f3; border-radius: 22px; padding: 36px 40px; }
-          .footer-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; color: #6c6596; }
-          .footer-title { margin: 6px 0 22px; font-size: 28px; font-weight: 800; color: #1f1b41; letter-spacing: -0.02em; }
-          .footer-row { display: flex; align-items: baseline; gap: 14px; padding: 10px 0; border-bottom: 1px solid #ede9f8; font-size: 13px; color: #1f1b41; }
+          .footer-page { padding: 60px 64px 80px; background: linear-gradient(135deg, #f4f8ff 0%, #eef3ff 100%); min-height: 100vh; }
+          .footer-card { background: #ffffff; border: 1px solid #dbe7ff; border-radius: 22px; padding: 40px 44px; box-shadow: 0 4px 16px rgba(46,107,255,0.06); }
+          .footer-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; color: #2e6bff; }
+          .footer-title { margin: 8px 0 24px; font-size: 32px; font-weight: 800; color: #10213d; letter-spacing: -0.02em; }
+          .footer-row { display: flex; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid #eef2f8; font-size: 13.5px; color: #10213d; }
           .footer-row:last-child { border-bottom: none; }
-          .footer-label { flex: 0 0 100px; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10.5px; font-weight: 700; color: #6c6596; }
+          .footer-label { flex: 0 0 110px; text-transform: uppercase; letter-spacing: 0.12em; font-size: 10.5px; font-weight: 700; color: #60729a; }
           .footer-value { flex: 1; word-break: break-word; font-weight: 500; }
-          .footer-brand { display: flex; align-items: center; gap: 12px; margin-top: 28px; padding-top: 20px; border-top: 2px solid #ede9f8; color: #6c6596; font-size: 12px; }
-          .footer-brand img { width: 32px; height: 32px; object-fit: contain; }
+          .footer-brand { display: flex; align-items: center; gap: 14px; margin-top: 30px; padding-top: 22px; border-top: 2px solid #eef2f8; color: #60729a; font-size: 12px; }
+          .footer-brand img { width: 36px; height: 36px; object-fit: contain; }
 
           @media print {
             body { background: #ffffff; }
-            .page { max-width: none; margin: 0; padding: 48px 56px 64px; }
-            .cover, .page, .footer-page { min-height: auto; }
-            .report-section, .stat-card, .summary-item, .mini-card { break-inside: avoid; }
+            .page, .report-page, .footer-page, .cover { min-height: auto; }
+            .stat-card, .summary-item, .mini-card, .featured-metric, .pullquote, .toc-row { break-inside: avoid; }
+            .report-page, .page, .footer-page { page-break-after: always; }
           }
         </style>
       </head>
@@ -775,21 +1072,40 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
           </div>
         </section>
 
+        <!-- ===== TABLE OF CONTENTS ===== -->
+        <div class="page">
+          <div class="toc-header">
+            <div class="toc-kicker">01 · Inside this report</div>
+            <h2 class="toc-title">Table of Contents</h2>
+            <p class="toc-desc">A guided tour through every channel running for ${escapeHtml(report.clinic.name)}. Each section opens with a hero metric followed by supporting performance data.</p>
+          </div>
+          <div class="toc-list">${tocHtml}</div>
+          <div class="page-footer">
+            <span>${escapeHtml(report.clinic.name)} · ${escapeHtml(coverDateRange)}</span>
+            <span>01</span>
+          </div>
+        </div>
+
         <!-- ===== OVERVIEW PAGE ===== -->
         <div class="page">
           <div class="overview-header">
-            <div class="overview-kicker">01 · Overview</div>
+            <div class="overview-kicker">02 · Overview</div>
             <h2 class="overview-title">Performance at a Glance</h2>
-            <p class="overview-desc">Six headline metrics summarizing lead volume, phone activity, and AI reception across the ${escapeHtml(report.period.label.toLowerCase())} window. Each channel is broken down in detail on the pages that follow.</p>
-            <div class="overview-meta">Reporting window: ${escapeHtml(coverDateRange)} · Generated ${escapeHtml(new Date(report.generatedAt).toLocaleDateString())}</div>
+            <p class="overview-desc">Headline metrics summarizing lead volume, phone activity, and AI reception across the ${escapeHtml(report.period.label.toLowerCase())} window. Each channel is broken down in detail on the pages that follow.</p>
+            <div class="overview-meta">Reporting window · ${escapeHtml(coverDateRange)} · Generated ${escapeHtml(new Date(report.generatedAt).toLocaleDateString())}</div>
           </div>
           <div class="overview-grid">${overviewHtml}</div>
-
-          ${sectionsHtml}
+          <div class="page-footer">
+            <span>${escapeHtml(report.clinic.name)} · ${escapeHtml(coverDateRange)}</span>
+            <span>02</span>
+          </div>
         </div>
 
+        <!-- ===== SECTION PAGES ===== -->
+        ${sectionsHtml}
+
         <!-- ===== FOOTER PAGE ===== -->
-        <div class="footer-page page-break">
+        <div class="footer-page">
           <div class="footer-card">
             <div class="footer-kicker">Let's keep growing together</div>
             <div class="footer-title">${escapeHtml(report.clinic.name)}</div>
