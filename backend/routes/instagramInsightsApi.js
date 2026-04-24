@@ -196,6 +196,9 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
         case 'follower_count':
           currentTotals.followerCount = insight.value;
           break;
+        case 'followers_count_snapshot':
+          currentTotals.followerCount = insight.value;
+          break;
       }
     });
 
@@ -221,7 +224,8 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
       totalReach: 0,
       totalImpressions: 0,
       totalProfileViews: 0,
-      totalEngagement: 0
+      totalEngagement: 0,
+      followerCount: 0
     };
 
     previousUserInsights.forEach(insight => {
@@ -234,6 +238,10 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
           break;
         case 'profile_views':
           previousTotals.totalProfileViews += insight.value;
+          break;
+        case 'follower_count':
+        case 'followers_count_snapshot':
+          previousTotals.followerCount = insight.value;
           break;
       }
     });

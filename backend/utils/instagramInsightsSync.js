@@ -46,30 +46,66 @@ async function graphGetWithFallback(path, accessTokens, params = {}) {
 
 function normalizeInsightValues(metric, payload, customerId, accountId, period) {
   const values = Array.isArray(payload?.values) ? payload.values : [];
-  if (!values.length) {
-    return [];
+  const docs = [];
+
+  if (values.length) {
+    docs.push(
+      ...values
+        .map((entry) => {
+          const value = Number(entry?.value ?? 0);
+          const endTime = entry?.end_time ? new Date(entry.end_time) : null;
+          if (!endTime || Number.isNaN(endTime.getTime())) {
+            return null;
+          }
+
+          return {
+            account_id: accountId,
+            customer_id: customerId,
+            period,
+            metric,
+            value,
+            end_time: endTime,
+            source: 'meta_graph',
+            idem: createIdemKey(`${accountId}:${metric}:${endTime.toISOString()}:${period}`),
+          };
+        })
+        .filter(Boolean)
+    );
   }
 
-  return values
-    .map((entry) => {
-      const value = Number(entry?.value ?? 0);
-      const endTime = entry?.end_time ? new Date(entry.end_time) : null;
-      if (!endTime || Number.isNaN(endTime.getTime())) {
-        return null;
-      }
+  const totalValue = payload?.total_value;
+  const periodEnd = payload?.end_time ? new Date(payload.end_time) : null;
+  if (
+    docs.length === 0
+    && typeof totalValue !== 'undefined'
+    && periodEnd
+    && !Number.isNaN(periodEnd.getTime())
+  ) {
+    docs.push({
+      account_id: accountId,
+      customer_id: customerId,
+      period,
+      metric,
+      value: Number(totalValue ?? 0),
+      end_time: periodEnd,
+      source: 'meta_graph',
+      idem: createIdemKey(`${accountId}:${metric}:${periodEnd.toISOString()}:${period}`),
+    });
+  }
 
-      return {
-        account_id: accountId,
-        customer_id: customerId,
-        period,
-        metric,
-        value,
-        end_time: endTime,
-        source: 'meta_graph',
-        idem: createIdemKey(`${accountId}:${metric}:${endTime.toISOString()}:${period}`),
-      };
-    })
-    .filter(Boolean);
+  return docs;
+}
+
+async function fetchInstagramProfile(instagramAccountId, accessTokens) {
+  const { data } = await graphGetWithFallback(
+    `/${instagramAccountId}`,
+    accessTokens,
+    {
+      fields: 'id,username,name,followers_count,media_count',
+    }
+  );
+
+  return data || {};
 }
 
 async function syncUserInsights({ instagramAccountId, customerId, accessTokens, from, to }) {
@@ -100,6 +136,25 @@ async function syncUserInsights({ instagramAccountId, customerId, accessTokens, 
       console.warn(`Instagram user insight metric "${metric}" unavailable:`, error.response?.data || error.message);
     }
   }));
+
+  try {
+    const profile = await fetchInstagramProfile(instagramAccountId, accessTokens);
+    if (typeof profile.followers_count !== 'undefined') {
+      const snapshotTime = new Date(to);
+      docs.push({
+        account_id: instagramAccountId,
+        customer_id: customerId,
+        period: 'snapshot',
+        metric: 'followers_count_snapshot',
+        value: Number(profile.followers_count ?? 0),
+        end_time: snapshotTime,
+        source: 'meta_graph_profile',
+        idem: createIdemKey(`${instagramAccountId}:followers_count_snapshot:${snapshotTime.toISOString()}:snapshot`),
+      });
+    }
+  } catch (error) {
+    console.warn('Instagram profile snapshot unavailable:', error.response?.data || error.message);
+  }
 
   if (!docs.length) {
     return { upserted: 0 };
@@ -290,6 +345,10 @@ async function syncInstagramInsightsForUser(user, range) {
     instagramUsername: user.instagramUsername || null,
     userMetricsUpserted: userResult.upserted,
     mediaUpserted: mediaResult.upserted,
+    reason:
+      userResult.upserted || mediaResult.upserted
+        ? 'Meta sync completed.'
+        : 'Meta sync completed, but no metrics were returned for this period.',
   };
 }
 

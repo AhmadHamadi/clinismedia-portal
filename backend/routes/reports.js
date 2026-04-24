@@ -721,6 +721,9 @@ async function buildInstagramSection(customerId, start, end) {
       case 'follower_count':
         totals.followerCount = insight.value;
         break;
+      case 'followers_count_snapshot':
+        totals.followerCount = insight.value;
+        break;
       default:
         break;
     }
