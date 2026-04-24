@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import {
-  FaCalendarAlt,
   FaChartLine,
   FaExclamationTriangle,
   FaEye,
@@ -13,7 +12,7 @@ import {
   FaSpinner,
   FaUsers,
 } from 'react-icons/fa';
-import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
+import { format, subDays } from 'date-fns';
 
 interface InstagramInsightImage {
   _id: string;
@@ -70,6 +69,13 @@ interface InstagramInsightsResponse {
 
 const metricCardClasses = 'rounded-lg border border-gray-200 bg-white p-4';
 
+interface InsightRangeOption {
+  key: string;
+  label: string;
+  start: Date;
+  end: Date;
+}
+
 const InstagramInsightsPage: React.FC = () => {
   const [images, setImages] = useState<InstagramInsightImage[]>([]);
   const [imagesLoading, setImagesLoading] = useState(true);
@@ -77,41 +83,41 @@ const InstagramInsightsPage: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<InstagramInsightImage | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
+  const [selectedRangeKey, setSelectedRangeKey] = useState<string>('last30Days');
   const [insights, setInsights] = useState<InstagramInsightsResponse | null>(null);
 
   const now = new Date(Date.now());
-  const monthRanges = useMemo(() => ([
+  const rangeOptions = useMemo<InsightRangeOption[]>(() => ([
     {
-      label: format(now, 'MMMM yyyy'),
-      month: format(now, 'yyyy-MM'),
-      start: startOfMonth(now),
-      end: endOfMonth(now),
+      key: 'last7Days',
+      label: 'Last 7 days',
+      start: subDays(now, 6),
+      end: now,
     },
     {
-      label: format(subMonths(now, 1), 'MMMM yyyy'),
-      month: format(subMonths(now, 1), 'yyyy-MM'),
-      start: startOfMonth(subMonths(now, 1)),
-      end: endOfMonth(subMonths(now, 1)),
+      key: 'last30Days',
+      label: 'Last 30 days',
+      start: subDays(now, 29),
+      end: now,
     },
     {
-      label: format(subMonths(now, 2), 'MMMM yyyy'),
-      month: format(subMonths(now, 2), 'yyyy-MM'),
-      start: startOfMonth(subMonths(now, 2)),
-      end: endOfMonth(subMonths(now, 2)),
+      key: 'last90Days',
+      label: 'Last 90 days',
+      start: subDays(now, 89),
+      end: now,
     },
   ]), [now]);
 
-  const selectedRange = monthRanges.find((range) => range.month === selectedMonth) || monthRanges[0];
-  const selectedMonthImage = images.find((image) => image.month === selectedMonth) || null;
+  const selectedRange = rangeOptions.find((range) => range.key === selectedRangeKey) || rangeOptions[1];
+  const selectedMonthImage = images.find((image) => image.month === format(now, 'yyyy-MM')) || null;
 
   useEffect(() => {
     void fetchImages();
   }, []);
 
   useEffect(() => {
-    void fetchInsights(selectedRange.month);
-  }, [selectedRange.month]);
+    void fetchInsights(selectedRange.key);
+  }, [selectedRange.key]);
 
   const getCustomerToken = () => localStorage.getItem('customerToken');
 
@@ -142,13 +148,13 @@ const InstagramInsightsPage: React.FC = () => {
     }
   };
 
-  const fetchInsights = async (month: string) => {
+  const fetchInsights = async (rangeKey: string) => {
     setInsightsLoading(true);
     setError(null);
 
     try {
       const token = getCustomerToken();
-      const range = monthRanges.find((item) => item.month === month) || monthRanges[0];
+      const range = rangeOptions.find((item) => item.key === rangeKey) || rangeOptions[1];
       const response = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/instagram-insights/my-insights`,
         {
@@ -175,19 +181,11 @@ const InstagramInsightsPage: React.FC = () => {
     try {
       await Promise.all([
         fetchImages(),
-        fetchInsights(selectedRange.month),
+        fetchInsights(selectedRange.key),
       ]);
     } finally {
       setRefreshing(false);
     }
-  };
-
-  const formatMonth = (month: string) => {
-    const [year, monthNum] = month.split('-');
-    return new Date(Number(year), Number(monthNum) - 1).toLocaleString('default', {
-      month: 'long',
-      year: 'numeric',
-    });
   };
 
   const formatDate = (value: string) => new Date(value).toLocaleDateString('en-US', {
@@ -241,7 +239,7 @@ const InstagramInsightsPage: React.FC = () => {
           <div className="space-y-6">
             <div className="cm-panel-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Month</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Timeframe</h2>
                 <button
                   onClick={refreshAll}
                   disabled={refreshing}
@@ -251,29 +249,21 @@ const InstagramInsightsPage: React.FC = () => {
                 </button>
               </div>
               <div className="flex flex-col gap-2">
-                {monthRanges.map((range) => {
-                  const hasImage = images.some((image) => image.month === range.month);
-                  const isSelected = selectedMonth === range.month;
+                {rangeOptions.map((range) => {
+                  const isSelected = selectedRangeKey === range.key;
 
                   return (
                     <button
-                      key={range.month}
+                      key={range.key}
                       className={`text-left px-4 py-3 rounded-lg font-medium border transition-all ${
                         isSelected
                           ? 'bg-blue-100 border-blue-400 text-blue-900'
                           : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-blue-50'
                       }`}
-                      onClick={() => setSelectedMonth(range.month)}
+                      onClick={() => setSelectedRangeKey(range.key)}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span>{range.label}</span>
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          hasImage
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {hasImage ? 'Image' : 'No image'}
-                        </span>
                       </div>
                     </button>
                   );
@@ -326,7 +316,7 @@ const InstagramInsightsPage: React.FC = () => {
                 >
                   <img
                     src={buildImageUrl(selectedMonthImage)}
-                    alt={`Instagram report for ${formatMonth(selectedMonthImage.month)}`}
+                    alt={`Instagram report for ${selectedMonthImage.month}`}
                     className="w-full rounded-lg border border-gray-200"
                   />
                   <p className="text-sm text-gray-600 mt-3">
@@ -335,7 +325,7 @@ const InstagramInsightsPage: React.FC = () => {
                 </button>
               ) : (
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-600">
-                  No uploaded image report for {formatMonth(selectedMonth)}.
+                  No uploaded image report for this month.
                 </div>
               )}
             </div>
@@ -485,7 +475,7 @@ const InstagramInsightsPage: React.FC = () => {
                   <FaInstagram className="text-5xl text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No Live Metrics Yet</h3>
                   <p className="text-gray-600 max-w-xl mx-auto">
-                    We do not have live Instagram metrics for {selectedRange.label} yet. This usually means the Instagram professional account is not fully linked to the connected Facebook Page, or Meta did not return insights for this period.
+                    We do not have live Instagram metrics for {selectedRange.label} yet. This usually means the Instagram professional account is not fully linked to the connected Facebook Page, the account was converted recently, or Meta did not return insights for this period.
                   </p>
                 </div>
               )}
@@ -501,15 +491,14 @@ const InstagramInsightsPage: React.FC = () => {
             <div className="max-w-6xl max-h-[90vh] overflow-auto">
               <img
                 src={buildImageUrl(selectedImage)}
-                alt={`Instagram Insights - ${formatMonth(selectedImage.month)}`}
+                alt={`Instagram Insights - ${selectedImage.month}`}
                 className="w-full h-auto rounded-lg shadow-2xl"
                 style={{ minWidth: '100%', maxWidth: 'none' }}
                 onClick={(event) => event.stopPropagation()}
               />
               <div className="text-center mt-4 text-white">
                 <p className="text-lg font-semibold flex items-center justify-center">
-                  <FaCalendarAlt className="mr-2" />
-                  {formatMonth(selectedImage.month)}
+                  {selectedImage.month}
                 </p>
                 <p className="text-sm text-gray-300">Uploaded: {formatDate(selectedImage.uploadedAt)}</p>
               </div>
