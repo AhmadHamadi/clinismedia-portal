@@ -669,10 +669,9 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
           }
           .cover-inner { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; min-height: calc(100vh - 112px); }
           .cover-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
-          .cover-brand { display: flex; align-items: center; gap: 14px; }
-          .cover-brand img { width: 56px; height: 56px; object-fit: contain; display: block; }
-          .cover-brand-text { font-size: 15px; font-weight: 800; color: #10213d; line-height: 1.2; letter-spacing: 0.01em; }
-          .cover-brand-sub { font-size: 10.5px; font-weight: 600; color: #2e6bff; letter-spacing: 0.16em; text-transform: uppercase; margin-top: 2px; }
+          .cover-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+          .cover-brand img { width: 200px; height: auto; max-height: 64px; object-fit: contain; display: block; }
+          .cover-brand-sub { font-size: 10.5px; font-weight: 700; color: #2e6bff; letter-spacing: 0.18em; text-transform: uppercase; padding-left: 4px; }
           .cover-period {
             display: inline-block;
             text-align: right;
@@ -998,8 +997,8 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
           .footer-row:last-child { border-bottom: none; }
           .footer-label { flex: 0 0 110px; text-transform: uppercase; letter-spacing: 0.12em; font-size: 10.5px; font-weight: 700; color: #60729a; }
           .footer-value { flex: 1; word-break: break-word; font-weight: 500; }
-          .footer-brand { display: flex; align-items: center; gap: 14px; margin-top: 30px; padding-top: 22px; border-top: 2px solid #eef2f8; color: #60729a; font-size: 12px; }
-          .footer-brand img { width: 36px; height: 36px; object-fit: contain; }
+          .footer-brand { display: flex; align-items: center; gap: 16px; margin-top: 30px; padding-top: 22px; border-top: 2px solid #eef2f8; color: #60729a; font-size: 12px; }
+          .footer-brand img { width: 140px; height: auto; max-height: 44px; object-fit: contain; }
 
           @media print {
             body { background: #ffffff; }
@@ -1049,10 +1048,7 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
             <div class="cover-top">
               <div class="cover-brand">
                 <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" crossorigin="anonymous" />
-                <div>
-                  <div class="cover-brand-text">CliniMedia</div>
-                  <div class="cover-brand-sub">Marketing Analytics</div>
-                </div>
+                <div class="cover-brand-sub">Marketing Analytics</div>
               </div>
               <div class="cover-period">${escapeHtml(coverDateRange)}</div>
             </div>
