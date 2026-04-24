@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaGoogle, FaSpinner, FaSyncAlt, FaEye, FaSearch, FaPhone, FaDirections, FaMousePointer, FaCheckCircle, FaExclamationTriangle, FaLink } from 'react-icons/fa';
+import { FaGoogle, FaSpinner, FaSyncAlt, FaEye, FaSearch, FaPhone, FaDirections, FaMousePointer, FaCheckCircle, FaExclamationTriangle, FaLink, FaStar } from 'react-icons/fa';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 
@@ -49,6 +49,24 @@ interface GoogleBusinessInsights {
   }>;
   dataSource?: 'stored' | 'live';
   lastUpdated?: string;
+  reviewSummary?: {
+    error?: string;
+    totalReviewCount: number;
+    averageRatingOverall: number | null;
+    reviewsInRange: number;
+    averageRatingInRange: number | null;
+    fiveStarReviews: number;
+    fourStarReviews: number;
+    threeStarReviews: number;
+    twoStarReviews: number;
+    oneStarReviews: number;
+    recentReviews: Array<{
+      reviewerName: string;
+      starRating: number | null;
+      comment: string;
+      createTime: string;
+    }>;
+  };
 }
 
 const GoogleBusinessAnalyticsPage: React.FC = () => {
@@ -287,6 +305,20 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const renderStars = (rating: number | null) => {
+    const safeRating = Math.max(0, Math.min(5, rating || 0));
+    return (
+      <div className="flex items-center gap-1">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <FaStar
+            key={index}
+            className={index < safeRating ? 'text-amber-400' : 'text-gray-300'}
+          />
+        ))}
+      </div>
+    );
   };
 
   const getDateRangeLabel = () => {
@@ -554,6 +586,136 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Reviews Summary */}
+        {insights?.reviewSummary && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+              <div className="cm-panel p-6 border-2 border-yellow-200 transform hover:scale-105 transition-all duration-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-semibold">Total Reviews</p>
+                    <p className="text-3xl font-bold text-gray-900">{formatNumber(insights.reviewSummary.totalReviewCount)}</p>
+                  </div>
+                  <FaStar className="text-3xl text-yellow-500" />
+                </div>
+              </div>
+
+              <div className="cm-panel p-6 border-2 border-amber-200 transform hover:scale-105 transition-all duration-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-semibold">Reviews This Period</p>
+                    <p className="text-3xl font-bold text-gray-900">{formatNumber(insights.reviewSummary.reviewsInRange)}</p>
+                    <p className="text-xs text-gray-500 mt-1">{getDateRangeLabel()}</p>
+                  </div>
+                  <FaStar className="text-3xl text-amber-500" />
+                </div>
+              </div>
+
+              <div className="cm-panel p-6 border-2 border-lime-200 transform hover:scale-105 transition-all duration-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-semibold">Overall Rating</p>
+                    <p className="text-3xl font-bold text-gray-900">
+                      {insights.reviewSummary.averageRatingOverall ?? '-'}
+                    </p>
+                  </div>
+                  <FaStar className="text-3xl text-lime-500" />
+                </div>
+              </div>
+
+              <div className="cm-panel p-6 border-2 border-emerald-200 transform hover:scale-105 transition-all duration-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-semibold">Avg Rating This Period</p>
+                    <p className="text-3xl font-bold text-gray-900">
+                      {insights.reviewSummary.averageRatingInRange ?? '-'}
+                    </p>
+                  </div>
+                  <FaStar className="text-3xl text-emerald-500" />
+                </div>
+              </div>
+
+              <div className="cm-panel p-6 border-2 border-pink-200 transform hover:scale-105 transition-all duration-200">
+                <div>
+                  <p className="text-gray-600 text-sm font-semibold">5-Star Reviews This Period</p>
+                  <p className="text-3xl font-bold text-gray-900">{formatNumber(insights.reviewSummary.fiveStarReviews)}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    4-star: {insights.reviewSummary.fourStarReviews} | 3-star and below: {insights.reviewSummary.threeStarReviews + insights.reviewSummary.twoStarReviews + insights.reviewSummary.oneStarReviews}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="cm-panel-sm border border-gray-200 mb-8">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Google Reviews</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Total reviews, rating breakdown, and recent review activity for {getDateRangeLabel().toLowerCase()}.
+                </p>
+                {insights.reviewSummary.error && (
+                  <p className="text-sm text-amber-700 mt-2">{insights.reviewSummary.error}</p>
+                )}
+              </div>
+
+              <div className="p-6 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+                  <div className="text-sm font-semibold text-gray-700 mb-4">Rating Breakdown</div>
+                  {[5, 4, 3, 2, 1].map((rating) => {
+                    const count = rating === 5
+                      ? insights.reviewSummary!.fiveStarReviews
+                      : rating === 4
+                        ? insights.reviewSummary!.fourStarReviews
+                        : rating === 3
+                          ? insights.reviewSummary!.threeStarReviews
+                          : rating === 2
+                            ? insights.reviewSummary!.twoStarReviews
+                            : insights.reviewSummary!.oneStarReviews;
+                    return (
+                      <div key={rating} className="flex items-center justify-between py-2 border-b last:border-b-0 border-gray-200">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">{rating}</span>
+                          <FaStar className="text-amber-400" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div>
+                  <div className="text-sm font-semibold text-gray-700 mb-4">Recent Reviews</div>
+                  {insights.reviewSummary.recentReviews.length > 0 ? (
+                    <div className="space-y-3">
+                      {insights.reviewSummary.recentReviews.map((review, index) => (
+                        <div key={`${review.reviewerName}-${index}`} className="rounded-xl border border-gray-200 p-4 bg-white">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <div className="font-semibold text-gray-900">{review.reviewerName}</div>
+                              <div className="mt-1">{renderStars(review.starRating)}</div>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {review.createTime ? formatDate(review.createTime) : 'Unknown date'}
+                            </div>
+                          </div>
+                          {review.comment ? (
+                            <p className="mt-3 text-sm text-gray-700 leading-6">{review.comment}</p>
+                          ) : (
+                            <p className="mt-3 text-sm text-gray-400">No written comment</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-gray-300 p-6 text-sm text-gray-500 bg-gray-50">
+                      No reviews found for this time period.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Daily Performance Table */}

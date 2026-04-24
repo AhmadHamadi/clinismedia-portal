@@ -123,6 +123,18 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  instagramAccountId: {
+    type: String,
+    default: null,
+  },
+  instagramAccountName: {
+    type: String,
+    default: null,
+  },
+  instagramUsername: {
+    type: String,
+    default: null,
+  },
   facebookAccessToken: {
     type: String,
     default: null,
@@ -164,6 +176,18 @@ const userSchema = new mongoose.Schema({
     default: null,
   },
   googleBusinessProfileName: {
+    type: String,
+    default: null,
+  },
+  googleBusinessAccountId: {
+    type: String,
+    default: null,
+  },
+  googleBusinessAccountName: {
+    type: String,
+    default: null,
+  },
+  googleBusinessLocationName: {
     type: String,
     default: null,
   },

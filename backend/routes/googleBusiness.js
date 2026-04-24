@@ -10,6 +10,176 @@ const { findGoogleIntegrationAdminUser } = require('../utils/googleIntegrationAd
 const { google } = require('googleapis');
 const axios = require('axios');
 
+function normalizeGoogleStarRating(starRating) {
+  if (starRating === null || starRating === undefined) return null;
+
+  if (typeof starRating === 'number') {
+    return Number.isFinite(starRating) ? starRating : null;
+  }
+
+  const normalized = String(starRating).trim().toUpperCase();
+  const ratingMap = {
+    ONE: 1,
+    TWO: 2,
+    THREE: 3,
+    FOUR: 4,
+    FIVE: 5,
+    STAR_RATING_UNSPECIFIED: null,
+  };
+
+  if (Object.prototype.hasOwnProperty.call(ratingMap, normalized)) {
+    return ratingMap[normalized];
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function resolveGoogleBusinessReviewContext(oauth2Client, customer) {
+  const storedLocationName = customer.googleBusinessLocationName
+    || (customer.googleBusinessProfileId ? `locations/${customer.googleBusinessProfileId}` : null);
+  const storedAccountName = customer.googleBusinessAccountName
+    || (customer.googleBusinessAccountId ? `accounts/${customer.googleBusinessAccountId}` : null);
+
+  if (storedLocationName && storedAccountName) {
+    return {
+      locationName: storedLocationName,
+      locationId: storedLocationName.split('/').pop(),
+      accountName: storedAccountName,
+      accountId: storedAccountName.split('/').pop(),
+    };
+  }
+
+  const accountManagement = google.mybusinessaccountmanagement({ version: 'v1', auth: oauth2Client });
+  const businessInformation = google.mybusinessbusinessinformation({ version: 'v1', auth: oauth2Client });
+  const accountsResponse = await accountManagement.accounts.list();
+  const accounts = accountsResponse.data.accounts || [];
+
+  for (const account of accounts) {
+    try {
+      const locationsResponse = await businessInformation.accounts.locations.list({
+        parent: account.name,
+        pageSize: 100,
+        readMask: 'name,title',
+      });
+      const locations = locationsResponse.data.locations || [];
+      const matchedLocation = locations.find((location) => {
+        if (customer.googleBusinessLocationName && location.name === customer.googleBusinessLocationName) {
+          return true;
+        }
+        return location.name?.split('/').pop() === customer.googleBusinessProfileId;
+      });
+
+      if (matchedLocation) {
+        const resolvedContext = {
+          locationName: matchedLocation.name,
+          locationId: matchedLocation.name.split('/').pop(),
+          accountName: account.name,
+          accountId: account.name.split('/').pop(),
+        };
+
+        await User.findByIdAndUpdate(customer._id, {
+          googleBusinessAccountId: resolvedContext.accountId,
+          googleBusinessAccountName: resolvedContext.accountName,
+          googleBusinessLocationName: resolvedContext.locationName,
+        });
+
+        customer.googleBusinessAccountId = resolvedContext.accountId;
+        customer.googleBusinessAccountName = resolvedContext.accountName;
+        customer.googleBusinessLocationName = resolvedContext.locationName;
+
+        return resolvedContext;
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+
+  throw new Error('Could not resolve the Google Business account/location needed for reviews.');
+}
+
+async function fetchGoogleBusinessReviewSummary(oauth2Client, accessToken, customer, startDate, endDate) {
+  const context = await resolveGoogleBusinessReviewContext(oauth2Client, customer);
+  const reviews = [];
+  let pageToken = null;
+  let totalReviewCount = 0;
+  let averageRatingOverall = null;
+
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T23:59:59.999Z`);
+
+  do {
+    const response = await axios.get(
+      `https://mybusiness.googleapis.com/v4/${context.accountName}/locations/${context.locationId}/reviews`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        params: {
+          pageSize: 50,
+          orderBy: 'updateTime desc',
+          ...(pageToken ? { pageToken } : {}),
+        },
+      }
+    );
+
+    const payload = response.data || {};
+    if (typeof payload.totalReviewCount === 'number') {
+      totalReviewCount = payload.totalReviewCount;
+    }
+    if (payload.averageRating !== undefined && payload.averageRating !== null) {
+      averageRatingOverall = Number(payload.averageRating);
+    }
+
+    reviews.push(...(payload.reviews || []));
+    pageToken = payload.nextPageToken || null;
+  } while (pageToken);
+
+  const filteredReviews = reviews.filter((review) => {
+    const timestamp = review.createTime || review.updateTime;
+    if (!timestamp) return false;
+    const reviewDate = new Date(timestamp);
+    return reviewDate >= start && reviewDate <= end;
+  });
+
+  const ratingBreakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  let totalRating = 0;
+  let ratedReviewsCount = 0;
+
+  filteredReviews.forEach((review) => {
+    const rating = normalizeGoogleStarRating(review.starRating);
+    if (!rating) return;
+    ratingBreakdown[rating] += 1;
+    totalRating += rating;
+    ratedReviewsCount += 1;
+  });
+
+  const averageRatingInRange = ratedReviewsCount
+    ? Number((totalRating / ratedReviewsCount).toFixed(2))
+    : null;
+
+  return {
+    totalReviewCount,
+    averageRatingOverall: averageRatingOverall !== null ? Number(Number(averageRatingOverall).toFixed(2)) : null,
+    reviewsInRange: filteredReviews.length,
+    averageRatingInRange,
+    fiveStarReviews: ratingBreakdown[5],
+    fourStarReviews: ratingBreakdown[4],
+    threeStarReviews: ratingBreakdown[3],
+    twoStarReviews: ratingBreakdown[2],
+    oneStarReviews: ratingBreakdown[1],
+    recentReviews: filteredReviews
+      .sort((a, b) => new Date(b.createTime || b.updateTime || 0) - new Date(a.createTime || a.updateTime || 0))
+      .slice(0, 5)
+      .map((review) => ({
+        reviewerName: review.reviewer?.displayName || 'Google reviewer',
+        starRating: normalizeGoogleStarRating(review.starRating),
+        comment: review.comment || '',
+        createTime: review.createTime || review.updateTime,
+      })),
+  };
+}
+
 // Helper function to fetch business insights data with batching for long ranges
 async function fetchBusinessInsightsData(oauth2Client, locationName, startDate, endDate, accessToken) {
   
@@ -1095,7 +1265,15 @@ router.post('/save-admin-tokens', authenticateToken, authorizeRole(['admin']), a
 // POST /api/google-business/save-business-profile - Save selected business profile
 router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
-    const { customerId, businessProfileId, businessProfileName, tokens } = req.body;
+    const {
+      customerId,
+      businessProfileId,
+      businessProfileName,
+      accountId,
+      accountName,
+      locationName,
+      tokens,
+    } = req.body;
 
     console.log('Save business profile request:', {
       customerId,
@@ -1140,6 +1318,9 @@ router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']
     const updateData = {
       googleBusinessProfileId: businessProfileId,
       googleBusinessProfileName: businessProfileName,
+      googleBusinessAccountId: accountId || null,
+      googleBusinessAccountName: accountName || null,
+      googleBusinessLocationName: locationName || (businessProfileId ? `locations/${businessProfileId}` : null),
       googleBusinessAccessToken: tokensToUse.access_token,
       googleBusinessRefreshToken: tokensToUse.refresh_token,
       googleBusinessNeedsReauth: false // ✅ FIXED: Always clear reauth flag when saving new tokens
@@ -1922,7 +2103,8 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
       period: { start: startDate, end: endDate },
       summary: portalTotals,
       comparison: comparisonMetrics,
-      dailyData: []
+      dailyData: [],
+      reviewSummary: null
     };
 
     // Process metric data from the correct API format (multiDailyMetricTimeSeries[].dailyMetricTimeSeries[])
@@ -2011,6 +2193,31 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
     
     // Update summary with recalculated values
     processedData.summary = recalculatedSummary;
+
+    try {
+      processedData.reviewSummary = await fetchGoogleBusinessReviewSummary(
+        oauth2Client,
+        accessToken,
+        customer,
+        startDate,
+        endDate
+      );
+    } catch (reviewError) {
+      console.error('⚠️ Failed to fetch Google Business reviews:', reviewError.message);
+      processedData.reviewSummary = {
+        error: reviewError.message,
+        totalReviewCount: 0,
+        averageRatingOverall: null,
+        reviewsInRange: 0,
+        averageRatingInRange: null,
+        fiveStarReviews: 0,
+        fourStarReviews: 0,
+        threeStarReviews: 0,
+        twoStarReviews: 0,
+        oneStarReviews: 0,
+        recentReviews: [],
+      };
+    }
 
     // Verify day-by-day breakdown is correct
     console.log(`✅ Processed insights: ${processedData.dailyData.length} days of data (filtered to ${startDate} to ${endDate})`);
@@ -2196,6 +2403,9 @@ router.patch('/disconnect/:customerId', authenticateToken, authorizeRole(['admin
     await User.findByIdAndUpdate(customerId, {
       googleBusinessProfileId: null,
       googleBusinessProfileName: null,
+      googleBusinessAccountId: null,
+      googleBusinessAccountName: null,
+      googleBusinessLocationName: null,
       googleBusinessAccessToken: null,
       googleBusinessRefreshToken: null,
       googleBusinessTokenExpiry: null,

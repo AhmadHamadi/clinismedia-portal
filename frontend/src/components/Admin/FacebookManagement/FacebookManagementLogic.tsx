@@ -20,6 +20,42 @@ export interface FacebookPage {
   tokenExpiry?: string; // Added for token expiry
 }
 
+export interface MetaLeadsClinicAudit {
+  customerId: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  location: string | null;
+  folders: string[];
+  folderCount: number;
+  latestLeadDate: string | null;
+  staleDays: number | null;
+  totalLeads: number;
+  leadsLast30Days: number;
+  isStale: boolean;
+}
+
+export interface MetaLeadsMonitoringStatus {
+  monitoringEnabled: boolean;
+  intervalMinutes: number | null;
+  hasCredentials: boolean;
+  isChecking: boolean;
+  mailboxUser: string;
+  mailboxHost: string;
+  mailboxPort: number;
+  lastMonitoringStartedAt: string | null;
+  lastCheckCompletedAt: string | null;
+  lastSuccessfulCheckAt: string | null;
+  lastError: string | null;
+}
+
+export interface MetaLeadsAudit {
+  generatedAt: string;
+  totalMappedClinics: number;
+  staleClinics: number;
+  monitoring: MetaLeadsMonitoringStatus;
+  clinics: MetaLeadsClinicAudit[];
+}
+
 export const useFacebookManagement = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,10 +65,13 @@ export const useFacebookManagement = () => {
   const [selectedPage, setSelectedPage] = useState<FacebookPage | null>(null);
   const [oauthStatus, setOauthStatus] = useState<'idle' | 'loading' | 'pages' | 'saving' | 'success' | 'error'>('idle');
   const [oauthError, setOauthError] = useState<string | null>(null);
+  const [metaLeadsAudit, setMetaLeadsAudit] = useState<MetaLeadsAudit | null>(null);
+  const [metaLeadsLoading, setMetaLeadsLoading] = useState(true);
+  const [metaLeadsRefreshing, setMetaLeadsRefreshing] = useState(false);
+  const [metaLeadsError, setMetaLeadsError] = useState<string | null>(null);
 
   const fetchCustomers = async () => {
     try {
-      setLoading(true);
       const token = localStorage.getItem('adminToken');
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/customers`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -41,8 +80,39 @@ export const useFacebookManagement = () => {
     } catch (err) {
       console.error("Failed to fetch customers", err);
       setError("Failed to fetch customers");
+    }
+  };
+
+  const fetchMetaLeadsAudit = async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    try {
+      if (!silent) {
+        setMetaLeadsLoading(true);
+      }
+      if (!silent) {
+        setMetaLeadsError(null);
+      }
+      const token = localStorage.getItem('adminToken');
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/meta-leads/admin/ingestion-audit`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMetaLeadsAudit(response.data || null);
+    } catch (err) {
+      console.error("Failed to fetch Meta Leads audit", err);
+      setMetaLeadsError("Failed to fetch Meta Leads audit");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setMetaLeadsLoading(false);
+      }
+    }
+  };
+
+  const refreshMetaLeadsAudit = async () => {
+    try {
+      setMetaLeadsRefreshing(true);
+      await fetchMetaLeadsAudit({ silent: false });
+    } finally {
+      setMetaLeadsRefreshing(false);
     }
   };
 
@@ -207,8 +277,36 @@ export const useFacebookManagement = () => {
   };
 
   useEffect(() => {
-    fetchCustomers();
-    fetchAdminFacebookPages();
+    const load = async () => {
+      try {
+        setLoading(true);
+        await Promise.all([
+          fetchCustomers(),
+          fetchAdminFacebookPages(),
+          fetchMetaLeadsAudit({ silent: false }),
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, []);
+
+  useEffect(() => {
+    const refreshSilently = () => {
+      fetchMetaLeadsAudit({ silent: true });
+    };
+
+    const interval = window.setInterval(refreshSilently, 60 * 1000);
+    const handleFocus = () => refreshSilently();
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // Check for OAuth callback in URL
@@ -251,5 +349,10 @@ export const useFacebookManagement = () => {
     getFacebookStatus,
     fetchCustomers,
     assignFacebookPage,
+    metaLeadsAudit,
+    metaLeadsLoading,
+    metaLeadsRefreshing,
+    metaLeadsError,
+    refreshMetaLeadsAudit,
   };
 }; 

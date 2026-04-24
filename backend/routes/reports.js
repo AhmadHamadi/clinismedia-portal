@@ -15,6 +15,8 @@ const ReviewSession = require('../models/ReviewSession');
 const ConcernSubmission = require('../models/ConcernSubmission');
 const ReviewEvent = require('../models/ReviewEvent');
 const { findGoogleIntegrationAdminUser } = require('../utils/googleIntegrationAdminUser');
+const { syncInstagramInsightsForUser } = require('../utils/instagramInsightsSync');
+const { google } = require('googleapis');
 
 const MCC_CUSTOMER_ID = '4037087680';
 const NINETY_MIN_MS = 90 * 60 * 1000;
@@ -120,6 +122,233 @@ function formatDuration(seconds) {
 function calculatePercentageChange(previous, current) {
   if (!previous) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 100);
+}
+
+function normalizeGoogleStarRating(starRating) {
+  if (starRating === null || starRating === undefined) return null;
+
+  if (typeof starRating === 'number') {
+    return Number.isFinite(starRating) ? starRating : null;
+  }
+
+  const normalized = String(starRating).trim().toUpperCase();
+  const ratingMap = {
+    ONE: 1,
+    TWO: 2,
+    THREE: 3,
+    FOUR: 4,
+    FIVE: 5,
+    STAR_RATING_UNSPECIFIED: null,
+  };
+
+  if (Object.prototype.hasOwnProperty.call(ratingMap, normalized)) {
+    return ratingMap[normalized];
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function refreshGoogleBusinessAccessToken(refreshToken) {
+  if (!refreshToken) {
+    throw new Error('Google Business refresh token missing.');
+  }
+
+  const response = await axios.post('https://oauth2.googleapis.com/token', {
+    client_id: process.env.GOOGLE_BUSINESS_CLIENT_ID,
+    client_secret: process.env.GOOGLE_BUSINESS_CLIENT_SECRET,
+    refresh_token: refreshToken,
+    grant_type: 'refresh_token',
+  });
+
+  return response.data;
+}
+
+async function getGoogleBusinessAuthContext(req, customer) {
+  const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
+  const tokenOwner = adminUser?.googleBusinessRefreshToken ? adminUser : customer;
+
+  if (!tokenOwner?.googleBusinessRefreshToken) {
+    throw new Error('Google Business is connected, but no refresh token is available for review retrieval.');
+  }
+
+  let accessToken = tokenOwner.googleBusinessAccessToken;
+  const expiresAt = tokenOwner.googleBusinessTokenExpiry
+    ? new Date(tokenOwner.googleBusinessTokenExpiry).getTime()
+    : 0;
+  const shouldRefresh = !accessToken || !expiresAt || expiresAt <= Date.now() + 5 * 60 * 1000;
+
+  if (shouldRefresh) {
+    const refreshed = await refreshGoogleBusinessAccessToken(tokenOwner.googleBusinessRefreshToken);
+    accessToken = refreshed.access_token;
+
+    const updateData = {
+      googleBusinessAccessToken: refreshed.access_token,
+      googleBusinessTokenExpiry: new Date(Date.now() + (refreshed.expires_in || 3600) * 1000),
+      googleBusinessNeedsReauth: false,
+    };
+
+    if (refreshed.refresh_token) {
+      updateData.googleBusinessRefreshToken = refreshed.refresh_token;
+      tokenOwner.googleBusinessRefreshToken = refreshed.refresh_token;
+    }
+
+    await User.findByIdAndUpdate(tokenOwner._id, updateData);
+  }
+
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_BUSINESS_CLIENT_ID,
+    process.env.GOOGLE_BUSINESS_CLIENT_SECRET
+  );
+
+  oauth2Client.setCredentials({
+    access_token: accessToken,
+    refresh_token: tokenOwner.googleBusinessRefreshToken,
+  });
+
+  return { accessToken, oauth2Client };
+}
+
+async function resolveGoogleBusinessReviewContext(req, customer) {
+  const { accessToken, oauth2Client } = await getGoogleBusinessAuthContext(req, customer);
+
+  const storedLocationName = customer.googleBusinessLocationName
+    || (customer.googleBusinessProfileId ? `locations/${customer.googleBusinessProfileId}` : null);
+  const storedAccountName = customer.googleBusinessAccountName
+    || (customer.googleBusinessAccountId ? `accounts/${customer.googleBusinessAccountId}` : null);
+
+  if (storedLocationName && storedAccountName) {
+    return {
+      accessToken,
+      locationName: storedLocationName,
+      locationId: storedLocationName.split('/').pop(),
+      accountName: storedAccountName,
+      accountId: storedAccountName.split('/').pop(),
+    };
+  }
+
+  const accountManagement = google.mybusinessaccountmanagement({ version: 'v1', auth: oauth2Client });
+  const businessInformation = google.mybusinessbusinessinformation({ version: 'v1', auth: oauth2Client });
+  const accountsResponse = await accountManagement.accounts.list();
+  const accounts = accountsResponse.data.accounts || [];
+
+  for (const account of accounts) {
+    try {
+      const locationsResponse = await businessInformation.accounts.locations.list({
+        parent: account.name,
+        pageSize: 100,
+        readMask: 'name,title',
+      });
+      const locations = locationsResponse.data.locations || [];
+      const matchedLocation = locations.find((location) => {
+        if (customer.googleBusinessLocationName && location.name === customer.googleBusinessLocationName) {
+          return true;
+        }
+        return location.name?.split('/').pop() === customer.googleBusinessProfileId;
+      });
+
+      if (matchedLocation) {
+        const resolvedContext = {
+          accessToken,
+          locationName: matchedLocation.name,
+          locationId: matchedLocation.name.split('/').pop(),
+          accountName: account.name,
+          accountId: account.name.split('/').pop(),
+        };
+
+        await User.findByIdAndUpdate(customer._id, {
+          googleBusinessAccountId: resolvedContext.accountId,
+          googleBusinessAccountName: resolvedContext.accountName,
+          googleBusinessLocationName: resolvedContext.locationName,
+        });
+
+        return resolvedContext;
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+
+  throw new Error('Could not resolve the Google Business account/location needed for reviews.');
+}
+
+async function fetchGoogleBusinessReviewSummary(req, customer, start, end) {
+  const context = await resolveGoogleBusinessReviewContext(req, customer);
+  const reviews = [];
+  let pageToken = null;
+  let totalReviewCount = 0;
+  let averageRatingOverall = null;
+
+  do {
+    const response = await axios.get(
+      `https://mybusiness.googleapis.com/v4/${context.accountName}/locations/${context.locationId}/reviews`,
+      {
+        headers: {
+          Authorization: `Bearer ${context.accessToken}`,
+        },
+        params: {
+          pageSize: 50,
+          orderBy: 'updateTime desc',
+          ...(pageToken ? { pageToken } : {}),
+        },
+      }
+    );
+
+    const payload = response.data || {};
+    if (typeof payload.totalReviewCount === 'number') {
+      totalReviewCount = payload.totalReviewCount;
+    }
+    if (payload.averageRating !== undefined && payload.averageRating !== null) {
+      averageRatingOverall = Number(payload.averageRating);
+    }
+
+    reviews.push(...(payload.reviews || []));
+    pageToken = payload.nextPageToken || null;
+  } while (pageToken);
+
+  const filteredReviews = reviews.filter((review) => {
+    const timestamp = review.createTime || review.updateTime;
+    if (!timestamp) return false;
+    const reviewDate = new Date(timestamp);
+    return reviewDate >= start && reviewDate <= end;
+  });
+
+  const ratingBreakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  let totalRating = 0;
+  let ratedReviewsCount = 0;
+
+  filteredReviews.forEach((review) => {
+    const rating = normalizeGoogleStarRating(review.starRating);
+    if (!rating) return;
+    ratingBreakdown[rating] += 1;
+    totalRating += rating;
+    ratedReviewsCount += 1;
+  });
+
+  const averageRatingInRange = ratedReviewsCount
+    ? Number((totalRating / ratedReviewsCount).toFixed(2))
+    : null;
+
+  return {
+    totalReviewCount,
+    averageRatingOverall: averageRatingOverall !== null ? Number(Number(averageRatingOverall).toFixed(2)) : null,
+    reviewsInRange: filteredReviews.length,
+    averageRatingInRange,
+    fiveStarReviews: ratingBreakdown[5],
+    fourStarReviews: ratingBreakdown[4],
+    threeStarReviews: ratingBreakdown[3],
+    twoStarReviews: ratingBreakdown[2],
+    oneStarReviews: ratingBreakdown[1],
+    recentReviews: filteredReviews
+      .sort((a, b) => new Date(b.createTime || b.updateTime || 0) - new Date(a.createTime || a.updateTime || 0))
+      .slice(0, 5)
+      .map((review) => ({
+        reviewerName: review.reviewer?.displayName || 'Google reviewer',
+        starRating: normalizeGoogleStarRating(review.starRating),
+        comment: review.comment || '',
+        createTime: review.createTime || review.updateTime,
+      })),
+  };
 }
 
 function extractCallAnalysisField(callAnalysis, ...keys) {
@@ -368,16 +597,14 @@ async function buildAiReceptionSection(customer, start, end) {
   };
 }
 
-async function buildGoogleBusinessSection(customerId, start, end) {
-  const latestInsights = await GoogleBusinessInsights.findOne({ customerId }).sort({ date: -1, lastUpdated: -1 }).lean();
-  if (!latestInsights) {
-    return null;
-  }
+async function buildGoogleBusinessSection(req, customer, start, end) {
+  const latestInsights = await GoogleBusinessInsights.findOne({ customerId: customer._id }).sort({ date: -1, lastUpdated: -1 }).lean();
 
   const startString = formatDateOnly(start);
   const endString = formatDateOnly(end);
-  const filteredDailyData = (latestInsights.dailyData || []).filter((item) => item.date >= startString && item.date <= endString);
-  const dailySource = filteredDailyData.length > 0 ? filteredDailyData : latestInsights.dailyData || [];
+  const baseDailyData = latestInsights?.dailyData || [];
+  const filteredDailyData = baseDailyData.filter((item) => item.date >= startString && item.date <= endString);
+  const dailySource = filteredDailyData.length > 0 ? filteredDailyData : baseDailyData;
 
   const totals = dailySource.reduce(
     (acc, item) => {
@@ -391,20 +618,61 @@ async function buildGoogleBusinessSection(customerId, start, end) {
     { searches: 0, views: 0, calls: 0, directions: 0, websiteClicks: 0 }
   );
 
+  let reviewSummary = null;
+  let reviewError = null;
+  if (customer.googleBusinessProfileId) {
+    try {
+      reviewSummary = await fetchGoogleBusinessReviewSummary(req, customer, start, end);
+    } catch (error) {
+      reviewError = error.message;
+    }
+  }
+
+  if (!latestInsights && !reviewSummary) {
+    return null;
+  }
+
+  const summary = {
+    ...totals,
+    ...(reviewSummary ? {
+      totalReviewCount: reviewSummary.totalReviewCount,
+      reviewsInRange: reviewSummary.reviewsInRange,
+      averageRatingOverall: reviewSummary.averageRatingOverall,
+      averageRatingInRange: reviewSummary.averageRatingInRange,
+      fiveStarReviews: reviewSummary.fiveStarReviews,
+      fourStarReviews: reviewSummary.fourStarReviews,
+      threeStarReviews: reviewSummary.threeStarReviews,
+      twoStarReviews: reviewSummary.twoStarReviews,
+      oneStarReviews: reviewSummary.oneStarReviews,
+    } : {}),
+  };
+
+  const highlights = [
+    `${totals.searches} Google Business searches`,
+    `${totals.views} profile views`,
+    `${totals.calls} calls from profile`,
+    `${totals.websiteClicks} website clicks`,
+  ];
+
+  if (reviewSummary) {
+    highlights.push(`${reviewSummary.reviewsInRange} new Google reviews in this period`);
+    if (reviewSummary.averageRatingInRange !== null) {
+      highlights.push(`${reviewSummary.averageRatingInRange} average rating in this period`);
+    }
+  } else if (reviewError) {
+    highlights.push(`Review data unavailable: ${reviewError}`);
+  }
+
   return {
     id: 'googleBusiness',
     title: 'Google Business Profile',
-    summary: totals,
-    highlights: [
-      `${totals.searches} Google Business searches`,
-      `${totals.views} profile views`,
-      `${totals.calls} calls from profile`,
-      `${totals.websiteClicks} website clicks`,
-    ],
+    summary,
+    highlights,
+    recentReviews: reviewSummary?.recentReviews || [],
     sourceWindow: {
-      periodStart: latestInsights.period?.start || null,
-      periodEnd: latestInsights.period?.end || null,
-      lastUpdated: latestInsights.lastUpdated || latestInsights.updatedAt,
+      periodStart: latestInsights?.period?.start || null,
+      periodEnd: latestInsights?.period?.end || null,
+      lastUpdated: latestInsights?.lastUpdated || latestInsights?.updatedAt || null,
     },
   };
 }
@@ -492,6 +760,19 @@ async function buildInstagramSection(customerId, start, end) {
     ],
     topPosts,
   };
+}
+
+async function syncInstagramForReport(customer, start, end) {
+  if (!customer?.instagramAccountId) {
+    return null;
+  }
+
+  try {
+    return await syncInstagramInsightsForUser(customer, { from: start, to: end });
+  } catch (error) {
+    console.warn('Instagram direct sync failed during report generation:', error.response?.data || error.message);
+    return null;
+  }
 }
 
 async function fetchFacebookMetric(user, metric, start, end) {
@@ -749,9 +1030,10 @@ router.get('/marketing', authenticateToken, authorizeRole(['admin']), async (req
     }
 
     if (customer.googleBusinessProfileId) {
-      sectionBuilders.push(buildGoogleBusinessSection(customer._id, range.start, range.end));
+      sectionBuilders.push(buildGoogleBusinessSection(req, customer, range.start, range.end));
     }
 
+    await syncInstagramForReport(customer, range.start, range.end);
     sectionBuilders.push(buildInstagramSection(customer._id, range.start, range.end));
 
     if (customer.facebookPageId && customer.facebookAccessToken) {

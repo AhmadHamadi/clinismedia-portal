@@ -5,12 +5,47 @@ const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 
+async function fetchLinkedInstagramAccount(pageId, pageAccessToken) {
+  try {
+    const response = await axios.get(`https://graph.facebook.com/v19.0/${pageId}`, {
+      params: {
+        fields: 'instagram_business_account{id,name,username}',
+        access_token: pageAccessToken,
+      },
+    });
+
+    const instagramAccount = response.data?.instagram_business_account;
+    if (!instagramAccount?.id) {
+      return null;
+    }
+
+    return {
+      instagramAccountId: instagramAccount.id,
+      instagramAccountName: instagramAccount.name || null,
+      instagramUsername: instagramAccount.username || null,
+    };
+  } catch (error) {
+    console.error('Failed to fetch linked Instagram professional account:', error.response?.data || error.message);
+    return null;
+  }
+}
+
 // Facebook OAuth routes (authenticated)
 router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), (req, res) => {
   const clinicId = req.params.clinicId;
   const redirectUri = process.env.FB_REDIRECT_URI;
-  
-      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=4066501436955681&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=pages_show_list,pages_read_engagement,pages_manage_metadata,pages_read_user_content,pages_manage_posts,pages_manage_engagement`;
+  const scopes = [
+    'pages_show_list',
+    'pages_read_engagement',
+    'pages_manage_metadata',
+    'pages_read_user_content',
+    'pages_manage_posts',
+    'pages_manage_engagement',
+    'instagram_basic',
+    'instagram_business_manage_insights',
+  ];
+
+  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=4066501436955681&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=${encodeURIComponent(scopes.join(','))}`;
   
   res.json({ authUrl });
 });
@@ -105,6 +140,8 @@ router.post('/save-page', authenticateToken, authorizeRole(['admin']), async (re
   }
 
   try {
+    const linkedInstagramAccount = await fetchLinkedInstagramAccount(pageId, pageAccessToken);
+
     // First, check if this page is already connected to another clinic
     const existingConnection = await User.findOne({ 
       facebookPageId: pageId,
@@ -123,6 +160,9 @@ router.post('/save-page', authenticateToken, authorizeRole(['admin']), async (re
       {
         facebookPageId: pageId,
         facebookPageName: pageName,
+        instagramAccountId: linkedInstagramAccount?.instagramAccountId || null,
+        instagramAccountName: linkedInstagramAccount?.instagramAccountName || null,
+        instagramUsername: linkedInstagramAccount?.instagramUsername || null,
         facebookAccessToken: pageAccessToken,
         facebookTokenExpiry: tokenExpiry || null,
       },
@@ -132,6 +172,11 @@ router.post('/save-page', authenticateToken, authorizeRole(['admin']), async (re
     if (!user) return res.status(404).json({ error: 'User not found' });
     
     console.log(`Successfully connected Facebook page to clinic: ${user.name}`);
+    if (linkedInstagramAccount?.instagramAccountId) {
+      console.log(`Linked Instagram professional account detected: ${linkedInstagramAccount.instagramUsername || linkedInstagramAccount.instagramAccountId}`);
+    } else {
+      console.log('No linked Instagram professional account was returned for this Facebook Page.');
+    }
     res.json({ message: 'Facebook Page connected and saved!', user });
   } catch (error) {
     console.error('Error saving Facebook page:', error);
@@ -149,6 +194,9 @@ router.patch('/disconnect/:clinicId', authenticateToken, authorizeRole(['admin']
       {
         facebookPageId: null,
         facebookPageName: null,
+        instagramAccountId: null,
+        instagramAccountName: null,
+        instagramUsername: null,
         facebookAccessToken: null,
         facebookTokenExpiry: null,
       },

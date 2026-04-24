@@ -30,6 +30,7 @@ interface ReportSection {
   highlights?: string[];
   campaigns?: Array<Record<string, any>>;
   recentLeads?: Array<Record<string, any>>;
+  recentReviews?: Array<Record<string, any>>;
   topPosts?: Array<Record<string, any>>;
   topReasons?: Array<Record<string, any>>;
   pageInfo?: Record<string, any>;
@@ -370,6 +371,30 @@ const MarketingReportsPage: React.FC = () => {
                             <div className="mt-1 text-xs text-gray-500">
                               {lead.campaignName || 'No campaign name'} • {new Date(lead.emailDate).toLocaleDateString()} • {lead.status}
                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {section.recentReviews && section.recentReviews.length > 0 && (
+                    <div className="mt-5">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent Reviews</div>
+                      <div className="grid gap-2">
+                        {section.recentReviews.map((review, index) => (
+                          <div key={`${review.reviewerName}-${index}`} className="rounded-lg border border-gray-200 px-3 py-3 text-sm text-gray-700">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="font-medium text-gray-900">{review.reviewerName}</div>
+                              <div className="text-xs font-semibold text-amber-600">
+                                {review.starRating ? `${review.starRating}/5` : 'No rating'}
+                              </div>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500">
+                              {review.createTime ? new Date(review.createTime).toLocaleDateString() : 'Unknown date'}
+                            </div>
+                            {review.comment ? (
+                              <div className="mt-2 text-sm text-gray-700">{review.comment}</div>
+                            ) : null}
                           </div>
                         ))}
                       </div>

@@ -18,7 +18,9 @@ interface BusinessProfile {
   address: string;
   phone: string;
   website: string;
+  accountId: string;
   accountName: string;
+  locationName: string;
 }
 
 const GoogleBusinessManagementPage: React.FC = () => {
@@ -180,7 +182,10 @@ const GoogleBusinessManagementPage: React.FC = () => {
       const requestBody: any = {
         customerId: customer._id,
         businessProfileId: profile.id,
-        businessProfileName: profile.name
+        businessProfileName: profile.name,
+        accountId: profile.accountId,
+        accountName: profile.accountName,
+        locationName: profile.locationName,
       };
       
       // Only include tokens if we have them (from OAuth callback)

@@ -4,6 +4,7 @@ const InstaMediaInsight = require('../models/InstaMediaInsight');
 const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
+const { syncInstagramInsightsForUser } = require('../utils/instagramInsightsSync');
 
 const router = express.Router();
 
@@ -21,6 +22,18 @@ router.get('/customer/:customerId', authenticateToken, authorizeRole(['admin']),
 
     const fromDate = new Date(from);
     const toDate = new Date(to);
+    const customer = await User.findById(customerId).select('instagramAccountId instagramUsername facebookAccessToken facebookUserAccessToken');
+
+    if (customer) {
+      try {
+        await syncInstagramInsightsForUser(
+          { ...customer.toObject(), _id: customerId },
+          { from: fromDate, to: toDate }
+        );
+      } catch (syncError) {
+        console.warn('Instagram direct sync failed for admin customer fetch:', syncError.response?.data || syncError.message);
+      }
+    }
 
     // Get user insights for the customer
     const userInsights = await InstaUserInsight.find({
@@ -116,6 +129,32 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
 
     const fromDate = new Date(from);
     const toDate = new Date(to);
+    const periodLength = toDate.getTime() - fromDate.getTime();
+    const previousFromDate = new Date(fromDate.getTime() - periodLength);
+    const customer = await User.findById(customerId).select(
+      'instagramAccountId instagramAccountName instagramUsername facebookAccessToken facebookUserAccessToken facebookPageName'
+    );
+
+    let syncStatus = {
+      synced: false,
+      reason: 'Instagram direct sync was skipped.',
+    };
+
+    if (customer) {
+      try {
+        syncStatus = await syncInstagramInsightsForUser(
+          { ...customer.toObject(), _id: customerId },
+          { from: previousFromDate, to: toDate }
+        );
+      } catch (syncError) {
+        console.warn('Instagram direct sync failed for customer insights:', syncError.response?.data || syncError.message);
+        syncStatus = {
+          synced: false,
+          reason: 'Instagram direct sync failed.',
+          error: syncError.response?.data?.error?.message || syncError.message,
+        };
+      }
+    }
 
     // Get user insights for the customer
     const userInsights = await InstaUserInsight.find({
@@ -165,9 +204,6 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
       currentTotals.totalEngagement += media.metrics.engagement || 0;
     });
 
-    // Calculate previous period for comparison
-    const periodLength = toDate.getTime() - fromDate.getTime();
-    const previousFromDate = new Date(fromDate.getTime() - periodLength);
     const previousToDate = new Date(fromDate.getTime());
 
     const previousUserInsights = await InstaUserInsight.find({
@@ -240,12 +276,45 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
         impressionsChange: calculateChange(currentTotals.totalImpressions, previousTotals.totalImpressions),
         profileViewsChange: calculateChange(currentTotals.totalProfileViews, previousTotals.totalProfileViews),
         engagementChange: calculateChange(avgEngagement, previousAvgEngagement)
-      }
+      },
+      connection: {
+        instagramAccountId: customer?.instagramAccountId || null,
+        instagramAccountName: customer?.instagramAccountName || null,
+        instagramUsername: customer?.instagramUsername || null,
+        facebookPageName: customer?.facebookPageName || null,
+      },
+      syncStatus,
     });
 
   } catch (error) {
     console.error('Error fetching customer Instagram insights:', error);
     res.status(500).json({ error: 'Failed to fetch Instagram insights' });
+  }
+});
+
+router.post('/sync', authenticateToken, authorizeRole(['customer']), async (req, res) => {
+  try {
+    const customer = await User.findById(req.user.id).select(
+      'instagramAccountId instagramUsername facebookAccessToken facebookUserAccessToken'
+    );
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - 90);
+
+    const result = await syncInstagramInsightsForUser(
+      { ...customer.toObject(), _id: req.user.id },
+      { from: start, to: end }
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error syncing Instagram insights:', error);
+    res.status(500).json({ error: 'Failed to sync Instagram insights' });
   }
 });
 

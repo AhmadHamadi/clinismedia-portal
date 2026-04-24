@@ -98,7 +98,7 @@ router.get("/", authenticateToken, authorizeRole(['admin']), async (req, res) =>
       query = { role: { $in: ["customer", "admin"] } };
     }
     
-    const customers = await User.find(query).select("name username email location address websiteUrl searchConsolePropertyUrl _id role facebookPageId facebookPageName facebookAccessToken facebookTokenExpiry facebookUserAccessToken facebookUserTokenExpiry bookingIntervalMonths googleAdsAccessToken googleAdsRefreshToken googleAdsTokenExpiry googleAdsCustomerId googleBusinessProfileId googleBusinessProfileName googleBusinessAccessToken googleBusinessRefreshToken googleBusinessTokenExpiry twilioPhoneNumber twilioForwardNumber twilioForwardNumberNew twilioForwardNumberExisting twilioMenuMessage twilioVoice aiReceptionistSettings");
+    const customers = await User.find(query).select("name username email location address websiteUrl searchConsolePropertyUrl _id role facebookPageId facebookPageName instagramAccountId instagramAccountName instagramUsername facebookAccessToken facebookTokenExpiry facebookUserAccessToken facebookUserTokenExpiry bookingIntervalMonths googleAdsAccessToken googleAdsRefreshToken googleAdsTokenExpiry googleAdsCustomerId googleBusinessProfileId googleBusinessProfileName googleBusinessAccountId googleBusinessAccountName googleBusinessLocationName googleBusinessAccessToken googleBusinessRefreshToken googleBusinessTokenExpiry twilioPhoneNumber twilioForwardNumber twilioForwardNumberNew twilioForwardNumberExisting twilioMenuMessage twilioVoice aiReceptionistSettings");
     res.status(200).json(customers);
   } catch (err) {
     console.error("❌ Failed to fetch customers:", err.message);
