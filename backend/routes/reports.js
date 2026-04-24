@@ -819,7 +819,7 @@ async function buildCallTrackingSection(customerId, start, end) {
     title: 'Call Tracking',
     summary: {
       totalCalls,
-      answeredCalls,
+      completedCalls: answeredCalls,
       missedCalls,
       newPatientCalls,
       existingPatientCalls,
@@ -832,7 +832,7 @@ async function buildCallTrackingSection(customerId, start, end) {
     },
     highlights: [
       `${totalCalls} total tracked calls`,
-      `${answeredCalls} answered calls`,
+      `${answeredCalls} completed calls`,
       `${newPatientCalls} new patient calls`,
       `${appointmentsBooked} booked appointment clusters`,
     ],
@@ -854,7 +854,7 @@ async function buildAiReceptionSection(customer, start, end) {
   const appointmentIntentCount = calls.filter((call) => extractCallAnalysisField(call.callAnalysis, 'appointmentIntent', 'appointment_intent') === true).length;
   const urgentCount = calls.filter((call) => {
     const urgency = extractCallAnalysisField(call.callAnalysis, 'urgencyLevel', 'urgency_level');
-    return typeof urgency === 'string' && ['urgent', 'high', 'emergency'].includes(urgency.toLowerCase());
+    return typeof urgency === 'string' && ['urgent', 'high', 'emergency', 'urgent dental'].includes(urgency.toLowerCase());
   }).length;
   const callbackRequested = calls.filter((call) => !!extractCallAnalysisField(call.callAnalysis, 'callbackNumber', 'callback_number', 'phone_number')).length;
   const afterHoursCalls = calls.filter((call) => {
@@ -987,9 +987,9 @@ async function buildGoogleBusinessSection(req, customer, start, end) {
   const summary = {
     ...totals,
     ...(reviewSummary ? {
-      totalReviewCountAllTime: reviewSummary.totalReviewCount,
+      totalReviewCount: reviewSummary.totalReviewCount,
       reviewsInRange: reviewSummary.reviewsInRange,
-      averageRatingAllTime: reviewSummary.averageRatingOverall,
+      averageRatingOverall: reviewSummary.averageRatingOverall,
       averageRatingInRange: reviewSummary.averageRatingInRange,
       fiveStarReviews: reviewSummary.fiveStarReviews,
       fourStarReviews: reviewSummary.fourStarReviews,
@@ -1376,6 +1376,14 @@ async function buildQrReviewsSection(customerId, start, end) {
     { scans: 0, reviewsGenerated: 0, copyClicks: 0, googleClicks: 0, concernSubmissions: 0 }
   );
 
+  // Conversion rates the customer dashboard renders.
+  summary.scanToGeneratePercent = summary.scans > 0
+    ? Number(((summary.reviewsGenerated / summary.scans) * 100).toFixed(1)) : 0;
+  summary.generateToCopyPercent = summary.reviewsGenerated > 0
+    ? Number(((summary.copyClicks / summary.reviewsGenerated) * 100).toFixed(1)) : 0;
+  summary.copyToGooglePercent = summary.copyClicks > 0
+    ? Number(((summary.googleClicks / summary.copyClicks) * 100).toFixed(1)) : 0;
+
   return {
     id: 'qrReviews',
     title: 'QR Reviews',
@@ -1428,15 +1436,20 @@ async function buildSearchConsoleSection(req, customer, start, end) {
   }
 
   const { totalClicks, totalImpressions, avgCtr, avgPosition } = performance.summary;
+  // Mirror the customer-side endpoint: avgCtr as a 0-1 fraction, position as
+  // a raw float. The PDF formats them visually (CTR -> X.XX%, position .toFixed(2)).
   if (!totalClicks && !totalImpressions) {
     return {
       id: 'searchConsole',
       title: 'Website & SEO',
-      summary: { totalClicks: 0, totalImpressions: 0, ctrPercent: 0, avgPosition: 0 },
+      summary: { totalClicks: 0, totalImpressions: 0, avgCtr: 0, avgPosition: 0 },
       highlights: ['No Google search activity recorded for this period.'],
       property: customer.searchConsolePropertyUrl,
     };
   }
+
+  const ctrPercentDisplay = (avgCtr * 100).toFixed(2);
+  const positionDisplay = avgPosition.toFixed(2);
 
   return {
     id: 'searchConsole',
@@ -1444,27 +1457,27 @@ async function buildSearchConsoleSection(req, customer, start, end) {
     summary: {
       totalClicks,
       totalImpressions,
-      ctrPercent: Number((avgCtr * 100).toFixed(2)),
-      avgPosition: Number(avgPosition.toFixed(1)),
+      avgCtr,
+      avgPosition,
     },
     highlights: [
       `${totalClicks.toLocaleString()} organic clicks from Google`,
       `${totalImpressions.toLocaleString()} search impressions`,
-      `${Number((avgCtr * 100).toFixed(2))}% average click-through rate`,
-      `${Number(avgPosition.toFixed(1))} average position in results`,
+      `${ctrPercentDisplay}% average click-through rate`,
+      `${positionDisplay} average position in results`,
     ],
     topQueries: performance.topQueries.slice(0, 5).map((row) => ({
       query: row.query,
       clicks: row.clicks,
       impressions: row.impressions,
-      ctr: `${(row.ctr * 100).toFixed(1)}%`,
-      position: row.position.toFixed(1),
+      ctr: row.ctr,
+      position: row.position,
     })),
     topPages: performance.topPages.slice(0, 5).map((row) => ({
       page: row.page,
       clicks: row.clicks,
       impressions: row.impressions,
-      ctr: `${(row.ctr * 100).toFixed(1)}%`,
+      ctr: row.ctr,
     })),
     property: customer.searchConsolePropertyUrl,
   };

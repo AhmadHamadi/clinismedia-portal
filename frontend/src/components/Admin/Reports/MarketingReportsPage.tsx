@@ -216,12 +216,29 @@ function humanizeKey(key: string) {
     .replace(/^./, (value) => value.toUpperCase());
 }
 
-function formatMetricValue(value: any) {
+function formatMetricValue(value: any, key?: string) {
   if (value === null || value === undefined || value === '') {
     return '-';
   }
 
   if (typeof value === 'number') {
+    const k = (key || '').toLowerCase();
+    // CTR / click-through rate fields stored as 0-1 fraction → render as percent
+    if (k === 'ctr' || k === 'avgctr' || k.endsWith('ctr')) {
+      return `${(value * 100).toFixed(2)}%`;
+    }
+    // Position / averagePosition fields → 2-decimal float (matches customer dashboard)
+    if (k === 'position' || k === 'avgposition' || k.endsWith('position')) {
+      return value.toFixed(2);
+    }
+    // Average rating fields → 1-decimal float (e.g. "4.7")
+    if (k.includes('rating')) {
+      return value.toFixed(1);
+    }
+    // Generic Percent suffix → render with %
+    if (k.endsWith('percent')) {
+      return `${value.toFixed(1)}%`;
+    }
     if (Number.isInteger(value)) {
       return value.toLocaleString();
     }
@@ -257,7 +274,7 @@ function renderSummaryGrid(summary?: Record<string, any>) {
             {humanizeKey(key)}
           </div>
           <div className="mt-1 text-lg font-semibold text-slate-900">
-            {formatMetricValue(value)}
+            {formatMetricValue(value, key)}
           </div>
         </div>
       ))}
@@ -277,7 +294,7 @@ function buildTableHtml(rows: Array<Record<string, any>>) {
         </thead>
         <tbody>
           ${rows.map((row) => `
-            <tr>${headers.map((header) => `<td>${escapeHtml(formatMetricValue(row[header]))}</td>`).join('')}</tr>
+            <tr>${headers.map((header) => `<td>${escapeHtml(formatMetricValue(row[header], header))}</td>`).join('')}</tr>
           `).join('')}
         </tbody>
       </table>
@@ -405,7 +422,7 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
   const overviewHtml = overviewCards.map((card) => `
     <div class="stat-card">
       <div class="stat-label">${escapeHtml(card.label)}</div>
-      <div class="stat-value">${escapeHtml(formatMetricValue(report.overview[card.key as keyof typeof report.overview]))}</div>
+      <div class="stat-value">${escapeHtml(formatMetricValue(report.overview[card.key as keyof typeof report.overview], card.key))}</div>
     </div>
   `).join('');
 
@@ -427,7 +444,7 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       ? `<div class="summary-grid">${summaryEntries.map(([key, value]) => `
           <div class="summary-item">
             <div class="summary-label">${escapeHtml(humanizeKey(key))}</div>
-            <div class="summary-value">${escapeHtml(formatMetricValue(value))}</div>
+            <div class="summary-value">${escapeHtml(formatMetricValue(value, key))}</div>
           </div>
         `).join('')}</div>`
       : '';
