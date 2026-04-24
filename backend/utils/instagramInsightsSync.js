@@ -164,8 +164,7 @@ async function fetchInstagramProfile(instagramAccountId, accessTokens) {
   return data || {};
 }
 
-const TIME_SERIES_USER_METRICS = ['reach', 'impressions'];
-const TOTAL_VALUE_USER_METRICS = ['profile_views', 'website_clicks'];
+const TOTAL_VALUE_USER_METRICS = ['reach', 'impressions', 'profile_views', 'website_clicks'];
 
 async function fetchUserMetric({ instagramAccountId, accessTokens, metric, metricType, since, until }) {
   const { data } = await graphGetWithFallback(
@@ -193,30 +192,6 @@ async function bulkUpsertUserDocs(docs) {
   }));
   await InstaUserInsight.bulkWrite(operations, { ordered: false });
   return docs.length;
-}
-
-async function syncUserTimeSeriesMetrics({ instagramAccountId, customerId, accessTokens, from, to }) {
-  const since = toUnixTimestamp(from);
-  const until = toUnixTimestamp(to);
-  const endTimeFallback = new Date(to);
-  const docs = [];
-
-  await Promise.all(TIME_SERIES_USER_METRICS.map(async (metric) => {
-    try {
-      const insight = await fetchUserMetric({
-        instagramAccountId, accessTokens, metric, metricType: 'time_series', since, until,
-      });
-      if (insight) {
-        docs.push(...normalizeInsightValues(metric, insight, customerId, instagramAccountId, 'day', endTimeFallback));
-      } else {
-        console.warn(`Instagram time_series metric "${metric}" returned no data.`);
-      }
-    } catch (error) {
-      console.warn(`Instagram time_series metric "${metric}" failed:`, error.response?.data || error.message);
-    }
-  }));
-
-  return bulkUpsertUserDocs(docs);
 }
 
 async function syncUserTotalValueMetrics({ instagramAccountId, customerId, accessTokens, from, to }) {
@@ -289,9 +264,17 @@ async function fetchMediaInsights(media, accessTokens) {
       );
 
       const insight = Array.isArray(data?.data) ? data.data[0] : null;
-      const valueEntry = Array.isArray(insight?.values) ? insight.values[0] : null;
+      if (!insight) return;
+
+      const valueEntry = Array.isArray(insight.values) ? insight.values[0] : null;
       if (valueEntry && typeof valueEntry.value !== 'undefined') {
         metrics[metric] = Number(valueEntry.value ?? 0);
+        return;
+      }
+
+      const totalNumeric = extractTotalValueNumber(insight.total_value);
+      if (totalNumeric !== null) {
+        metrics[metric] = totalNumeric;
       }
     } catch (error) {
       console.warn(`Instagram media metric "${metric}" unavailable for media ${media.id}:`, error.response?.data || error.message);
@@ -439,8 +422,8 @@ async function syncInstagramInsightsForUser(user, range, compareRange = null) {
   const to = new Date(range.to);
   const compareFrom = compareRange ? new Date(compareRange.from) : null;
   const compareTo = compareRange ? new Date(compareRange.to) : null;
-  const combinedFrom = compareFrom && compareFrom < from ? compareFrom : from;
-  const combinedTo = compareTo && compareTo > to ? compareTo : to;
+  const mediaFrom = compareFrom && compareFrom < from ? compareFrom : from;
+  const mediaTo = compareTo && compareTo > to ? compareTo : to;
   const customerId = String(hydratedUser._id);
   const common = {
     instagramAccountId: hydratedUser.instagramAccountId,
@@ -456,19 +439,17 @@ async function syncInstagramInsightsForUser(user, range, compareRange = null) {
   }
 
   const [
-    timeSeriesUpserts,
     snapshotUpserts,
     mediaResult,
     ...totalValueUpserts
   ] = await Promise.all([
-    syncUserTimeSeriesMetrics({ ...common, from: combinedFrom, to: combinedTo }),
     syncFollowerSnapshot({ ...common, to }),
-    syncMediaInsights({ ...common, from: combinedFrom, to: combinedTo }),
+    syncMediaInsights({ ...common, from: mediaFrom, to: mediaTo }),
     ...totalValueTasks,
   ]);
 
   const userResult = {
-    upserted: timeSeriesUpserts + snapshotUpserts + totalValueUpserts.reduce((sum, n) => sum + n, 0),
+    upserted: snapshotUpserts + totalValueUpserts.reduce((sum, n) => sum + n, 0),
   };
 
   return {
