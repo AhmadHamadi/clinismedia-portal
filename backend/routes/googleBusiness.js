@@ -2801,3 +2801,4 @@ router.post('/manual-refresh-all', authenticateToken, authorizeRole(['admin']), 
 });
 
 module.exports = router;
+module.exports.fetchBusinessInsightsData = fetchBusinessInsightsData;

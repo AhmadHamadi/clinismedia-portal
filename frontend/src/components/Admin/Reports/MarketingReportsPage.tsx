@@ -94,13 +94,17 @@ const PRESETS = [
 ];
 
 const overviewCards = [
-  { key: 'totalLeads', label: 'Total Leads', accent: 'text-sky-600' },
-  { key: 'bookedMetaAppointments', label: 'Booked Leads', accent: 'text-pink-600' },
-  { key: 'totalCalls', label: 'Tracked Calls', accent: 'text-emerald-600' },
-  { key: 'newPatientCalls', label: 'New Patient Calls', accent: 'text-indigo-600' },
-  { key: 'callAppointmentsBooked', label: 'Call Bookings', accent: 'text-amber-600' },
-  { key: 'aiCalls', label: 'AI Calls', accent: 'text-violet-600' },
+  { key: 'totalLeads', label: 'Total Leads', accent: 'text-sky-600', integration: 'metaLeads' },
+  { key: 'bookedMetaAppointments', label: 'Booked Leads', accent: 'text-pink-600', integration: 'metaLeads' },
+  { key: 'totalCalls', label: 'Tracked Calls', accent: 'text-emerald-600', integration: 'callTracking' },
+  { key: 'newPatientCalls', label: 'New Patient Calls', accent: 'text-indigo-600', integration: 'callTracking' },
+  { key: 'callAppointmentsBooked', label: 'Call Bookings', accent: 'text-amber-600', integration: 'callTracking' },
+  { key: 'aiCalls', label: 'AI Calls', accent: 'text-violet-600', integration: 'aiReception' },
 ];
+
+function visibleOverviewCards(report: ReportPayload) {
+  return overviewCards.filter((card) => report.availableIntegrations[card.integration] !== false);
+}
 
 const sectionIcons: Record<string, React.ReactNode> = {
   metaLeads: <FaBolt className="text-pink-600" />,
@@ -419,7 +423,7 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
   const coverDateRange = formatDateLongRange(report.period.start, report.period.end);
   const endYear = new Date(`${report.period.end}T00:00:00`).getFullYear() || new Date().getFullYear();
 
-  const overviewHtml = overviewCards.map((card) => `
+  const overviewHtml = visibleOverviewCards(report).map((card) => `
     <div class="stat-card">
       <div class="stat-label">${escapeHtml(card.label)}</div>
       <div class="stat-value">${escapeHtml(formatMetricValue(report.overview[card.key as keyof typeof report.overview], card.key))}</div>
@@ -545,9 +549,9 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
         <meta charset="utf-8" />
         <title>${escapeHtml(report.exportFileName.replace(/\.pdf$/i, ''))}</title>
         <style>
-          * { box-sizing: border-box; }
+          * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           @page { size: Letter; margin: 0; }
-          html, body { margin: 0; padding: 0; color: #0f172a; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #f4f3fb; }
+          html, body { margin: 0; padding: 0; color: #0f172a; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #f4f3fb; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
           /* --------- COVER PAGE --------- */
           .cover {
@@ -555,35 +559,28 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
             width: 100%;
             min-height: 100vh;
             padding: 56px 64px;
-            background: linear-gradient(135deg, #eeecfa 0%, #f2eaf6 55%, #efe8f5 100%);
+            background: #efedfa;
             overflow: hidden;
             page-break-after: always;
             break-after: page;
           }
-          .cover::before {
-            content: '';
+          .cover-blob {
             position: absolute;
-            top: -180px;
-            right: -180px;
-            width: 760px;
-            height: 760px;
-            background:
-              radial-gradient(circle at 28% 28%, rgba(180, 152, 230, 1), rgba(180, 152, 230, 0) 55%),
-              radial-gradient(circle at 70% 32%, rgba(232, 138, 198, 0.95), rgba(232, 138, 198, 0) 60%),
-              radial-gradient(circle at 60% 70%, rgba(125, 144, 230, 0.95), rgba(125, 144, 230, 0) 62%),
-              radial-gradient(circle at 35% 75%, rgba(195, 163, 230, 0.7), rgba(195, 163, 230, 0) 60%);
-            filter: blur(8px);
-            border-radius: 50%;
+            top: -120px;
+            right: -160px;
+            width: 740px;
+            height: 740px;
+            z-index: 1;
+            pointer-events: none;
           }
-          .cover::after {
-            content: '';
+          .cover-dots {
             position: absolute;
-            top: 8%;
+            top: 7%;
             left: 6%;
-            width: 110px;
-            height: 110px;
-            background: radial-gradient(circle, rgba(99,91,145,0.12) 1.5px, transparent 2px);
-            background-size: 10px 10px;
+            width: 120px;
+            height: 120px;
+            z-index: 1;
+            pointer-events: none;
           }
           .cover-inner { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; min-height: calc(100vh - 112px); }
           .cover-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
@@ -691,6 +688,39 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       <body>
         <!-- ===== COVER PAGE ===== -->
         <section class="cover">
+          <svg class="cover-blob" viewBox="0 0 740 740" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <radialGradient id="cb1" cx="35%" cy="30%" r="55%">
+                <stop offset="0%" stop-color="#b498e6" stop-opacity="1"/>
+                <stop offset="100%" stop-color="#b498e6" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="cb2" cx="72%" cy="34%" r="55%">
+                <stop offset="0%" stop-color="#e88ac6" stop-opacity="0.95"/>
+                <stop offset="100%" stop-color="#e88ac6" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="cb3" cx="60%" cy="72%" r="55%">
+                <stop offset="0%" stop-color="#7d90e6" stop-opacity="0.9"/>
+                <stop offset="100%" stop-color="#7d90e6" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="cb4" cx="35%" cy="78%" r="55%">
+                <stop offset="0%" stop-color="#c3a3e6" stop-opacity="0.75"/>
+                <stop offset="100%" stop-color="#c3a3e6" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <circle cx="370" cy="370" r="370" fill="url(#cb1)"/>
+            <circle cx="370" cy="370" r="370" fill="url(#cb2)"/>
+            <circle cx="370" cy="370" r="370" fill="url(#cb3)"/>
+            <circle cx="370" cy="370" r="370" fill="url(#cb4)"/>
+          </svg>
+          <svg class="cover-dots" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <g fill="rgba(99,91,145,0.18)">
+              ${Array.from({ length: 12 }, (_, row) =>
+                Array.from({ length: 12 }, (_, col) =>
+                  `<circle cx="${col * 10 + 5}" cy="${row * 10 + 5}" r="1.2"/>`
+                ).join('')
+              ).join('')}
+            </g>
+          </svg>
           <div class="cover-inner">
             <div class="cover-top">
               <div class="cover-brand">
@@ -1104,11 +1134,11 @@ const MarketingReportsPage: React.FC = () => {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-              {overviewCards.map((card) => (
+              {visibleOverviewCards(report).map((card) => (
                 <div key={card.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{card.label}</div>
                   <div className={`mt-2 text-3xl font-bold ${card.accent}`}>
-                    {formatMetricValue(report.overview[card.key as keyof typeof report.overview])}
+                    {formatMetricValue(report.overview[card.key as keyof typeof report.overview], card.key)}
                   </div>
                 </div>
               ))}

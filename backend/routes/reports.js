@@ -22,6 +22,7 @@ const {
   buildSearchConsolePerformance,
   getAuthorizedSearchConsoleClient,
 } = require('./searchConsole');
+const { fetchBusinessInsightsData } = require('./googleBusiness');
 const { google } = require('googleapis');
 
 let OpenAI = null;
@@ -775,13 +776,20 @@ async function buildMetaLeadsSection(customerId, start, end) {
       campaignName: item._id,
       leads: item.leads,
     })),
-    recentLeads: recentLeads.map((lead) => ({
-      name: lead.leadInfo?.name || 'Unknown lead',
-      emailDate: lead.emailDate,
-      campaignName: lead.campaignName || null,
-      status: lead.status,
-      appointmentBooked: lead.appointmentBooked,
-    })),
+    recentLeads: recentLeads.map((lead) => {
+      const dateValue = lead.emailDate ? new Date(lead.emailDate) : null;
+      const dateLabel = dateValue && !Number.isNaN(dateValue.getTime())
+        ? dateValue.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '—';
+      const status = lead.status ? lead.status.charAt(0).toUpperCase() + lead.status.slice(1) : 'New';
+      return {
+        name: lead.leadInfo?.name || 'Unknown lead',
+        date: dateLabel,
+        campaign: lead.campaignName || '—',
+        status,
+        booked: lead.appointmentBooked ? 'Yes' : 'No',
+      };
+    }),
   };
 }
 
@@ -957,13 +965,58 @@ async function buildGoogleBusinessSection(req, customer, start, end) {
     },
     { searchOnly: 0, mapsOnly: 0, calls: 0, directions: 0, websiteClicks: 0 }
   );
-  const totals = {
+  let totals = {
     totalViews: dailyTotals.searchOnly + dailyTotals.mapsOnly,
     totalSearches: dailyTotals.searchOnly,
     totalCalls: dailyTotals.calls,
     totalDirections: dailyTotals.directions,
     totalWebsiteClicks: dailyTotals.websiteClicks,
   };
+
+  // Fallback to a live Google Business Profile fetch when the stored daily
+  // window is empty for this range. Mirrors what /business-insights does on
+  // the customer page so report numbers match what the clinic sees there.
+  const allTotalsEmpty = totals.totalViews === 0 && totals.totalSearches === 0
+    && totals.totalCalls === 0 && totals.totalDirections === 0
+    && totals.totalWebsiteClicks === 0;
+  if (allTotalsEmpty && customer.googleBusinessProfileId) {
+    try {
+      const { accessToken, oauth2Client } = await getGoogleBusinessAuthContext(req, customer);
+      const locationName = customer.googleBusinessLocationName || `locations/${customer.googleBusinessProfileId}`;
+      const insights = await fetchBusinessInsightsData(
+        oauth2Client,
+        locationName,
+        startString,
+        endString,
+        accessToken
+      );
+      const groups = Array.isArray(insights?.multiDailyMetricTimeSeries) ? insights.multiDailyMetricTimeSeries : [];
+      const flat = groups.flatMap((g) => g?.dailyMetricTimeSeries ?? []);
+      const byMetric = {};
+      flat.forEach((m) => {
+        const metric = m?.dailyMetric;
+        if (!metric) return;
+        const values = m?.timeSeries?.datedValues || [];
+        byMetric[metric] = values.reduce((s, p) => s + Number(p?.value ?? 0), 0);
+      });
+      const get = (k) => byMetric[k] || 0;
+      totals = {
+        totalViews:
+          get('BUSINESS_IMPRESSIONS_DESKTOP_SEARCH') +
+          get('BUSINESS_IMPRESSIONS_MOBILE_SEARCH') +
+          get('BUSINESS_IMPRESSIONS_DESKTOP_MAPS') +
+          get('BUSINESS_IMPRESSIONS_MOBILE_MAPS'),
+        totalSearches:
+          get('BUSINESS_IMPRESSIONS_DESKTOP_SEARCH') +
+          get('BUSINESS_IMPRESSIONS_MOBILE_SEARCH'),
+        totalCalls: get('CALL_CLICKS'),
+        totalDirections: get('BUSINESS_DIRECTION_REQUESTS'),
+        totalWebsiteClicks: get('WEBSITE_CLICKS'),
+      };
+    } catch (error) {
+      console.warn('GBP fresh-fetch fallback failed during report generation:', error.response?.data || error.message);
+    }
+  }
 
   let reviewSummary = null;
   let reviewError = null;
