@@ -457,7 +457,7 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
   // ---- Table of Contents ----
   const tocHtml = visibleSections.map((section, idx) => {
     const accentMap: Record<string, string> = {
-      metaLeads: '#ec4899', callTracking: '#10b981', aiReception: '#8b5cf6',
+      metaLeads: '#2e6bff', callTracking: '#10b981', aiReception: '#8b5cf6',
       googleBusiness: '#2563eb', googleAds: '#f59e0b', instagram: '#d946ef',
       facebook: '#0ea5e9', qrReviews: '#eab308', searchConsole: '#0284c7',
     };
@@ -477,7 +477,7 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
 
   // ---- Sections ----
   const accentMap: Record<string, { primary: string; soft: string; deep: string; kicker: string }> = {
-    metaLeads: { primary: '#ec4899', soft: '#fce7f3', deep: '#9d174d', kicker: 'Lead Generation' },
+    metaLeads: { primary: '#2e6bff', soft: '#e6efff', deep: '#1d4ed8', kicker: 'Lead Generation' },
     callTracking: { primary: '#10b981', soft: '#d1fae5', deep: '#065f46', kicker: 'Phone Performance' },
     aiReception: { primary: '#8b5cf6', soft: '#ede9fe', deep: '#5b21b6', kicker: 'AI Receptionist' },
     googleBusiness: { primary: '#2563eb', soft: '#dbeafe', deep: '#1e40af', kicker: 'Google Business & Reviews' },
@@ -552,12 +552,15 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       : '';
 
     const topPostsHtml = section.topPosts?.length
-      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">Top Posts</div><div class="card-list">${section.topPosts.slice(0, 3).map((post) => `
+      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">Top Posts</div><div class="card-list">${section.topPosts.slice(0, 3).map((post) => {
+          const rawCaption = String(post.caption || 'Instagram post').replace(/\s+/g, ' ').trim();
+          const trimmed = rawCaption.length > 180 ? `${rawCaption.slice(0, 180)}…` : rawCaption;
+          return `
           <div class="mini-card" style="border-left-color: ${accent.primary};">
-            <strong>${escapeHtml(post.caption || 'Instagram post')}</strong>
+            <strong>${escapeHtml(trimmed)}</strong>
             <div class="mini-meta">${escapeHtml(`Reach ${formatMetricValue(post.reach)} · Engagement ${formatMetricValue(post.engagement)} · Plays ${formatMetricValue(post.plays)}`)}</div>
           </div>
-        `).join('')}</div></div>`
+        `;}).join('')}</div></div>`
       : '';
 
     const topReasonsHtml = section.topReasons?.length
@@ -964,7 +967,15 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
           }
 
           .detail-block { margin-top: 24px; }
-          .detail-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 12px; }
+          .detail-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            margin-bottom: 12px;
+            page-break-after: avoid;
+            break-after: avoid-page;
+          }
           .card-list { display: grid; gap: 10px; }
           .mini-card {
             border: 1px solid #e4ecf7;
