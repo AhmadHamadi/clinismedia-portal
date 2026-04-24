@@ -514,15 +514,16 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
           .cover::before {
             content: '';
             position: absolute;
-            top: -120px;
-            right: -120px;
-            width: 620px;
-            height: 620px;
+            top: -180px;
+            right: -180px;
+            width: 760px;
+            height: 760px;
             background:
-              radial-gradient(circle at 30% 30%, rgba(189, 163, 232, 0.95), rgba(189, 163, 232, 0) 60%),
-              radial-gradient(circle at 70% 40%, rgba(229, 144, 196, 0.85), rgba(229, 144, 196, 0) 65%),
-              radial-gradient(circle at 55% 75%, rgba(136, 152, 222, 0.85), rgba(136, 152, 222, 0) 60%);
-            filter: blur(12px);
+              radial-gradient(circle at 28% 28%, rgba(180, 152, 230, 1), rgba(180, 152, 230, 0) 55%),
+              radial-gradient(circle at 70% 32%, rgba(232, 138, 198, 0.95), rgba(232, 138, 198, 0) 60%),
+              radial-gradient(circle at 60% 70%, rgba(125, 144, 230, 0.95), rgba(125, 144, 230, 0) 62%),
+              radial-gradient(circle at 35% 75%, rgba(195, 163, 230, 0.7), rgba(195, 163, 230, 0) 60%);
+            filter: blur(8px);
             border-radius: 50%;
           }
           .cover::after {
@@ -573,13 +574,20 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
 
           .report-section {
             margin-top: 28px;
-            padding: 26px 28px 28px;
+            padding: 28px 30px 30px;
             background: #ffffff;
             border: 1px solid #e4e1f3;
             border-radius: 22px;
             position: relative;
-            border-left: 6px solid var(--accent, #6c6596);
             box-shadow: 0 1px 0 rgba(31,27,65,0.04);
+            overflow: hidden;
+          }
+          .report-section::before {
+            content: '';
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 6px;
+            background: var(--accent, #6c6596);
           }
           .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
           .section-title-wrap { display: flex; align-items: flex-start; gap: 14px; }

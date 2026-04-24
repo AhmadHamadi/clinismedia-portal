@@ -357,8 +357,8 @@ async function buildMarketingReportPayload(req, customer, range) {
     sectionBuilders.push(buildGoogleBusinessSection(req, customer, range.start, range.end));
   }
 
-  await syncInstagramForReport(customer, range.start, range.end);
-  sectionBuilders.push(buildInstagramSection(customer._id, range.start, range.end));
+  const instagramSyncStatus = await syncInstagramForReport(customer, range.start, range.end);
+  sectionBuilders.push(buildInstagramSection(customer, range.start, range.end, instagramSyncStatus));
 
   if (customer.facebookPageId && customer.facebookAccessToken) {
     sectionBuilders.push(buildFacebookSection(customer, range.start, range.end));
@@ -1014,7 +1014,8 @@ async function buildGoogleBusinessSection(req, customer, start, end) {
   };
 }
 
-async function buildInstagramSection(customerId, start, end) {
+async function buildInstagramSection(customer, start, end, syncStatus) {
+  const customerId = customer._id;
   const [userInsights, mediaInsights] = await Promise.all([
     InstaUserInsight.find({
       customer_id: String(customerId),
@@ -1026,8 +1027,19 @@ async function buildInstagramSection(customerId, start, end) {
     }).sort({ posted_at: -1 }).lean(),
   ]);
 
-  if (!userInsights.length && !mediaInsights.length) {
+  const syncFailed = syncStatus && syncStatus.synced === false && customer.instagramAccountId;
+  if (!userInsights.length && !mediaInsights.length && !syncFailed) {
     return null;
+  }
+  if (!userInsights.length && !mediaInsights.length && syncFailed) {
+    return {
+      id: 'instagram',
+      title: 'Instagram',
+      summary: {},
+      highlights: [],
+      topPosts: [],
+      error: syncStatus.reason || 'Instagram sync did not return any data for this period.',
+    };
   }
 
   const totals = {
@@ -1103,14 +1115,29 @@ async function buildInstagramSection(customerId, start, end) {
 
 async function syncInstagramForReport(customer, start, end) {
   if (!customer?.instagramAccountId) {
-    return null;
+    return { synced: false, reason: 'No Instagram account linked.' };
+  }
+
+  // Wipe prior live-sync total_value docs for this customer in the requested
+  // window so we never double-count when timeframes change between syncs.
+  // Keeps follower snapshots and any non-meta_graph rows untouched.
+  try {
+    await InstaUserInsight.deleteMany({
+      customer_id: String(customer._id),
+      source: 'meta_graph',
+      metric: { $in: ['reach', 'impressions', 'views', 'profile_views', 'website_clicks'] },
+      end_time: { $gte: start, $lte: end },
+    });
+  } catch (cleanupError) {
+    console.warn('Instagram pre-sync cleanup failed:', cleanupError.message);
   }
 
   try {
     return await syncInstagramInsightsForUser(customer, { from: start, to: end });
   } catch (error) {
+    const reason = error.response?.data?.error?.message || error.message;
     console.warn('Instagram direct sync failed during report generation:', error.response?.data || error.message);
-    return null;
+    return { synced: false, reason };
   }
 }
 
@@ -1141,7 +1168,7 @@ async function buildFacebookSection(customer, start, end) {
   }
 
   const metrics = [
-    { key: 'impressions', metric: 'page_impressions' },
+    { key: 'impressions', metric: 'page_impressions_unique' },
     { key: 'reach', metric: 'page_impressions_unique' },
     { key: 'engagements', metric: 'page_post_engagements' },
     { key: 'followers', metric: 'page_follows' },
