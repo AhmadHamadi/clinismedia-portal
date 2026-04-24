@@ -201,7 +201,8 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
       try {
         syncStatus = await syncInstagramInsightsForUser(
           { ...customer.toObject(), _id: customerId },
-          { from: previousFromDate, to: toDate }
+          { from: fromDate, to: toDate },
+          { from: previousFromDate, to: previousToDate }
         );
       } catch (syncError) {
         console.warn('Instagram direct sync failed for customer insights:', syncError.response?.data || syncError.message);
