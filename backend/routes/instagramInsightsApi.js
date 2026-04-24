@@ -8,6 +8,61 @@ const { syncInstagramInsightsForUser } = require('../utils/instagramInsightsSync
 
 const router = express.Router();
 
+function getTimeZoneOffsetMillis(date, timeZone) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+
+  const parts = formatter.formatToParts(date);
+  const valueByType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const asUtc = Date.UTC(
+    Number(valueByType.year),
+    Number(valueByType.month) - 1,
+    Number(valueByType.day),
+    Number(valueByType.hour),
+    Number(valueByType.minute),
+    Number(valueByType.second),
+    0
+  );
+
+  return asUtc - Math.floor(date.getTime() / 1000) * 1000;
+}
+
+function convertClinicLocalDateTimeToUtc(dateString, timeZone, endOfDay = false) {
+  const [year, month, day] = String(dateString).split('-').map(Number);
+  const hours = endOfDay ? 23 : 0;
+  const minutes = endOfDay ? 59 : 0;
+  const seconds = endOfDay ? 59 : 0;
+  const milliseconds = endOfDay ? 999 : 0;
+
+  const initialGuess = Date.UTC(year, month - 1, day, hours, minutes, seconds, milliseconds);
+  const initialOffset = getTimeZoneOffsetMillis(new Date(initialGuess), timeZone);
+  const adjustedGuess = initialGuess - initialOffset;
+  const refinedOffset = getTimeZoneOffsetMillis(new Date(adjustedGuess), timeZone);
+
+  return new Date(initialGuess - refinedOffset);
+}
+
+function getClinicTimezone(customer) {
+  return customer?.aiReceptionistSettings?.timezone || 'America/Toronto';
+}
+
+function getInsightRange(customer, from, to) {
+  const timezone = getClinicTimezone(customer);
+  return {
+    fromDate: convertClinicLocalDateTimeToUtc(from, timezone, false),
+    toDate: convertClinicLocalDateTimeToUtc(to, timezone, true),
+    timezone,
+  };
+}
+
 /**
  * Get Instagram insights for a specific customer (Admin only)
  */
@@ -20,9 +75,10 @@ router.get('/customer/:customerId', authenticateToken, authorizeRole(['admin']),
       return res.status(400).json({ error: 'From and to dates are required' });
     }
 
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
-    const customer = await User.findById(customerId).select('instagramAccountId instagramUsername facebookAccessToken facebookUserAccessToken');
+    const customer = await User.findById(customerId).select(
+      'instagramAccountId instagramAccountName instagramUsername facebookPageId facebookPageName facebookAccessToken facebookUserAccessToken aiReceptionistSettings.timezone'
+    );
+    const { fromDate, toDate } = getInsightRange(customer, from, to);
 
     if (customer) {
       try {
@@ -127,13 +183,13 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
       return res.status(400).json({ error: 'From and to dates are required' });
     }
 
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
-    const periodLength = toDate.getTime() - fromDate.getTime();
-    const previousFromDate = new Date(fromDate.getTime() - periodLength);
     const customer = await User.findById(customerId).select(
-      'instagramAccountId instagramAccountName instagramUsername facebookAccessToken facebookUserAccessToken facebookPageName'
+      'instagramAccountId instagramAccountName instagramUsername facebookPageId facebookPageName facebookAccessToken facebookUserAccessToken aiReceptionistSettings.timezone'
     );
+    const { fromDate, toDate } = getInsightRange(customer, from, to);
+    const rangeDurationMs = toDate.getTime() - fromDate.getTime() + 1;
+    const previousToDate = new Date(fromDate.getTime() - 1);
+    const previousFromDate = new Date(previousToDate.getTime() - rangeDurationMs + 1);
 
     let syncStatus = {
       synced: false,
@@ -155,6 +211,13 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
         };
       }
     }
+
+    const connection = {
+      instagramAccountId: customer?.instagramAccountId || syncStatus?.accountId || null,
+      instagramAccountName: customer?.instagramAccountName || syncStatus?.instagramAccountName || null,
+      instagramUsername: customer?.instagramUsername || syncStatus?.instagramUsername || null,
+      facebookPageName: customer?.facebookPageName || null,
+    };
 
     // Get user insights for the customer
     const userInsights = await InstaUserInsight.find({
@@ -206,8 +269,6 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
     mediaInsights.forEach(media => {
       currentTotals.totalEngagement += media.metrics.engagement || 0;
     });
-
-    const previousToDate = new Date(fromDate.getTime());
 
     const previousUserInsights = await InstaUserInsight.find({
       customer_id: customerId,
@@ -285,12 +346,7 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
         profileViewsChange: calculateChange(currentTotals.totalProfileViews, previousTotals.totalProfileViews),
         engagementChange: calculateChange(avgEngagement, previousAvgEngagement)
       },
-      connection: {
-        instagramAccountId: customer?.instagramAccountId || null,
-        instagramAccountName: customer?.instagramAccountName || null,
-        instagramUsername: customer?.instagramUsername || null,
-        facebookPageName: customer?.facebookPageName || null,
-      },
+      connection,
       syncStatus,
     });
 
@@ -303,16 +359,34 @@ router.get('/my-insights', authenticateToken, authorizeRole(['customer']), async
 router.post('/sync', authenticateToken, authorizeRole(['customer']), async (req, res) => {
   try {
     const customer = await User.findById(req.user.id).select(
-      'instagramAccountId instagramUsername facebookAccessToken facebookUserAccessToken'
+      'instagramAccountId instagramAccountName instagramUsername facebookPageId facebookPageName facebookAccessToken facebookUserAccessToken aiReceptionistSettings.timezone'
     );
 
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const end = new Date();
-    const start = new Date(end);
-    start.setDate(start.getDate() - 90);
+    const timezone = getClinicTimezone(customer);
+    const todayParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const valueByType = Object.fromEntries(todayParts.map((part) => [part.type, part.value]));
+    const todayString = `${valueByType.year}-${valueByType.month}-${valueByType.day}`;
+    const end = convertClinicLocalDateTimeToUtc(todayString, timezone, true);
+    const startAnchor = new Date(end);
+    startAnchor.setUTCDate(startAnchor.getUTCDate() - 89);
+    const startParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(startAnchor);
+    const startValueByType = Object.fromEntries(startParts.map((part) => [part.type, part.value]));
+    const startString = `${startValueByType.year}-${startValueByType.month}-${startValueByType.day}`;
+    const start = convertClinicLocalDateTimeToUtc(startString, timezone, false);
 
     const result = await syncInstagramInsightsForUser(
       { ...customer.toObject(), _id: req.user.id },

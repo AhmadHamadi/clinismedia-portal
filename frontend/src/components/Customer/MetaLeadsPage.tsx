@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { FaFacebook, FaEnvelope, FaPhone, FaCalendar, FaCheckCircle, FaTimesCircle, FaClock, FaUser, FaMapMarkerAlt, FaCalendarCheck, FaEdit, FaSpinner, FaFilter, FaEye, FaTimes, FaSyncAlt } from 'react-icons/fa';
+import { FaFacebook, FaEnvelope, FaPhone, FaCalendar, FaCheckCircle, FaTimesCircle, FaClock, FaUser, FaMapMarkerAlt, FaCalendarCheck, FaSpinner, FaFilter, FaSyncAlt } from 'react-icons/fa';
 import { startOfMonth, endOfMonth, subMonths, format, startOfDay, endOfDay, subDays } from 'date-fns';
 import DatePicker from 'react-multi-date-picker';
 
@@ -34,27 +34,25 @@ interface LeadStats {
   monthlyStats: Array<{ year: number; month: number; total: number; contacted: number; booked: number }>;
 }
 
+interface LeadDraft {
+  statusUpdate: 'contacted' | 'not_contacted' | null;
+  notContactedReason: string;
+  appointmentBooked: boolean | null;
+  appointmentReason: string;
+}
+
 const MetaLeadsPage: React.FC = () => {
   const [leads, setLeads] = useState<MetaLead[]>([]);
   const [stats, setStats] = useState<LeadStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedLead, setSelectedLead] = useState<MetaLead | null>(null);
-  const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [tempStartDate, setTempStartDate] = useState<Date | null>(null);
   const [tempEndDate, setTempEndDate] = useState<Date | null>(null);
-  const [statusUpdate, setStatusUpdate] = useState<'contacted' | 'not_contacted'>('contacted');
-  const [notContactedReason, setNotContactedReason] = useState('');
-  const [appointmentBooked, setAppointmentBooked] = useState<boolean | null>(null);
-  const [appointmentReason, setAppointmentReason] = useState('');
-  const [notes, setNotes] = useState('');
-  const [showAppointmentSection, setShowAppointmentSection] = useState(false);
-  const [editContactStatus, setEditContactStatus] = useState(false);
-  const [editAppointmentStatus, setEditAppointmentStatus] = useState(false);
+  const [leadDrafts, setLeadDrafts] = useState<Record<string, LeadDraft>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const leadsRequestSeqRef = useRef(0);
@@ -182,113 +180,143 @@ const MetaLeadsPage: React.FC = () => {
   };
 
 
+  const getLeadDraft = (lead: MetaLead): LeadDraft => {
+    const existingDraft = leadDrafts[lead._id];
+    if (existingDraft) return existingDraft;
+
+    return {
+      statusUpdate:
+        lead.status === 'contacted'
+          ? 'contacted'
+          : lead.status === 'not_contacted'
+            ? 'not_contacted'
+            : null,
+      notContactedReason: lead.notContactedReason || '',
+      appointmentBooked: lead.appointmentBooked ?? null,
+      appointmentReason: lead.appointmentBookingReason || '',
+    };
+  };
+
+  const updateLeadDraft = (leadId: string, patch: Partial<LeadDraft>) => {
+    setLeadDrafts((current) => ({
+      ...current,
+      [leadId]: {
+        ...(current[leadId] || {
+          statusUpdate: null,
+          notContactedReason: '',
+          appointmentBooked: null,
+          appointmentReason: '',
+        }),
+        ...patch,
+      },
+    }));
+  };
+
+  const patchLeadStatus = async (leadId: string, status: 'contacted' | 'not_contacted', reason?: string) => {
+    const token = localStorage.getItem('customerToken');
+    if (!token) return;
+
+    if (status === 'not_contacted' && !reason?.trim()) {
+      throw new Error('A reason is required for not contacting a lead');
+    }
+
+    await axios.patch(
+      `${import.meta.env.VITE_API_BASE_URL}/meta-leads/customer/leads/${leadId}/status`,
+      { status, reason: status === 'not_contacted' ? reason : undefined },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  };
+
+  const patchLeadAppointment = async (leadId: string, appointmentBooked: boolean | null, appointmentReason: string) => {
+    const token = localStorage.getItem('customerToken');
+    if (!token) return;
+
+    if (appointmentBooked === null || appointmentBooked === undefined) {
+      throw new Error('Please select whether an appointment was booked');
+    }
+
+    if (appointmentBooked === false && !appointmentReason.trim()) {
+      throw new Error('Please provide a reason why the appointment was not booked');
+    }
+
+    await axios.patch(
+      `${import.meta.env.VITE_API_BASE_URL}/meta-leads/customer/leads/${leadId}/appointment`,
+      {
+        appointmentBooked,
+        reason: appointmentReason
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  };
+
   const handleStatusUpdate = async (leadId: string, status: 'contacted' | 'not_contacted', reason?: string) => {
     try {
-      const token = localStorage.getItem('customerToken');
-      if (!token) return;
+      await patchLeadStatus(leadId, status, reason);
 
-      // Validate reason is provided for "not_contacted"
-      if (status === 'not_contacted' && !reason?.trim()) {
-        // Use notContactedReason from state if reason parameter not provided
-        const stateReason = notContactedReason?.trim();
-        if (!stateReason) {
-          alert('A reason is required for not contacting a lead');
-          return;
-        }
-        reason = stateReason;
-      }
+      const existingDraft = leadDrafts[leadId];
+      updateLeadDraft(leadId, {
+        statusUpdate: status,
+        notContactedReason: status === 'not_contacted' ? (reason || '') : '',
+        appointmentBooked: status === 'contacted' ? (existingDraft?.appointmentBooked ?? null) : null,
+        appointmentReason: status === 'contacted' ? (existingDraft?.appointmentReason ?? '') : '',
+      });
 
-      await axios.patch(
-        `${import.meta.env.VITE_API_BASE_URL}/meta-leads/customer/leads/${leadId}/status`,
-        { status, reason: status === 'not_contacted' ? reason : undefined },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      // If status is "contacted", show appointment section and keep modal open
-      if (status === 'contacted') {
-        setShowAppointmentSection(true);
-        setEditContactStatus(false); // Close edit section after update
-        // Update the selected lead status in state
-        if (selectedLead) {
-          setSelectedLead({ ...selectedLead, status: 'contacted' });
-        }
-        // Fetch leads to get updated data but keep modal open
-        fetchLeads();
-        fetchStats();
-      } else {
-        // If "not_contacted", close modal and refresh
-        setNotContactedReason('');
-        setEditContactStatus(false);
-        setShowLeadDetails(false);
-        setSelectedLead(null);
-        fetchLeads();
-        fetchStats();
-      }
+      fetchLeads();
+      fetchStats();
     } catch (error: any) {
       console.error('Failed to update status:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to update status';
-      alert(errorMessage);
+      alert(error.response?.data?.message || error.message || 'Failed to update status');
     }
   };
 
-  const handleAppointmentUpdate = async (leadId: string) => {
+  const handleAppointmentUpdate = async (leadId: string, appointmentBooked: boolean | null, appointmentReason: string) => {
     try {
-      const token = localStorage.getItem('customerToken');
-      if (!token) return;
-
-      // Validate that appointmentBooked is set
-      if (appointmentBooked === null || appointmentBooked === undefined) {
-        alert('Please select whether an appointment was booked');
-        return;
-      }
-
-      // Require reason if appointment was not booked
-      if (appointmentBooked === false && !appointmentReason.trim()) {
-        alert('Please provide a reason why the appointment was not booked');
-        return;
-      }
-
-      await axios.patch(
-        `${import.meta.env.VITE_API_BASE_URL}/meta-leads/customer/leads/${leadId}/appointment`,
-        {
-          appointmentBooked,
-          reason: appointmentReason
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      // Close appointment edit section after update
-      setEditAppointmentStatus(false);
-      // Update the selected lead appointment status in state
-      if (selectedLead) {
-        setSelectedLead({ ...selectedLead, appointmentBooked, appointmentBookingReason: appointmentReason || undefined });
-      }
-      // Keep modal open but refresh data
+      await patchLeadAppointment(leadId, appointmentBooked, appointmentReason);
+      updateLeadDraft(leadId, { appointmentBooked, appointmentReason });
       fetchLeads();
       fetchStats();
     } catch (error: any) {
       console.error('Failed to update appointment:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to update appointment status';
-      alert(errorMessage);
+      alert(error.response?.data?.message || error.message || 'Failed to update appointment status');
     }
   };
 
-  const handleNotesUpdate = async (leadId: string) => {
+  const handleLeadWorkflowSave = async (lead: MetaLead) => {
+    const draft = getLeadDraft(lead);
+
+    if (!draft.statusUpdate) {
+      alert('Please answer "Did you contact them?" first');
+      return;
+    }
+
     try {
-      const token = localStorage.getItem('customerToken');
-      if (!token) return;
+      if (draft.statusUpdate === 'not_contacted') {
+        await patchLeadStatus(lead._id, 'not_contacted', draft.notContactedReason);
+      } else {
+        if (lead.status !== 'contacted') {
+          await patchLeadStatus(lead._id, 'contacted');
+        }
 
-      await axios.patch(
-        `${import.meta.env.VITE_API_BASE_URL}/meta-leads/customer/leads/${leadId}/notes`,
-        { notes },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+        if (draft.appointmentBooked !== null) {
+          await patchLeadAppointment(lead._id, draft.appointmentBooked, draft.appointmentReason);
+        }
+      }
 
-      setShowLeadDetails(false);
+      setLeadDrafts((current) => ({
+        ...current,
+        [lead._id]: {
+          statusUpdate: draft.statusUpdate,
+          notContactedReason: draft.statusUpdate === 'not_contacted' ? draft.notContactedReason : '',
+          appointmentBooked: draft.statusUpdate === 'contacted' ? draft.appointmentBooked : null,
+          appointmentReason: draft.statusUpdate === 'contacted' ? draft.appointmentReason : '',
+        },
+      }));
+
       fetchLeads();
-    } catch (error) {
-      console.error('Failed to update notes:', error);
-      alert('Failed to update notes');
+      fetchStats();
+    } catch (error: any) {
+      console.error('Failed to save lead workflow:', error);
+      alert(error.response?.data?.message || error.message || 'Failed to save lead update');
     }
   };
 
@@ -442,27 +470,6 @@ const MetaLeadsPage: React.FC = () => {
       return `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`;
     }
     return 'All Leads';
-  };
-
-  const openLeadDetails = (lead: MetaLead) => {
-    setSelectedLead(lead);
-    // Set status based on current lead status, default to 'contacted' for new leads
-    if (lead.status === 'new') {
-      setStatusUpdate('contacted');
-      setShowAppointmentSection(false);
-      setEditContactStatus(true); // Show contact edit section for new leads
-      setEditAppointmentStatus(false);
-    } else {
-      setStatusUpdate(lead.status);
-      setShowAppointmentSection(lead.status === 'contacted');
-      setEditContactStatus(false); // Hide edit sections by default for existing leads
-      setEditAppointmentStatus(false);
-    }
-    setNotContactedReason(lead.notContactedReason || '');
-    setAppointmentBooked(lead.appointmentBooked ?? null);
-    setAppointmentReason(lead.appointmentBookingReason || '');
-    setNotes(lead.notes || '');
-    setShowLeadDetails(true);
   };
 
   if (loading) {
@@ -718,43 +725,43 @@ const MetaLeadsPage: React.FC = () => {
         {stats && (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <div className="bg-white p-3 rounded-lg shadow">
+              <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-gray-600">Total Leads</p>
                     <p className="text-xl font-bold text-gray-800">{stats.totalLeads}</p>
                   </div>
-                  <FaFacebook className="text-blue-500 text-xl" />
+                  <FaFacebook className="text-gray-400 text-xl" />
                 </div>
               </div>
 
-              <div className="bg-white p-3 rounded-lg shadow">
+              <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-gray-600">Contacted</p>
-                    <p className="text-xl font-bold text-green-600">{stats.contactedLeads}</p>
+                    <p className="text-xl font-bold text-gray-800">{stats.contactedLeads}</p>
                   </div>
-                  <FaCheckCircle className="text-green-500 text-xl" />
+                  <FaCheckCircle className="text-gray-400 text-xl" />
                 </div>
               </div>
 
-              <div className="bg-white p-3 rounded-lg shadow">
+              <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-gray-600">Not Contacted</p>
-                    <p className="text-xl font-bold text-red-600">{stats.totalLeads - stats.contactedLeads}</p>
+                    <p className="text-xl font-bold text-gray-800">{stats.totalLeads - stats.contactedLeads}</p>
                   </div>
-                  <FaTimesCircle className="text-red-500 text-xl" />
+                  <FaTimesCircle className="text-gray-400 text-xl" />
                 </div>
               </div>
 
-              <div className="bg-white p-3 rounded-lg shadow border-l-4 border-purple-500">
+              <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-gray-600">Appointments</p>
-                    <p className="text-xl font-bold text-purple-600">{stats.bookedAppointments || 0}</p>
+                    <p className="text-xl font-bold text-gray-800">{stats.bookedAppointments || 0}</p>
                   </div>
-                  <FaCalendarCheck className="text-purple-500 text-xl" />
+                  <FaCalendarCheck className="text-gray-400 text-xl" />
                 </div>
               </div>
             </div>
@@ -762,33 +769,33 @@ const MetaLeadsPage: React.FC = () => {
             {/* Conversion Rate */}
             {stats && stats.totalLeads > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                <div className="bg-white p-3 rounded-lg shadow border-l-4 border-blue-500">
+                <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-gray-600 font-medium">Contact Rate</p>
-                      <p className="text-xl font-bold text-blue-600 mt-1">
+                      <p className="mt-1 text-xl font-bold text-gray-800">
                         {Math.round((stats.contactedLeads / stats.totalLeads) * 100)}%
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {stats.contactedLeads} of {stats.totalLeads} leads contacted
                       </p>
                     </div>
-                    <FaCheckCircle className="text-blue-500 text-xl" />
+                    <FaCheckCircle className="text-gray-400 text-xl" />
                   </div>
                 </div>
 
-                <div className="bg-white p-3 rounded-lg shadow border-l-4 border-purple-500">
+                <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-gray-600 font-medium">Conversion Rate</p>
-                      <p className="text-xl font-bold text-purple-600 mt-1">
+                      <p className="mt-1 text-xl font-bold text-gray-800">
                         {Math.round((stats.bookedAppointments / stats.totalLeads) * 100)}%
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {stats.bookedAppointments} of {stats.totalLeads} leads booked
                       </p>
                     </div>
-                    <FaCalendarCheck className="text-purple-500 text-xl" />
+                    <FaCalendarCheck className="text-gray-400 text-xl" />
                   </div>
                 </div>
               </div>
@@ -812,42 +819,293 @@ const MetaLeadsPage: React.FC = () => {
               <p className="text-xs text-gray-500 mt-1">Leads will appear here once they are received from Facebook</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full divide-y divide-gray-200 min-w-[1200px]">
+            <>
+              {false && (
+              <div className="p-4 space-y-4">
+                {leads.map((lead) => {
+                  const draft = getLeadDraft(lead);
+                  const showAppointmentQuestion = draft.statusUpdate === 'contacted';
+                  const savedContacted = lead.status === 'contacted';
+
+                  return (
+                    <div key={lead._id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div className="flex flex-wrap items-start gap-3">
+                            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                              <div className="flex items-center gap-1 text-xs font-semibold text-blue-800">
+                                <FaCalendar className="text-blue-500" />
+                                Received
+                              </div>
+                              <div className="mt-1 text-xs font-mono text-blue-700">{formatDate(lead.emailDate)}</div>
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              {(() => {
+                                const personName = typeof lead.leadInfo?.name === 'string' ? lead.leadInfo.name.trim() : '';
+                                const campaignName = typeof lead.campaignName === 'string'
+                                  ? lead.campaignName.trim()
+                                  : (typeof lead.leadInfo?.fields?.['campaign name'] === 'string' ? lead.leadInfo.fields['campaign name'].trim() : '');
+                                const displayName = personName || campaignName;
+                                return displayName ? (
+                                  <div className="flex items-center gap-2">
+                                    <FaUser className="text-gray-400 shrink-0" />
+                                    <span className="text-lg font-bold text-gray-900 break-words">{displayName}</span>
+                                  </div>
+                                ) : (
+                                  <div className="text-sm italic text-gray-400">No name</div>
+                                );
+                              })()}
+
+                              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                <div className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
+                                  <FaPhone className="text-gray-400 shrink-0" />
+                                  <span className="break-all">{lead.leadInfo?.phone || 'No phone'}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
+                                  <FaEnvelope className="text-gray-400 shrink-0" />
+                                  <span className="break-all">{lead.leadInfo?.email || 'No email'}</span>
+                                </div>
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {lead.leadInfo?.fields?.city && (
+                                  <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-700">
+                                    <FaMapMarkerAlt className="text-gray-400" />
+                                    <span>{lead.leadInfo.fields.city}</span>
+                                  </div>
+                                )}
+                                {(() => {
+                                  const campaign = lead.campaignName ?? lead.leadInfo?.fields?.['campaign name'];
+                                  const hasCampaign = typeof campaign === 'string' && campaign.trim() !== '';
+                                  return hasCampaign ? (
+                                    <div className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-700">
+                                      Campaign: {campaign.trim()}
+                                    </div>
+                                  ) : null;
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                                {getStatusIcon(lead.status)}
+                                <span>{getStatusLabel(lead.status)}</span>
+                              </div>
+                              {lead.contactedAt && (
+                                <p className="mt-2 text-xs text-green-700">Contacted: {formatDate(lead.contactedAt)}</p>
+                              )}
+                              {lead.notContactedAt && (
+                                <p className="mt-2 text-xs text-red-700">Not contacted: {formatDate(lead.notContactedAt)}</p>
+                              )}
+                              {lead.notContactedReason && (
+                                <p className="mt-2 text-xs italic text-red-600 break-words">{lead.notContactedReason}</p>
+                              )}
+                            </div>
+
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                                <FaCalendarCheck className="text-purple-500" />
+                                <span>
+                                  {lead.appointmentBooked === true
+                                    ? 'Appointment booked'
+                                    : lead.appointmentBooked === false
+                                      ? 'No appointment booked'
+                                      : 'Appointment not set'}
+                                </span>
+                              </div>
+                              {lead.appointmentBookedAt && (
+                                <p className="mt-2 text-xs text-purple-700">Booked: {formatDate(lead.appointmentBookedAt)}</p>
+                              )}
+                              {lead.appointmentBookingReason && (
+                                <p className="mt-2 text-xs italic text-orange-700 break-words">{lead.appointmentBookingReason}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="w-full xl:w-[320px] shrink-0">
+                          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+                            <div>
+                              <p className="text-sm font-bold text-gray-900 mb-3">Did you contact them?</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => updateLeadDraft(lead._id, { statusUpdate: 'contacted' })}
+                                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                    draft.statusUpdate === 'contacted'
+                                      ? 'border-green-500 bg-green-100 text-green-900'
+                                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-300'
+                                  }`}
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => updateLeadDraft(lead._id, { statusUpdate: 'not_contacted', appointmentBooked: null, appointmentReason: '' })}
+                                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                    draft.statusUpdate === 'not_contacted'
+                                      ? 'border-red-500 bg-red-100 text-red-900'
+                                      : 'border-gray-300 bg-white text-gray-700 hover:border-red-300'
+                                  }`}
+                                >
+                                  No
+                                </button>
+                              </div>
+                              {draft.statusUpdate !== null && lead.status !== draft.statusUpdate && (
+                                <p className="mt-2 text-xs text-amber-600">Unsaved change.</p>
+                              )}
+                            </div>
+
+                            {draft.statusUpdate === 'not_contacted' && (
+                              <div className="space-y-2">
+                                <label className="block text-sm font-bold text-gray-900">Why not?</label>
+                                <textarea
+                                  value={draft.notContactedReason}
+                                  onChange={(e) => updateLeadDraft(lead._id, { notContactedReason: e.target.value })}
+                                  placeholder="Tell us why this lead was not contacted..."
+                                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                                  rows={3}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatusUpdate(lead._id, 'not_contacted', draft.notContactedReason)}
+                                  className="w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            )}
+
+                            {showAppointmentQuestion && (
+                              <div className="space-y-3 border-t border-gray-200 pt-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatusUpdate(lead._id, 'contacted')}
+                                  className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                                >
+                                  {savedContacted ? 'Keep as Contacted' : 'Save Contacted'}
+                                </button>
+
+                                {savedContacted && (
+                                  <>
+                                    <div>
+                                      <p className="text-sm font-bold text-gray-900 mb-3">Did you book an appointment?</p>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateLeadDraft(lead._id, { appointmentBooked: true, appointmentReason: '' })}
+                                          className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                            draft.appointmentBooked === true
+                                              ? 'border-purple-500 bg-purple-100 text-purple-900'
+                                              : 'border-gray-300 bg-white text-gray-700 hover:border-purple-300'
+                                          }`}
+                                        >
+                                          Yes
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateLeadDraft(lead._id, { appointmentBooked: false })}
+                                          className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                            draft.appointmentBooked === false
+                                              ? 'border-orange-500 bg-orange-100 text-orange-900'
+                                              : 'border-gray-300 bg-white text-gray-700 hover:border-orange-300'
+                                          }`}
+                                        >
+                                          No
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {draft.appointmentBooked === false && (
+                                      <div className="space-y-2">
+                                        <label className="block text-sm font-bold text-gray-900">Why not?</label>
+                                        <textarea
+                                          value={draft.appointmentReason}
+                                          onChange={(e) => updateLeadDraft(lead._id, { appointmentReason: e.target.value })}
+                                          placeholder="Tell us why no appointment was booked..."
+                                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                                          rows={3}
+                                        />
+                                      </div>
+                                    )}
+
+                                    {draft.appointmentBooked === true && (
+                                      <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+                                        <p className="text-sm font-semibold text-green-800">Good.</p>
+                                      </div>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAppointmentUpdate(lead._id, draft.appointmentBooked, draft.appointmentReason)}
+                                      className="w-full rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700"
+                                    >
+                                      Save Appointment
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              )}
+              <div className="overflow-x-auto">
+              <table className="w-full table-fixed divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">
+                    <th className="w-[14%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Received
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[320px]">
+                    <th className="w-[30%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Lead Info
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[180px]">
+                    <th className="w-[12%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Campaign
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[180px]">
+                    <th className="w-[18%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Status & Timestamps
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
+                    <th className="w-[14%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Appointment
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[180px]">
-                      Actions
+                    <th className="w-[16%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Follow Up
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {leads.map((lead) => (
-                    <tr key={lead._id} className="hover:bg-gray-50">
+                  {leads.map((lead) => {
+                    const draft = getLeadDraft(lead);
+                    const showAppointmentQuestion = draft.statusUpdate === 'contacted';
+                    const hasUnsavedStatusChange = draft.statusUpdate !== null && draft.statusUpdate !== lead.status;
+                    const hasUnsavedAppointmentChange =
+                      lead.status === 'contacted' &&
+                      draft.appointmentBooked !== null &&
+                      (
+                        draft.appointmentBooked !== (lead.appointmentBooked ?? null) ||
+                        (draft.appointmentBooked === false && draft.appointmentReason !== (lead.appointmentBookingReason || ''))
+                      );
+                    const needsSave = hasUnsavedStatusChange || hasUnsavedAppointmentChange;
+
+                    return (
+                    <tr key={lead._id} className="hover:bg-gray-50 align-top">
                       <td className="px-4 py-3">
                         <div className="flex flex-col space-y-1">
                           <div className="flex items-center">
-                            <FaCalendar className="text-blue-500 mr-1.5 text-xs" />
+                            <FaCalendar className="text-gray-400 mr-1.5 text-xs" />
                             <span className="text-xs text-gray-900 font-semibold">Received:</span>
                           </div>
-                          <div className="bg-blue-50 p-2 rounded border border-blue-200">
-                            <div className="text-xs font-medium text-blue-800 mb-0.5">Date & Time</div>
-                            <div className="text-xs text-blue-700 font-mono">{formatDate(lead.emailDate)}</div>
+                          <div className="rounded border border-gray-200 bg-gray-50 p-2">
+                            <div className="mb-0.5 text-xs font-medium text-gray-700">Date & Time</div>
+                            <div className="text-xs font-mono text-gray-700">{formatDate(lead.emailDate)}</div>
                           </div>
                         </div>
                       </td>
@@ -860,9 +1118,14 @@ const MetaLeadsPage: React.FC = () => {
                               : (typeof lead.leadInfo?.fields?.['campaign name'] === 'string' ? lead.leadInfo.fields['campaign name'].trim() : '');
                             const displayName = personName || campaignName;
                             return displayName ? (
-                              <div className="flex items-center">
-                                <FaUser className="text-gray-400 mr-2 text-sm" />
-                                <span className="text-sm text-gray-900 font-semibold">{displayName}</span>
+                              <div>
+                                <div className="flex items-center">
+                                  <FaUser className="text-gray-400 mr-2 text-sm" />
+                                  <span className="text-sm text-gray-900 font-semibold">{displayName}</span>
+                                </div>
+                                {campaignName && personName && (
+                                  <p className="mt-1 break-words pl-6 text-xs text-gray-500">{campaignName}</p>
+                                )}
                               </div>
                             ) : (
                               <div className="flex items-center">
@@ -923,17 +1186,17 @@ const MetaLeadsPage: React.FC = () => {
                             <span className="text-xs text-gray-900 font-medium ml-1.5">{getStatusLabel(lead.status)}</span>
                           </div>
                           {lead.contactedAt && (
-                            <div className="bg-green-50 p-2 rounded border border-green-200">
-                              <div className="text-xs font-medium text-green-800 mb-0.5">Contacted At:</div>
-                              <div className="text-xs text-green-700">{formatDate(lead.contactedAt)}</div>
+                            <div className="rounded border border-gray-200 bg-gray-50 p-2">
+                              <div className="mb-0.5 text-xs font-medium text-gray-700">Contacted At:</div>
+                              <div className="text-xs text-gray-700">{formatDate(lead.contactedAt)}</div>
                             </div>
                           )}
                           {lead.notContactedAt && (
-                            <div className="bg-red-50 p-2 rounded border border-red-200">
-                              <div className="text-xs font-medium text-red-800 mb-0.5">Not Contacted At:</div>
-                              <div className="text-xs text-red-700 mb-1">{formatDate(lead.notContactedAt)}</div>
+                            <div className="rounded border border-gray-200 bg-gray-50 p-2">
+                              <div className="mb-0.5 text-xs font-medium text-gray-700">Not Contacted At:</div>
+                              <div className="mb-1 text-xs text-gray-700">{formatDate(lead.notContactedAt)}</div>
                               {lead.notContactedReason && (
-                                <div className="text-xs text-red-600 italic mt-1 pt-1 border-t border-red-200">
+                                <div className="mt-1 border-t border-gray-200 pt-1 text-xs italic text-gray-600">
                                   {lead.notContactedReason.length > 80 ? `${lead.notContactedReason.substring(0, 80)}...` : lead.notContactedReason}
                                 </div>
                               )}
@@ -944,27 +1207,27 @@ const MetaLeadsPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <div className="flex flex-col space-y-1.5">
                           {lead.appointmentBooked === true ? (
-                            <div className="bg-purple-50 p-2 rounded border border-purple-200">
-                              <div className="flex items-center mb-1">
-                                <FaCalendarCheck className="text-purple-600 mr-1 text-xs" />
-                                <span className="text-xs font-semibold text-purple-800">Booked</span>
+                            <div className="rounded border border-gray-200 bg-gray-50 p-2">
+                              <div className="mb-1 flex items-center">
+                                <FaCalendarCheck className="mr-1 text-xs text-gray-500" />
+                                <span className="text-xs font-semibold text-gray-800">Booked</span>
                               </div>
                               {lead.appointmentBookedAt && (
-                                <div className="text-xs text-purple-700 mb-1">
+                                <div className="mb-1 text-xs text-gray-700">
                                   Booked At: {formatDate(lead.appointmentBookedAt)}
                                 </div>
                               )}
                               {lead.appointmentBookingReason && (
-                                <div className="text-xs text-purple-600 italic mt-1 pt-1 border-t border-purple-200">
+                                <div className="mt-1 border-t border-gray-200 pt-1 text-xs italic text-gray-600">
                                   {lead.appointmentBookingReason.length > 80 ? `${lead.appointmentBookingReason.substring(0, 80)}...` : lead.appointmentBookingReason}
                                 </div>
                               )}
                             </div>
                           ) : lead.appointmentBooked === false ? (
-                            <div className="bg-orange-50 p-2 rounded border border-orange-200">
-                              <div className="text-xs font-semibold text-orange-800 mb-1">Not Booked</div>
+                            <div className="rounded border border-gray-200 bg-gray-50 p-2">
+                              <div className="mb-1 text-xs font-semibold text-gray-800">Not Booked</div>
                               {lead.appointmentBookingReason && (
-                                <div className="text-xs text-orange-700 italic">
+                                <div className="text-xs italic text-gray-600">
                                   {lead.appointmentBookingReason.length > 80 ? `${lead.appointmentBookingReason.substring(0, 80)}...` : lead.appointmentBookingReason}
                                 </div>
                               )}
@@ -974,320 +1237,127 @@ const MetaLeadsPage: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => openLeadDetails(lead)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2 px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 text-base w-full"
-                        >
-                          <FaEye className="text-base" />
-                          Manage
-                        </button>
+                      <td className="px-4 py-3 min-w-[320px]">
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+                          <div>
+                            <p className="text-sm font-bold text-gray-900 mb-3">Did you contact them?</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => updateLeadDraft(lead._id, { statusUpdate: 'contacted' })}
+                                className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                  draft.statusUpdate === 'contacted'
+                                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                }`}
+                              >
+                                Yes
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateLeadDraft(lead._id, { statusUpdate: 'not_contacted', appointmentBooked: null, appointmentReason: '' })}
+                                className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                  draft.statusUpdate === 'not_contacted'
+                                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                }`}
+                              >
+                                No
+                              </button>
+                            </div>
+                            {hasUnsavedStatusChange && (
+                              <p className="text-xs text-amber-600 mt-2">Unsaved change.</p>
+                            )}
+                          </div>
+
+                          {draft.statusUpdate === 'not_contacted' && (
+                            <div className="space-y-2">
+                              <label className="block text-sm font-bold text-gray-900">Why not?</label>
+                              <textarea
+                                value={draft.notContactedReason}
+                                onChange={(e) => updateLeadDraft(lead._id, { notContactedReason: e.target.value })}
+                                placeholder="Tell us why this lead was not contacted..."
+                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                                rows={3}
+                              />
+                            </div>
+                          )}
+
+                          {showAppointmentQuestion && (
+                            <div className="space-y-3 border-t border-gray-200 pt-4">
+                              <div>
+                                <p className="text-sm font-bold text-gray-900 mb-3">Did you book an appointment?</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateLeadDraft(lead._id, { appointmentBooked: true, appointmentReason: '' })}
+                                    className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                      draft.appointmentBooked === true
+                                        ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                    }`}
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateLeadDraft(lead._id, { appointmentBooked: false })}
+                                    className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                      draft.appointmentBooked === false
+                                        ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                    }`}
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              </div>
+
+                              {draft.appointmentBooked === false && (
+                                <div className="space-y-2">
+                                  <label className="block text-sm font-bold text-gray-900">Why not?</label>
+                                  <textarea
+                                    value={draft.appointmentReason}
+                                    onChange={(e) => updateLeadDraft(lead._id, { appointmentReason: e.target.value })}
+                                    placeholder="Tell us why no appointment was booked..."
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                                    rows={3}
+                                  />
+                                </div>
+                              )}
+
+                              {draft.appointmentBooked === true && (
+                                <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                                  <p className="text-sm font-semibold text-gray-700">&nbsp;</p>
+                                </div>
+                              )}
+
+                              {needsSave && <p className="text-xs text-amber-600">Unsaved change.</p>}
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleLeadWorkflowSave(lead)}
+                            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                          >
+                            {draft.statusUpdate === 'contacted' && draft.appointmentBooked !== null
+                              ? 'Save update'
+                              : draft.statusUpdate === 'not_contacted'
+                                ? 'Save status'
+                                : 'Save contact status'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>
-
-      {/* Lead Details Modal */}
-      {showLeadDetails && selectedLead && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowLeadDetails(false);
-              setSelectedLead(null);
-            }
-          }}
-        >
-          <div 
-            className="cm-panel-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <FaEdit className="text-blue-500" />
-                Manage Lead
-              </h2>
-              <button
-                onClick={() => {
-                  setShowLeadDetails(false);
-                  setSelectedLead(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <FaTimes className="text-xl" />
-              </button>
-            </div>
-
-            {/* Campaign Name */}
-            {(() => {
-              const campaign = selectedLead.campaignName ?? selectedLead.leadInfo?.fields?.['campaign name'];
-              const hasCampaign = typeof campaign === 'string' && campaign.trim() !== '';
-              return hasCampaign ? (
-                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-1">Campaign Name</h3>
-                  <p className="text-base text-gray-900 font-medium break-words">{campaign.trim()}</p>
-                </div>
-              ) : null;
-            })()}
-
-            {/* Status Section - Bigger */}
-            {!editContactStatus && selectedLead.status !== 'new' && (
-              <div className="mb-6 p-6 bg-gray-50 border-2 border-gray-200 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 mb-3">Contact Status</h3>
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-2xl">{getStatusIcon(selectedLead.status)}</span>
-                      <span className="text-xl font-semibold text-gray-900">{getStatusLabel(selectedLead.status)}</span>
-                    </div>
-                    {selectedLead.contactedAt && (
-                      <p className="text-base text-gray-700 mt-3">
-                        <span className="font-semibold">Contacted At:</span>{' '}
-                        <span className="text-gray-900">{formatDate(selectedLead.contactedAt)}</span>
-                      </p>
-                    )}
-                    {selectedLead.notContactedAt && (
-                      <p className="text-base text-gray-700 mt-3">
-                        <span className="font-semibold">Not Contacted At:</span>{' '}
-                        <span className="text-gray-900">{formatDate(selectedLead.notContactedAt)}</span>
-                      </p>
-                    )}
-                    {selectedLead.notContactedReason && (
-                      <div className="mt-4 p-3 bg-white rounded border border-gray-300">
-                        <p className="font-semibold text-gray-900 mb-2">Reason (Not Contacted):</p>
-                        <p className="text-base text-gray-700">{selectedLead.notContactedReason}</p>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEditContactStatus(!editContactStatus);
-                      setEditAppointmentStatus(false);
-                    }}
-                    className="ml-4 px-5 py-3 text-base font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg border-2 border-blue-300 transition-colors"
-                  >
-                    <FaEdit className="inline mr-2" />
-                    Edit
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Status Update - Show only when edit button is clicked */}
-            {(editContactStatus || selectedLead.status === 'new') && (
-              <div className="mb-6 p-6 bg-blue-50 border-2 border-blue-300 rounded-lg">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">
-                  {selectedLead.status === 'new' ? 'Have you contacted this lead? *' : 'Update Contact Status'}
-                </h3>
-                <div className="mb-4">
-                  <label className="block text-base font-semibold text-gray-700 mb-3">
-                    Select your answer:
-                  </label>
-                  <select
-                    value={statusUpdate}
-                    onChange={(e) => {
-                      setStatusUpdate(e.target.value as 'contacted' | 'not_contacted');
-                      if (e.target.value === 'not_contacted') {
-                        setShowAppointmentSection(false);
-                        setEditAppointmentStatus(false);
-                      }
-                    }}
-                    className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base bg-white"
-                    style={{ color: '#111827' }}
-                  >
-                    <option value="contacted" style={{ color: '#111827' }}>Yes, I contacted this lead</option>
-                    <option value="not_contacted" style={{ color: '#111827' }}>No, I did not contact this lead</option>
-                  </select>
-                </div>
-                
-                {/* Show reason input if "not_contacted" is selected */}
-                {statusUpdate === 'not_contacted' && (
-                  <div className="mt-4">
-                    <label className="block text-base font-semibold text-gray-700 mb-2">
-                      Please provide a reason why this lead was not contacted: *
-                    </label>
-                    <textarea
-                      value={notContactedReason}
-                      onChange={(e) => setNotContactedReason(e.target.value)}
-                      placeholder="Enter your reason here..."
-                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 bg-white"
-                      style={{ color: '#111827' }}
-                      rows={4}
-                      required
-                    />
-                  </div>
-                )}
-                
-                <div className="flex gap-3 mt-5">
-                  <button
-                    onClick={() => handleStatusUpdate(selectedLead._id, statusUpdate)}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-base font-semibold"
-                  >
-                    Update Contact Status
-                  </button>
-                  {editContactStatus && selectedLead.status !== 'new' && (
-                    <button
-                      onClick={() => setEditContactStatus(false)}
-                      className="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-base font-semibold"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Appointment Section - Bigger (only if contacted) */}
-            {selectedLead.status === 'contacted' && !editAppointmentStatus && selectedLead.appointmentBooked !== null && selectedLead.appointmentBooked !== undefined && (
-              <div className="mb-6 p-6 bg-purple-50 border-2 border-purple-200 rounded-lg">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 mb-3">Appointment Status</h3>
-                    <div className="flex items-center gap-3 mb-2">
-                      {selectedLead.appointmentBooked === true ? (
-                        <>
-                          <FaCalendarCheck className="text-2xl text-purple-600" />
-                          <span className="text-xl font-semibold text-purple-700">Booked</span>
-                        </>
-                      ) : (
-                        <span className="text-xl font-semibold text-gray-700">Not Booked</span>
-                      )}
-                    </div>
-                    {selectedLead.appointmentBookedAt && (
-                      <p className="text-base text-gray-700 mt-3">
-                        <span className="font-semibold">Booked At:</span>{' '}
-                        <span className="text-gray-900">{formatDate(selectedLead.appointmentBookedAt)}</span>
-                      </p>
-                    )}
-                    {selectedLead.appointmentBookingReason && (
-                      <div className="mt-4 p-3 bg-white rounded border border-purple-300">
-                        <p className="font-semibold text-gray-900 mb-2">Reason:</p>
-                        <p className="text-base text-gray-700">{selectedLead.appointmentBookingReason}</p>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEditAppointmentStatus(!editAppointmentStatus);
-                      setEditContactStatus(false);
-                    }}
-                    className="ml-4 px-5 py-3 text-base font-semibold text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg border-2 border-purple-300 transition-colors"
-                  >
-                    <FaEdit className="inline mr-2" />
-                    Edit
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Appointment Status - Show only when edit button is clicked or status is new/contacted and appointment not set */}
-            {selectedLead.status === 'contacted' && (editAppointmentStatus || (selectedLead.appointmentBooked === null || selectedLead.appointmentBooked === undefined)) && (
-              <div className="mb-6 p-6 bg-purple-50 border-2 border-purple-300 rounded-lg">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Did this contact turn into an appointment? *</h3>
-                <div className="flex gap-6 mb-4">
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="radio"
-                      name="appointment"
-                      value="yes"
-                      checked={appointmentBooked === true}
-                      onChange={() => {
-                        setAppointmentBooked(true);
-                        setAppointmentReason('');
-                      }}
-                      className="mr-3 w-5 h-5"
-                    />
-                    <span className="text-gray-900 font-semibold text-base">Yes</span>
-                  </label>
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="radio"
-                      name="appointment"
-                      value="no"
-                      checked={appointmentBooked === false}
-                      onChange={() => setAppointmentBooked(false)}
-                      className="mr-3 w-5 h-5"
-                    />
-                    <span className="text-gray-900 font-semibold text-base">No</span>
-                  </label>
-                </div>
-                
-                {/* Require reason if "No" is selected */}
-                {appointmentBooked === false && (
-                  <div className="mb-4">
-                    <label className="block text-base font-semibold text-gray-700 mb-2">
-                      Why not? *
-                    </label>
-                    <textarea
-                      value={appointmentReason}
-                      onChange={(e) => setAppointmentReason(e.target.value)}
-                      placeholder="Please provide a reason why the appointment was not booked..."
-                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 bg-white"
-                      style={{ color: '#111827' }}
-                      rows={4}
-                      required
-                    />
-                  </div>
-                )}
-                
-                {/* Optional reason if "Yes" is selected */}
-                {appointmentBooked === true && (
-                  <div className="mb-4">
-                    <label className="block text-base font-semibold text-gray-700 mb-2">
-                      Additional Notes (Optional)
-                    </label>
-                    <textarea
-                      value={appointmentReason}
-                      onChange={(e) => setAppointmentReason(e.target.value)}
-                      placeholder="Any additional notes about the appointment..."
-                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 bg-white"
-                      style={{ color: '#111827' }}
-                      rows={3}
-                    />
-                  </div>
-                )}
-                
-                <div className="flex gap-3 mt-5">
-                  <button
-                    onClick={() => handleAppointmentUpdate(selectedLead._id)}
-                    className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-base font-semibold"
-                  >
-                    Save Appointment Status
-                  </button>
-                  {editAppointmentStatus && (selectedLead.appointmentBooked !== null && selectedLead.appointmentBooked !== undefined) && (
-                    <button
-                      onClick={() => setEditAppointmentStatus(false)}
-                      className="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-base font-semibold"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Modal Footer */}
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => {
-                  setShowLeadDetails(false);
-                  setSelectedLead(null);
-                }}
-                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-base font-semibold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

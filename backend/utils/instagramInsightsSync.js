@@ -2,6 +2,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const InstaUserInsight = require('../models/InstaUserInsight');
 const InstaMediaInsight = require('../models/InstaMediaInsight');
+const User = require('../models/User');
 
 const GRAPH_API_BASE = 'https://graph.facebook.com/v19.0';
 
@@ -42,6 +43,44 @@ async function graphGetWithFallback(path, accessTokens, params = {}) {
   }
 
   throw lastError || new Error('No access token available for Instagram sync.');
+}
+
+async function resolveLinkedInstagramAccount(pageId, accessTokens) {
+  const tokens = uniqueTokens(accessTokens);
+  const candidateFields = [
+    'instagram_business_account{id,name,username}',
+    'connected_instagram_account{id,name,username}',
+  ];
+
+  let lastError = null;
+
+  for (const token of tokens) {
+    for (const field of candidateFields) {
+      try {
+        const data = await graphGet(`/${pageId}`, token, { fields: field });
+        const fieldName = field.split('{')[0];
+        const instagramAccount = data?.[fieldName];
+        if (instagramAccount?.id) {
+          return {
+            instagramAccountId: instagramAccount.id,
+            instagramAccountName: instagramAccount.name || null,
+            instagramUsername: instagramAccount.username || null,
+          };
+        }
+      } catch (error) {
+        lastError = error;
+      }
+    }
+  }
+
+  if (lastError) {
+    console.warn(
+      `Unable to resolve linked Instagram account for page ${pageId}:`,
+      lastError.response?.data || lastError.message
+    );
+  }
+
+  return null;
 }
 
 function normalizeInsightValues(metric, payload, customerId, accountId, period) {
@@ -299,13 +338,6 @@ async function syncMediaInsights({ instagramAccountId, customerId, accessTokens,
 }
 
 async function syncInstagramInsightsForUser(user, range) {
-  if (!user?.instagramAccountId) {
-    return {
-      synced: false,
-      reason: 'No linked Instagram professional account saved.',
-    };
-  }
-
   const accessTokens = uniqueTokens([
     user.facebookAccessToken,
     user.facebookUserAccessToken,
@@ -318,20 +350,51 @@ async function syncInstagramInsightsForUser(user, range) {
     };
   }
 
+  let hydratedUser = user;
+  if (!hydratedUser?.instagramAccountId && hydratedUser?.facebookPageId) {
+    const resolvedInstagramAccount = await resolveLinkedInstagramAccount(
+      hydratedUser.facebookPageId,
+      accessTokens
+    );
+
+    if (resolvedInstagramAccount?.instagramAccountId) {
+      hydratedUser = {
+        ...hydratedUser,
+        ...resolvedInstagramAccount,
+      };
+
+      if (hydratedUser._id) {
+        await User.findByIdAndUpdate(hydratedUser._id, resolvedInstagramAccount).catch((error) => {
+          console.warn(
+            `Failed to persist resolved Instagram account for user ${hydratedUser._id}:`,
+            error.message
+          );
+        });
+      }
+    }
+  }
+
+  if (!hydratedUser?.instagramAccountId) {
+    return {
+      synced: false,
+      reason: 'No linked Instagram professional account saved.',
+    };
+  }
+
   const from = new Date(range.from);
   const to = new Date(range.to);
-  const customerId = String(user._id);
+  const customerId = String(hydratedUser._id);
 
   const [userResult, mediaResult] = await Promise.all([
     syncUserInsights({
-      instagramAccountId: user.instagramAccountId,
+      instagramAccountId: hydratedUser.instagramAccountId,
       customerId,
       accessTokens,
       from,
       to,
     }),
     syncMediaInsights({
-      instagramAccountId: user.instagramAccountId,
+      instagramAccountId: hydratedUser.instagramAccountId,
       customerId,
       accessTokens,
       from,
@@ -341,8 +404,9 @@ async function syncInstagramInsightsForUser(user, range) {
 
   return {
     synced: true,
-    accountId: user.instagramAccountId,
-    instagramUsername: user.instagramUsername || null,
+    accountId: hydratedUser.instagramAccountId,
+    instagramAccountName: hydratedUser.instagramAccountName || null,
+    instagramUsername: hydratedUser.instagramUsername || null,
     userMetricsUpserted: userResult.upserted,
     mediaUpserted: mediaResult.upserted,
     reason:

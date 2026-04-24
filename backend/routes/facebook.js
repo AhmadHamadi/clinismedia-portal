@@ -5,35 +5,104 @@ const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 
-async function fetchLinkedInstagramAccount(pageId, pageAccessToken) {
-  try {
-    const response = await axios.get(`https://graph.facebook.com/v19.0/${pageId}`, {
-      params: {
-        fields: 'instagram_business_account{id,name,username}',
-        access_token: pageAccessToken,
-      },
-    });
+function getFacebookClientId() {
+  return process.env.FB_APP_ID || '4066501436955681';
+}
 
-    const instagramAccount = response.data?.instagram_business_account;
-    if (!instagramAccount?.id) {
-      return null;
+function getFacebookRedirectUri(req) {
+  if (process.env.FB_REDIRECT_URI) {
+    return process.env.FB_REDIRECT_URI;
+  }
+
+  const host = req?.headers?.host || req?.headers?.['x-forwarded-host'];
+
+  if (host) {
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      const port = host.split(':')[1] || process.env.PORT || 3000;
+      return `http://localhost:${port}/api/facebook/callback`;
     }
 
-    return {
-      instagramAccountId: instagramAccount.id,
-      instagramAccountName: instagramAccount.name || null,
-      instagramUsername: instagramAccount.username || null,
-    };
-  } catch (error) {
-    console.error('Failed to fetch linked Instagram professional account:', error.response?.data || error.message);
-    return null;
+    if (host.includes('clinimediaportal.ca')) {
+      return 'https://api.clinimediaportal.ca/api/facebook/callback';
+    }
   }
+
+  return process.env.NODE_ENV === 'development'
+    ? `http://localhost:${process.env.PORT || 3000}/api/facebook/callback`
+    : 'https://api.clinimediaportal.ca/api/facebook/callback';
+}
+
+function getFacebookFrontendUrl(req) {
+  if (process.env.FRONTEND_URL) {
+    return process.env.FRONTEND_URL;
+  }
+
+  const redirectUri = process.env.FB_REDIRECT_URI || '';
+  if (redirectUri.includes('api.clinimediaportal.ca') || redirectUri.includes('clinimediaportal.ca')) {
+    return 'https://www.clinimediaportal.ca';
+  }
+
+  const host = req?.headers?.host || req?.headers?.['x-forwarded-host'];
+  if (host) {
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      return `http://localhost:${process.env.VITE_PORT || 5173}`;
+    }
+
+    if (host.includes('clinimediaportal.ca')) {
+      return 'https://www.clinimediaportal.ca';
+    }
+  }
+
+  return process.env.NODE_ENV === 'development'
+    ? `http://localhost:${process.env.VITE_PORT || 5173}`
+    : 'https://www.clinimediaportal.ca';
+}
+
+async function fetchLinkedInstagramAccount(pageId, accessTokens = []) {
+  const uniqueTokens = [...new Set(accessTokens.filter(Boolean))];
+  const candidateFields = [
+    'instagram_business_account{id,name,username}',
+    'connected_instagram_account{id,name,username}',
+  ];
+
+  for (const accessToken of uniqueTokens) {
+    for (const field of candidateFields) {
+      try {
+        const response = await axios.get(`https://graph.facebook.com/v19.0/${pageId}`, {
+          params: {
+            fields: field,
+            access_token: accessToken,
+          },
+        });
+
+        const fieldName = field.split('{')[0];
+        const instagramAccount = response.data?.[fieldName];
+        if (!instagramAccount?.id) {
+          continue;
+        }
+
+        return {
+          instagramAccountId: instagramAccount.id,
+          instagramAccountName: instagramAccount.name || null,
+          instagramUsername: instagramAccount.username || null,
+        };
+      } catch (error) {
+        console.warn(
+          `Failed to fetch ${field} for Facebook page ${pageId}:`,
+          error.response?.data || error.message
+        );
+      }
+    }
+  }
+
+  return null;
 }
 
 // Facebook OAuth routes (authenticated)
 router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), (req, res) => {
   const clinicId = req.params.clinicId;
-  const redirectUri = process.env.FB_REDIRECT_URI;
+  const redirectUri = getFacebookRedirectUri(req);
+  const clientId = getFacebookClientId();
   const scopes = [
     'pages_show_list',
     'pages_read_engagement',
@@ -45,15 +114,15 @@ router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), (req,
     'instagram_manage_insights',
   ];
 
-  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=4066501436955681&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=${encodeURIComponent(scopes.join(','))}`;
+  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=${encodeURIComponent(scopes.join(','))}`;
   
   res.json({ authUrl });
 });
 
 router.get('/callback', async (req, res) => {
   const { code, state: clinicId } = req.query;
-  const redirectUri = process.env.FB_REDIRECT_URI;
-  const clientId = '4066501436955681';
+  const redirectUri = getFacebookRedirectUri(req);
+  const clientId = getFacebookClientId();
   const clientSecret = process.env.FB_APP_SECRET;
 
   console.log(`Facebook OAuth callback received for clinic: ${clinicId}`);
@@ -105,7 +174,7 @@ router.get('/callback', async (req, res) => {
     console.log(`Found ${pages.length} Facebook pages for clinic: ${clinicId}`);
 
     // Redirect to frontend with the pages data
-    const frontendUrl = `${process.env.FRONTEND_URL}/admin/facebook?pages=${encodeURIComponent(JSON.stringify(pages))}&userAccessToken=${userAccessToken}&tokenExpiry=${tokenExpiry}&clinicId=${clinicId}`;
+    const frontendUrl = `${getFacebookFrontendUrl(req)}/admin/facebook?pages=${encodeURIComponent(JSON.stringify(pages))}&userAccessToken=${userAccessToken}&tokenExpiry=${tokenExpiry}&clinicId=${clinicId}`;
     res.redirect(frontendUrl);
   } catch (error) {
     console.error('Facebook OAuth callback error:', error.response?.data || error.message);
@@ -140,8 +209,6 @@ router.post('/save-page', authenticateToken, authorizeRole(['admin']), async (re
   }
 
   try {
-    const linkedInstagramAccount = await fetchLinkedInstagramAccount(pageId, pageAccessToken);
-
     // First, check if this page is already connected to another clinic
     const existingConnection = await User.findOne({ 
       facebookPageId: pageId,
@@ -154,6 +221,14 @@ router.post('/save-page', authenticateToken, authorizeRole(['admin']), async (re
         error: `This Facebook page is already connected to clinic: ${existingConnection.name}. Please select a different page.` 
       });
     }
+
+    const clinicUser = await User.findById(clinicId).select('facebookUserAccessToken');
+    const adminUser = await User.findById(req.user.id).select('facebookUserAccessToken');
+    const linkedInstagramAccount = await fetchLinkedInstagramAccount(pageId, [
+      pageAccessToken,
+      clinicUser?.facebookUserAccessToken,
+      adminUser?.facebookUserAccessToken,
+    ]);
     
     const user = await User.findByIdAndUpdate(
       clinicId,

@@ -18,15 +18,56 @@ const { findGoogleIntegrationAdminUser } = require('../utils/googleIntegrationAd
 const { syncInstagramInsightsForUser } = require('../utils/instagramInsightsSync');
 const { google } = require('googleapis');
 
+let OpenAI = null;
+try {
+  OpenAI = require('openai');
+} catch (error) {
+  console.log('[Reports] OpenAI package not available, using template email drafts only.');
+}
+
 const MCC_CUSTOMER_ID = '4037087680';
 const NINETY_MIN_MS = 90 * 60 * 1000;
 
-function parseUtcStart(dateString) {
-  return new Date(`${dateString}T00:00:00.000Z`);
+function getTimeZoneOffsetMillis(date, timeZone) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+
+  const parts = formatter.formatToParts(date);
+  const valueByType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const asUtc = Date.UTC(
+    Number(valueByType.year),
+    Number(valueByType.month) - 1,
+    Number(valueByType.day),
+    Number(valueByType.hour),
+    Number(valueByType.minute),
+    Number(valueByType.second),
+    0
+  );
+
+  return asUtc - Math.floor(date.getTime() / 1000) * 1000;
 }
 
-function parseUtcEnd(dateString) {
-  return new Date(`${dateString}T23:59:59.999Z`);
+function convertClinicLocalDateTimeToUtc(dateString, timeZone, endOfDay = false) {
+  const [year, month, day] = String(dateString).split('-').map(Number);
+  const hours = endOfDay ? 23 : 0;
+  const minutes = endOfDay ? 59 : 0;
+  const seconds = endOfDay ? 59 : 0;
+  const milliseconds = endOfDay ? 999 : 0;
+
+  const initialGuess = Date.UTC(year, month - 1, day, hours, minutes, seconds, milliseconds);
+  const initialOffset = getTimeZoneOffsetMillis(new Date(initialGuess), timeZone);
+  const adjustedGuess = initialGuess - initialOffset;
+  const refinedOffset = getTimeZoneOffsetMillis(new Date(adjustedGuess), timeZone);
+
+  return new Date(initialGuess - refinedOffset);
 }
 
 function formatDateOnly(date) {
@@ -39,6 +80,10 @@ function getPresetRange(preset) {
   const start = new Date(end);
 
   switch (preset) {
+    case 'last7Days':
+      start.setUTCDate(start.getUTCDate() - 6);
+      start.setUTCHours(0, 0, 0, 0);
+      return { start, end, label: '7 Day Performance Report' };
     case 'thisMonth':
       start.setUTCDate(1);
       start.setUTCHours(0, 0, 0, 0);
@@ -51,7 +96,11 @@ function getPresetRange(preset) {
     case 'last30Days':
       start.setUTCDate(start.getUTCDate() - 29);
       start.setUTCHours(0, 0, 0, 0);
-      return { start, end, label: '30 Day Report' };
+      return { start, end, label: '30 Day Performance Report' };
+    case 'last90Days':
+      start.setUTCDate(start.getUTCDate() - 89);
+      start.setUTCHours(0, 0, 0, 0);
+      return { start, end, label: '90 Day Performance Report' };
     case 'last14Days':
     default:
       start.setUTCDate(start.getUTCDate() - 13);
@@ -60,12 +109,47 @@ function getPresetRange(preset) {
   }
 }
 
-function getRequestedRange(query) {
+function getClinicTimezone(customer) {
+  return customer?.aiReceptionistSettings?.timezone || 'America/Toronto';
+}
+
+function shiftDateString(dateString, days) {
+  const base = new Date(`${dateString}T00:00:00.000Z`);
+  base.setUTCDate(base.getUTCDate() + days);
+  return base.toISOString().split('T')[0];
+}
+
+function getGoogleBusinessEffectiveRange(start, end) {
+  const requestedStart = formatDateOnly(start);
+  const requestedEnd = formatDateOnly(end);
+  const bufferedEnd = shiftDateString(requestedEnd, -2);
+
+  if (requestedStart > bufferedEnd) {
+    return {
+      start: requestedStart,
+      end: requestedStart,
+      requestedStart,
+      requestedEnd,
+      buffered: false,
+    };
+  }
+
+  return {
+    start: requestedStart,
+    end: bufferedEnd,
+    requestedStart,
+    requestedEnd,
+    buffered: bufferedEnd !== requestedEnd,
+  };
+}
+
+function getRequestedRange(customer, query) {
   const { start, end, preset, label } = query;
+  const timezone = getClinicTimezone(customer);
   if (start && end) {
     return {
-      start: parseUtcStart(start),
-      end: parseUtcEnd(end),
+      start: convertClinicLocalDateTimeToUtc(start, timezone, false),
+      end: convertClinicLocalDateTimeToUtc(end, timezone, true),
       label: label || 'Custom Report',
     };
   }
@@ -122,6 +206,220 @@ function formatDuration(seconds) {
 function calculatePercentageChange(previous, current) {
   if (!previous) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 100);
+}
+
+function sanitizeFilePart(value, fallback) {
+  const normalized = String(value || fallback || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+
+  return normalized || fallback;
+}
+
+function buildReportExportFilename(clinicName, period) {
+  const clinicPart = sanitizeFilePart(clinicName, 'clinic');
+  const startPart = sanitizeFilePart(period.start, 'start');
+  const endPart = sanitizeFilePart(period.end, 'end');
+  return `${clinicPart}-marketing-report-${startPart}-to-${endPart}.pdf`;
+}
+
+function collectTopHighlights(sections = []) {
+  return sections
+    .flatMap((section) => (section.highlights || []).map((highlight) => `${section.title}: ${highlight}`))
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function buildFallbackMarketingEmailDraft(report) {
+  const highlights = collectTopHighlights(report.sections);
+  const highlightLines = highlights.length
+    ? highlights.map((item) => `- ${item}`).join('\n')
+    : '- Strongest opportunities and wins are summarized in the attached report.';
+
+  const recommendationLine = report.recommendations.length
+    ? `A few items still need attention: ${report.recommendations.slice(0, 2).join('; ')}.`
+    : 'Everything included in this report reflects the integrations currently active for the clinic.';
+
+  return {
+    subject: `${report.clinic.name} marketing report | ${report.period.label}`,
+    body: [
+      `Hi ${report.clinic.name} team,`,
+      '',
+      `Attached is your CliniMedia marketing report for ${report.period.start} to ${report.period.end}.`,
+      '',
+      `At a glance, the clinic recorded ${report.overview.totalLeads} total leads, ${report.overview.bookedMetaAppointments} booked Meta leads, ${report.overview.totalCalls} tracked calls, and ${report.overview.aiCalls} AI receptionist calls during this period.`,
+      '',
+      'A few key notes from this report:',
+      highlightLines,
+      '',
+      recommendationLine,
+      '',
+      'Please let us know if you would like us to walk through the report live or prioritize any follow-up actions for the next reporting cycle.',
+      '',
+      'Best,',
+      'CliniMedia',
+    ].join('\n'),
+    source: 'template',
+  };
+}
+
+async function generateMarketingEmailDraft(report) {
+  const fallback = buildFallbackMarketingEmailDraft(report);
+  if (!OpenAI || !process.env.OPENAI_API_KEY) {
+    return fallback;
+  }
+
+  try {
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      temperature: 0.6,
+      max_tokens: 450,
+      messages: [
+        {
+          role: 'system',
+          content: `You write short, polished client update emails for a dental marketing agency.
+
+Return JSON with keys "subject" and "body".
+
+Rules:
+- Keep the email concise and professional.
+- Sound human, confident, and clear.
+- Mention the report date range.
+- Use the report numbers provided.
+- Do not invent metrics.
+- Do not use markdown, emojis, or placeholders.
+- Body should be plain text with short paragraphs and a brief bullet list when useful.
+- End with "Best," on one line and "CliniMedia" on the next line.`,
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            clinic: report.clinic,
+            period: report.period,
+            overview: report.overview,
+            recommendations: report.recommendations,
+            topHighlights: collectTopHighlights(report.sections),
+          }),
+        },
+      ],
+    });
+
+    const raw = response.choices[0]?.message?.content?.trim();
+    if (!raw) {
+      return fallback;
+    }
+
+    const parsed = JSON.parse(raw);
+    const subject = typeof parsed.subject === 'string' && parsed.subject.trim()
+      ? parsed.subject.trim()
+      : fallback.subject;
+    const body = typeof parsed.body === 'string' && parsed.body.trim()
+      ? parsed.body.trim()
+      : fallback.body;
+
+    return {
+      subject,
+      body,
+      source: 'openai',
+    };
+  } catch (error) {
+    console.error('[Reports] Failed to generate AI email draft:', error.message);
+    return {
+      ...fallback,
+      error: error.message,
+    };
+  }
+}
+
+async function buildMarketingReportPayload(req, customer, range) {
+  const sectionBuilders = [];
+
+  sectionBuilders.push(buildMetaLeadsSection(customer._id, range.start, range.end));
+
+  if (customer.twilioPhoneNumber) {
+    sectionBuilders.push(buildCallTrackingSection(customer._id, range.start, range.end));
+  }
+
+  if (customer.aiReceptionistSettings?.enabled) {
+    sectionBuilders.push(buildAiReceptionSection(customer, range.start, range.end));
+  }
+
+  if (customer.googleBusinessProfileId) {
+    sectionBuilders.push(buildGoogleBusinessSection(req, customer, range.start, range.end));
+  }
+
+  await syncInstagramForReport(customer, range.start, range.end);
+  sectionBuilders.push(buildInstagramSection(customer._id, range.start, range.end));
+
+  if (customer.facebookPageId && customer.facebookAccessToken) {
+    sectionBuilders.push(buildFacebookSection(customer, range.start, range.end));
+  }
+
+  if (customer.googleAdsCustomerId) {
+    sectionBuilders.push(buildGoogleAdsSection(req, customer, range.start, range.end).catch((error) => ({
+      id: 'googleAds',
+      title: 'Google Ads',
+      error: error.message,
+    })));
+  }
+
+  sectionBuilders.push(buildQrReviewsSection(customer._id, range.start, range.end));
+
+  const sections = (await Promise.all(sectionBuilders)).filter(Boolean);
+  const sectionMap = Object.fromEntries(sections.map((section) => [section.id, section]));
+
+  const overview = {
+    totalLeads: sectionMap.metaLeads?.summary?.totalLeads || 0,
+    bookedMetaAppointments: sectionMap.metaLeads?.summary?.bookedAppointments || 0,
+    totalCalls: sectionMap.callTracking?.summary?.totalCalls || 0,
+    newPatientCalls: sectionMap.callTracking?.summary?.newPatientCalls || 0,
+    callAppointmentsBooked: sectionMap.callTracking?.summary?.appointmentsBooked || 0,
+    aiCalls: sectionMap.aiReception?.summary?.totalCalls || 0,
+  };
+
+  const recommendations = sections
+    .filter((section) => section?.error)
+    .map((section) => `${section.title}: ${section.error}`);
+
+  const period = {
+    start: formatDateOnly(range.start),
+    end: formatDateOnly(range.end),
+    label: range.label,
+  };
+
+  return {
+    generatedAt: new Date().toISOString(),
+    reportTitle: `CliniMedia ${range.label}`,
+    exportFileName: buildReportExportFilename(customer.customerSettings?.displayName || customer.name, period),
+    period,
+    clinic: {
+      id: customer._id,
+      name: customer.customerSettings?.displayName || customer.name,
+      email: customer.email,
+      location: customer.location,
+      logoUrl: customer.customerSettings?.logoUrl || null,
+    },
+    overview,
+    sections,
+    recommendations,
+    availableIntegrations: {
+      metaLeads: true,
+      googleAds: !!customer.googleAdsCustomerId,
+      googleBusiness: !!customer.googleBusinessProfileId,
+      facebook: !!(customer.facebookPageId && customer.facebookAccessToken),
+      instagram: !!customer.instagramAccountId,
+      callTracking: !!customer.twilioPhoneNumber,
+      aiReception: !!customer.aiReceptionistSettings?.enabled,
+      qrReviews: !!sectionMap.qrReviews,
+    },
+  };
 }
 
 function normalizeGoogleStarRating(starRating) {
@@ -598,13 +896,39 @@ async function buildAiReceptionSection(customer, start, end) {
 }
 
 async function buildGoogleBusinessSection(req, customer, start, end) {
-  const latestInsights = await GoogleBusinessInsights.findOne({ customerId: customer._id }).sort({ date: -1, lastUpdated: -1 }).lean();
+  const effectiveRange = getGoogleBusinessEffectiveRange(start, end);
+  const startString = effectiveRange.start;
+  const endString = effectiveRange.end;
+  const insightRecords = await GoogleBusinessInsights.find({
+    customerId: customer._id,
+    'period.start': { $lte: endString },
+    'period.end': { $gte: startString },
+  })
+    .sort({ lastUpdated: -1, date: -1 })
+    .lean();
 
-  const startString = formatDateOnly(start);
-  const endString = formatDateOnly(end);
-  const baseDailyData = latestInsights?.dailyData || [];
-  const filteredDailyData = baseDailyData.filter((item) => item.date >= startString && item.date <= endString);
-  const dailySource = filteredDailyData.length > 0 ? filteredDailyData : baseDailyData;
+  const dayMap = new Map();
+  insightRecords.forEach((record) => {
+    (record.dailyData || []).forEach((item) => {
+      if (!item?.date || item.date < startString || item.date > endString || dayMap.has(item.date)) {
+        return;
+      }
+
+      dayMap.set(item.date, {
+        date: item.date,
+        searches: Number(item.searches || 0),
+        views: Number(item.views || 0),
+        calls: Number(item.calls || 0),
+        directions: Number(item.directions || 0),
+        websiteClicks: Number(item.websiteClicks || 0),
+      });
+    });
+  });
+
+  const dailySource = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+  const coverageStart = dailySource[0]?.date || null;
+  const coverageEnd = dailySource[dailySource.length - 1]?.date || null;
+  const latestInsights = insightRecords[0] || null;
 
   const totals = dailySource.reduce(
     (acc, item) => {
@@ -622,22 +946,27 @@ async function buildGoogleBusinessSection(req, customer, start, end) {
   let reviewError = null;
   if (customer.googleBusinessProfileId) {
     try {
-      reviewSummary = await fetchGoogleBusinessReviewSummary(req, customer, start, end);
+      reviewSummary = await fetchGoogleBusinessReviewSummary(
+        req,
+        customer,
+        new Date(`${startString}T00:00:00.000Z`),
+        new Date(`${endString}T23:59:59.999Z`)
+      );
     } catch (error) {
       reviewError = error.message;
     }
   }
 
-  if (!latestInsights && !reviewSummary) {
+  if (!dailySource.length && !reviewSummary) {
     return null;
   }
 
   const summary = {
     ...totals,
     ...(reviewSummary ? {
-      totalReviewCount: reviewSummary.totalReviewCount,
+      totalReviewCountAllTime: reviewSummary.totalReviewCount,
       reviewsInRange: reviewSummary.reviewsInRange,
-      averageRatingOverall: reviewSummary.averageRatingOverall,
+      averageRatingAllTime: reviewSummary.averageRatingOverall,
       averageRatingInRange: reviewSummary.averageRatingInRange,
       fiveStarReviews: reviewSummary.fiveStarReviews,
       fourStarReviews: reviewSummary.fourStarReviews,
@@ -659,6 +988,9 @@ async function buildGoogleBusinessSection(req, customer, start, end) {
     if (reviewSummary.averageRatingInRange !== null) {
       highlights.push(`${reviewSummary.averageRatingInRange} average rating in this period`);
     }
+    if (effectiveRange.buffered) {
+      highlights.push(`Google data currently reflects ${effectiveRange.start} to ${effectiveRange.end}`);
+    }
   } else if (reviewError) {
     highlights.push(`Review data unavailable: ${reviewError}`);
   }
@@ -670,8 +1002,10 @@ async function buildGoogleBusinessSection(req, customer, start, end) {
     highlights,
     recentReviews: reviewSummary?.recentReviews || [],
     sourceWindow: {
-      periodStart: latestInsights?.period?.start || null,
-      periodEnd: latestInsights?.period?.end || null,
+      periodStart: coverageStart || effectiveRange.start,
+      periodEnd: coverageEnd || effectiveRange.end,
+      requestedStart: effectiveRange.requestedStart,
+      requestedEnd: effectiveRange.requestedEnd,
       lastUpdated: latestInsights?.lastUpdated || latestInsights?.updatedAt || null,
     },
   };
@@ -1019,91 +1353,44 @@ router.get('/marketing', authenticateToken, authorizeRole(['admin']), async (req
       return res.status(404).json({ error: 'Clinic not found' });
     }
 
-    const range = getRequestedRange(req.query);
-    const sectionBuilders = [];
-
-    sectionBuilders.push(buildMetaLeadsSection(customer._id, range.start, range.end));
-
-    if (customer.twilioPhoneNumber) {
-      sectionBuilders.push(buildCallTrackingSection(customer._id, range.start, range.end));
-    }
-
-    if (customer.aiReceptionistSettings?.enabled) {
-      sectionBuilders.push(buildAiReceptionSection(customer, range.start, range.end));
-    }
-
-    if (customer.googleBusinessProfileId) {
-      sectionBuilders.push(buildGoogleBusinessSection(req, customer, range.start, range.end));
-    }
-
-    await syncInstagramForReport(customer, range.start, range.end);
-    sectionBuilders.push(buildInstagramSection(customer._id, range.start, range.end));
-
-    if (customer.facebookPageId && customer.facebookAccessToken) {
-      sectionBuilders.push(buildFacebookSection(customer, range.start, range.end));
-    }
-
-    if (customer.googleAdsCustomerId) {
-      sectionBuilders.push(buildGoogleAdsSection(req, customer, range.start, range.end).catch((error) => ({
-        id: 'googleAds',
-        title: 'Google Ads',
-        error: error.message,
-      })));
-    }
-
-    sectionBuilders.push(buildQrReviewsSection(customer._id, range.start, range.end));
-
-    const sections = (await Promise.all(sectionBuilders)).filter(Boolean);
-    const sectionMap = Object.fromEntries(sections.map((section) => [section.id, section]));
-
-    const overview = {
-      totalLeads: sectionMap.metaLeads?.summary?.totalLeads || 0,
-      bookedMetaAppointments: sectionMap.metaLeads?.summary?.bookedAppointments || 0,
-      totalCalls: sectionMap.callTracking?.summary?.totalCalls || 0,
-      newPatientCalls: sectionMap.callTracking?.summary?.newPatientCalls || 0,
-      callAppointmentsBooked: sectionMap.callTracking?.summary?.appointmentsBooked || 0,
-      aiCalls: sectionMap.aiReception?.summary?.totalCalls || 0,
-    };
-
-    const recommendations = [];
-    if (!customer.googleAdsCustomerId) recommendations.push('Google Ads is not assigned for this clinic.');
-    if (!customer.googleBusinessProfileId) recommendations.push('Google Business Profile is not connected for this clinic.');
-    if (!customer.facebookPageId) recommendations.push('Facebook Page is not connected for this clinic.');
-    if (!customer.twilioPhoneNumber) recommendations.push('Call tracking is not configured for this clinic.');
-    if (!customer.aiReceptionistSettings?.enabled) recommendations.push('AI Reception is not enabled for this clinic.');
-
-    res.json({
-      generatedAt: new Date().toISOString(),
-      reportTitle: `CliniMedia ${range.label}`,
-      period: {
-        start: formatDateOnly(range.start),
-        end: formatDateOnly(range.end),
-        label: range.label,
-      },
-      clinic: {
-        id: customer._id,
-        name: customer.customerSettings?.displayName || customer.name,
-        email: customer.email,
-        location: customer.location,
-        logoUrl: customer.customerSettings?.logoUrl || null,
-      },
-      overview,
-      sections,
-      recommendations,
-      availableIntegrations: {
-        metaLeads: true,
-        googleAds: !!customer.googleAdsCustomerId,
-        googleBusiness: !!customer.googleBusinessProfileId,
-        facebook: !!customer.facebookPageId,
-        instagram: !!sectionMap.instagram,
-        callTracking: !!customer.twilioPhoneNumber,
-        aiReception: !!customer.aiReceptionistSettings?.enabled,
-        qrReviews: !!sectionMap.qrReviews,
-      },
-    });
+    const range = getRequestedRange(customer, req.query);
+    const payload = await buildMarketingReportPayload(req, customer, range);
+    res.json(payload);
   } catch (error) {
     console.error('Error generating marketing report:', error);
     res.status(500).json({ error: 'Failed to generate marketing report', details: error.message });
+  }
+});
+
+router.get('/marketing/email-draft', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { customerId } = req.query;
+    if (!customerId) {
+      return res.status(400).json({ error: 'customerId is required' });
+    }
+
+    const customer = await User.findOne({ _id: customerId, role: 'customer' }).lean();
+    if (!customer) {
+      return res.status(404).json({ error: 'Clinic not found' });
+    }
+
+    const range = getRequestedRange(customer, req.query);
+    const report = await buildMarketingReportPayload(req, customer, range);
+    const draft = await generateMarketingEmailDraft(report);
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      subject: draft.subject,
+      body: draft.body,
+      source: draft.source,
+      error: draft.error || null,
+      exportFileName: report.exportFileName,
+      clinic: report.clinic,
+      period: report.period,
+    });
+  } catch (error) {
+    console.error('Error generating marketing email draft:', error);
+    res.status(500).json({ error: 'Failed to generate marketing email draft', details: error.message });
   }
 });
 
