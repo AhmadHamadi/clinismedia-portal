@@ -42,7 +42,7 @@ router.get('/auth/:clinicId', authenticateToken, authorizeRole(['admin']), (req,
     'pages_manage_posts',
     'pages_manage_engagement',
     'instagram_basic',
-    'instagram_business_manage_insights',
+    'instagram_manage_insights',
   ];
 
   const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=4066501436955681&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clinicId}&scope=${encodeURIComponent(scopes.join(','))}`;
