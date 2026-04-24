@@ -277,7 +277,13 @@ function getPrintSectionIcon(sectionId: string) {
   const iconMap: Record<string, string> = {
     metaLeads: `
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path fill="#be185d" d="M12 2l2.7 5.46L20.7 8l-4.35 4.24L17.4 18 12 15.27 6.6 18l1.05-5.76L3.3 8l6-.54z"/>
+        <defs>
+          <linearGradient id="meta-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0866FF"/>
+            <stop offset="100%" stop-color="#0064E1"/>
+          </linearGradient>
+        </defs>
+        <path fill="url(#meta-grad)" d="M13.2 2.2 4 14h6.4l-1.6 7.8L20 10.2h-6.4z"/>
       </svg>
     `,
     callTracking: `
@@ -294,37 +300,40 @@ function getPrintSectionIcon(sectionId: string) {
     `,
     googleBusiness: `
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path fill="#4285F4" d="M21.8 12.23c0-.73-.06-1.25-.2-1.8H12v3.43h5.64c-.11.85-.72 2.13-2.08 2.99l-.02.11 3.02 2.34.21.02c1.93-1.78 3.03-4.4 3.03-7.09z"/>
-        <path fill="#34A853" d="M12 22c2.76 0 5.07-.91 6.76-2.47l-3.22-2.49c-.86.6-2.01 1.03-3.54 1.03-2.7 0-4.99-1.78-5.81-4.24l-.1.01-3.14 2.43-.04.1A10 10 0 0012 22z"/>
-        <path fill="#FBBC05" d="M6.19 13.83A5.99 5.99 0 016 12c0-.64.11-1.26.29-1.83l-.01-.12-3.18-2.47-.1.05A10 10 0 002 12c0 1.62.39 3.15 1.09 4.5z"/>
-        <path fill="#EA4335" d="M12 5.93c1.93 0 3.23.83 3.97 1.53l2.9-2.83C17.06 2.94 14.76 2 12 2a10 10 0 00-8.91 5.5l3.29 2.54C7.22 7.71 9.3 5.93 12 5.93z"/>
+        <path fill="#4285F4" d="M22.5 12.27c0-.85-.07-1.46-.23-2.1H12v3.93h6.05c-.12 1-.78 2.5-2.24 3.51l-.02.13 3.25 2.52.23.02c2.07-1.91 3.23-4.71 3.23-7.93z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.97 7.27-2.66l-3.46-2.68c-.93.65-2.16 1.1-3.81 1.1-2.91 0-5.37-1.92-6.25-4.57l-.13.01-3.39 2.62-.04.12C3.95 20.34 7.7 23 12 23z"/>
+        <path fill="#FBBC04" d="M5.75 14.19A6.45 6.45 0 015.4 12c0-.76.13-1.5.34-2.19l-.01-.14L2.3 7l-.11.05A11 11 0 001 12c0 1.78.42 3.46 1.19 4.95z"/>
+        <path fill="#EA4335" d="M12 5.24c2.07 0 3.46.89 4.26 1.64l3.11-3.04C17.46 2.03 14.97 1 12 1 7.7 1 3.95 3.66 2.19 7.05l3.55 2.76C6.62 7.16 9.09 5.24 12 5.24z"/>
       </svg>
     `,
     googleAds: `
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path fill="#4285F4" d="M10.87 3.5a4 4 0 016.93 0l4.46 7.72a4 4 0 11-6.93 4L10.87 7.5a4 4 0 010-4z"/>
-        <circle cx="7" cy="18" r="3" fill="#34A853"/>
-        <path fill="#FBBC05" d="M9.55 5.18l5.87 10.16a4 4 0 11-6.93 4L2.62 9.18a4 4 0 116.93-4z"/>
+        <path fill="#FBBC04" d="M9.12 3.02 2.74 14.07a3.97 3.97 0 1 0 6.88 3.98L16 7a3.97 3.97 0 1 0-6.88-3.98z"/>
+        <path fill="#4285F4" d="M20.86 17.95 14.47 6.9a3.97 3.97 0 1 0-6.88 3.98l6.38 11.05a3.97 3.97 0 1 0 6.89-3.98z"/>
+        <circle cx="7.1" cy="18.03" r="3.97" fill="#34A853"/>
       </svg>
     `,
     instagram: `
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <defs>
           <linearGradient id="ig-grad" x1="0%" y1="100%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#f58529"/>
-            <stop offset="45%" stop-color="#dd2a7b"/>
-            <stop offset="100%" stop-color="#515bd4"/>
+            <stop offset="0%" stop-color="#FED576"/>
+            <stop offset="22%" stop-color="#F47133"/>
+            <stop offset="50%" stop-color="#DD2A7B"/>
+            <stop offset="78%" stop-color="#8134AF"/>
+            <stop offset="100%" stop-color="#515BD4"/>
           </linearGradient>
         </defs>
-        <rect x="3" y="3" width="18" height="18" rx="5" fill="url(#ig-grad)"/>
-        <circle cx="12" cy="12" r="4.1" fill="none" stroke="#fff" stroke-width="1.8"/>
-        <circle cx="17.4" cy="6.6" r="1.2" fill="#fff"/>
+        <rect x="2" y="2" width="20" height="20" rx="5.5" fill="url(#ig-grad)"/>
+        <rect x="2" y="2" width="20" height="20" rx="5.5" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+        <circle cx="12" cy="12" r="4.3" fill="none" stroke="#fff" stroke-width="1.9"/>
+        <circle cx="17.55" cy="6.5" r="1.25" fill="#fff"/>
       </svg>
     `,
     facebook: `
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="2.5" y="2.5" width="19" height="19" rx="9.5" fill="#1877F2"/>
-        <path fill="#fff" d="M13.3 19v-5.86h1.96l.29-2.28H13.3V9.4c0-.66.18-1.11 1.13-1.11h1.21V6.25c-.21-.03-.94-.09-1.79-.09-1.77 0-2.98 1.08-2.98 3.07v1.63H9v2.28h1.87V19z"/>
+        <circle cx="12" cy="12" r="10" fill="#1877F2"/>
+        <path fill="#fff" d="M13.75 22v-7.92h2.66l.4-3.08h-3.06V9.05c0-.89.25-1.5 1.53-1.5h1.63V4.8c-.28-.04-1.25-.12-2.38-.12-2.36 0-3.97 1.44-3.97 4.08v2.24H7.88v3.08h2.68V22z"/>
       </svg>
     `,
     qrReviews: `
