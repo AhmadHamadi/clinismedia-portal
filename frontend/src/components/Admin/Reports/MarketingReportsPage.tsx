@@ -621,16 +621,6 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
     `;
   }).join('');
 
-  const websiteLine = report.clinic.website
-    ? `<div class="footer-row"><span class="footer-label">Website</span><span class="footer-value">${escapeHtml(report.clinic.website)}</span></div>`
-    : '';
-  const emailLine = report.clinic.email
-    ? `<div class="footer-row"><span class="footer-label">Email</span><span class="footer-value">${escapeHtml(report.clinic.email)}</span></div>`
-    : '';
-  const locationLine = report.clinic.location
-    ? `<div class="footer-row"><span class="footer-label">Location</span><span class="footer-value">${escapeHtml(report.clinic.location)}</span></div>`
-    : '';
-
   return `<!doctype html>
     <html>
       <head>
@@ -1322,21 +1312,6 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
 
         <!-- ===== SECTION PAGES ===== -->
         ${sectionsHtml}
-
-        <!-- ===== FOOTER PAGE ===== -->
-        <div class="footer-page">
-          <div class="footer-card">
-            <div class="footer-kicker">Let's keep growing together</div>
-            <div class="footer-title">${escapeHtml(report.clinic.name)}</div>
-            ${websiteLine}
-            ${emailLine}
-            ${locationLine}
-            <div class="footer-brand">
-              <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" />
-              <span>Prepared by CliniMedia · ${escapeHtml(coverDateRange)}</span>
-            </div>
-          </div>
-        </div>
       </body>
     </html>`;
 }
