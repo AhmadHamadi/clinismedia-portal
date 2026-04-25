@@ -19,13 +19,17 @@ function isPermanentOAuthError(error) {
   const errorString = errorCode.toString().toLowerCase();
   
   // Permanent OAuth errors that require user to reconnect
+  // Per Google's OAuth docs and RFC 6749 §5.2. Note: 'invalid_refresh_token'
+  // and 'refresh_token_expired' are NOT real Google OAuth error codes —
+  // Google folds both conditions into 'invalid_grant'. Dropped them.
+  // Added 'admin_policy_enforced' which Google returns when a Workspace
+  // admin revokes the granted scope.
   const permanentErrors = [
     'invalid_grant',
     'invalid_client',
     'unauthorized_client',
-    'invalid_refresh_token',
-    'refresh_token_expired',
-    'access_denied'
+    'admin_policy_enforced',
+    'access_denied',
   ];
   
   return permanentErrors.some(permError => 
@@ -44,7 +48,14 @@ async function refreshGoogleAdsToken(refreshToken) {
     refresh_token: refreshToken,
     grant_type: 'refresh_token',
   });
-  
+
+  // Defensive: Google should always return access_token on a 200 response,
+  // but if a malformed body sneaks through we should fail loud rather than
+  // persist an undefined token (which would silently break all later calls).
+  if (!response?.data?.access_token) {
+    throw new Error('Google Ads token refresh returned no access_token');
+  }
+
   return {
     access_token: response.data.access_token,
     refresh_token: response.data.refresh_token || refreshToken, // Use new if provided, otherwise keep old

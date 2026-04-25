@@ -76,12 +76,15 @@ function isPermanentSearchConsoleOAuthError(error) {
   const errorMessage = error?.message?.toLowerCase() || '';
   const errorCode = error?.response?.data?.error || error?.error || '';
   const errorString = errorCode.toString().toLowerCase();
+  // Per Google's OAuth docs and RFC 6749 §5.2. 'invalid_refresh_token' and
+  // 'refresh_token_expired' are NOT real Google codes — both fold into
+  // 'invalid_grant'. Added 'admin_policy_enforced' for Workspace-revoked
+  // scopes.
   const permanentErrors = [
     'invalid_grant',
     'invalid_client',
     'unauthorized_client',
-    'invalid_refresh_token',
-    'refresh_token_expired',
+    'admin_policy_enforced',
     'access_denied',
   ];
   return permanentErrors.some(
@@ -113,6 +116,11 @@ async function refreshSearchConsoleAccessToken(adminUser, req) {
     response = await axios.post('https://oauth2.googleapis.com/token', payload.toString(), {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
+    // Defensive: a 200 with no access_token would silently persist undefined
+    // and break every later call. Treat as a refresh failure.
+    if (!response?.data?.access_token) {
+      throw new Error('Search Console token refresh returned no access_token');
+    }
   } catch (error) {
     if (isPermanentSearchConsoleOAuthError(error)) {
       // Refresh token is dead — flag the admin user so the dashboard can
