@@ -1216,12 +1216,9 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
           <div class="cover-inner">
             <div class="cover-top">
               <div class="cover-brand">
-                <div class="cover-brand-row">
-                  <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" />
-                  <div class="cover-brand-text">
-                    <div class="cover-brand-name"><span class="cover-brand-name-accent">Clini</span>Media</div>
-                    <div class="cover-brand-sub">Marketing That Elevates</div>
-                  </div>
+                <div class="cover-brand-text">
+                  <div class="cover-brand-name"><span class="cover-brand-name-accent">Clini</span>Media</div>
+                  <div class="cover-brand-sub">Marketing That Elevates</div>
                 </div>
               </div>
               <div class="cover-period">${escapeHtml(coverDateRange)}</div>
