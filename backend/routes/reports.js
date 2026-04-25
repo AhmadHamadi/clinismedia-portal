@@ -1536,6 +1536,40 @@ async function buildSearchConsoleSection(req, customer, start, end) {
   };
 }
 
+// In-flight promise cache so concurrent /marketing and /marketing/email-draft
+// calls dedupe to a single buildMarketingReportPayload run. The frontend
+// fires both endpoints in parallel for every Generate click — without this
+// dedupe every Meta Graph / Google Ads / Search Console call hits the wire
+// twice, doubling the wait. Short TTL means a second click within 60s also
+// returns instantly. Keyed per (customerId, customRange | preset).
+const REPORT_CACHE_TTL_MS = 60 * 1000;
+const reportPromiseCache = new Map();
+
+function buildReportCacheKey(customerId, query) {
+  const qParts = [
+    query.start || '',
+    query.end || '',
+    query.preset || '',
+    query.label || '',
+  ];
+  return `${customerId}::${qParts.join('|')}`;
+}
+
+function getOrBuildReport(req, customer, range, cacheKey) {
+  const existing = reportPromiseCache.get(cacheKey);
+  if (existing && existing.expiresAt > Date.now()) {
+    return existing.promise;
+  }
+  const promise = buildMarketingReportPayload(req, customer, range);
+  reportPromiseCache.set(cacheKey, {
+    promise,
+    expiresAt: Date.now() + REPORT_CACHE_TTL_MS,
+  });
+  // If the build rejects, drop the cache entry so the next call retries.
+  promise.catch(() => reportPromiseCache.delete(cacheKey));
+  return promise;
+}
+
 router.get('/marketing', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   try {
     const { customerId } = req.query;
@@ -1549,7 +1583,8 @@ router.get('/marketing', authenticateToken, authorizeRole(['admin']), async (req
     }
 
     const range = getRequestedRange(customer, req.query);
-    const payload = await buildMarketingReportPayload(req, customer, range);
+    const cacheKey = buildReportCacheKey(customerId, req.query);
+    const payload = await getOrBuildReport(req, customer, range, cacheKey);
     res.json(payload);
   } catch (error) {
     console.error('Error generating marketing report:', error);
@@ -1570,7 +1605,8 @@ router.get('/marketing/email-draft', authenticateToken, authorizeRole(['admin'])
     }
 
     const range = getRequestedRange(customer, req.query);
-    const report = await buildMarketingReportPayload(req, customer, range);
+    const cacheKey = buildReportCacheKey(customerId, req.query);
+    const report = await getOrBuildReport(req, customer, range, cacheKey);
     const draft = await generateMarketingEmailDraft(report);
 
     res.json({
