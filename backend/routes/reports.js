@@ -745,7 +745,7 @@ async function buildMetaLeadsSection(customerId, start, end) {
     MetaLead.countDocuments(match),
     MetaLead.countDocuments({ ...match, status: 'contacted' }),
     MetaLead.countDocuments({ ...match, appointmentBooked: true }),
-    MetaLead.find(match).sort({ emailDate: -1 }).limit(5).select('leadInfo emailDate campaignName status appointmentBooked').lean(),
+    MetaLead.find(match).sort({ emailDate: -1 }).limit(100).select('leadInfo emailDate campaignName status appointmentBooked').lean(),
     MetaLead.aggregate([
       { $match: match },
       { $group: { _id: '$campaignName', leads: { $sum: 1 } } },

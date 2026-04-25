@@ -548,7 +548,7 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       : '';
 
     const recentLeadsHtml = section.recentLeads?.length
-      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">Recent Leads</div>${buildTableHtml(section.recentLeads.slice(0, 5))}</div>`
+      ? `<div class="detail-block"><div class="detail-title" style="color: ${accent.deep};">All Leads (${section.recentLeads.length})</div>${buildTableHtml(section.recentLeads)}</div>`
       : '';
 
     const topPostsHtml = section.topPosts?.length
