@@ -447,7 +447,23 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
 
   const coverDateRange = formatDateLongRange(report.period.start, report.period.end);
 
-  const overviewHtml = visibleOverviewCards(report).map((card) => `
+  const visibleOverview = visibleOverviewCards(report);
+
+  // Top 3 teaser stats for the cover (any with a non-zero value, fallback to first 3).
+  const coverTeaserCards = (() => {
+    const withValue = visibleOverview.filter(
+      (card) => Number(report.overview[card.key as keyof typeof report.overview] || 0) > 0,
+    );
+    return (withValue.length >= 3 ? withValue : visibleOverview).slice(0, 3);
+  })();
+  const coverStatsHtml = coverTeaserCards.map((card) => `
+    <div class="cover-stat">
+      <div class="cover-stat-label">${escapeHtml(card.label)}</div>
+      <div class="cover-stat-value">${escapeHtml(formatMetricValue(report.overview[card.key as keyof typeof report.overview], card.key))}</div>
+    </div>
+  `).join('');
+
+  const overviewHtml = visibleOverview.map((card) => `
     <div class="stat-card">
       <div class="stat-label">${escapeHtml(card.label)}</div>
       <div class="stat-value">${escapeHtml(formatMetricValue(report.overview[card.key as keyof typeof report.overview], card.key))}</div>
@@ -645,69 +661,148 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
             position: relative;
             width: 100%;
             min-height: 100vh;
-            padding: 56px 64px;
-            background: #f4f8ff;
+            padding: 56px 64px 40px;
+            background: #ffffff;
             overflow: hidden;
             page-break-after: always;
             break-after: page;
+            display: flex;
+            flex-direction: column;
           }
-          .cover-blob {
+          /* Angled brand panel on the right — replaces the big circle blob */
+          .cover-panel {
             position: absolute;
-            top: -140px;
-            right: -180px;
-            width: 780px;
-            height: 780px;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 46%;
+            background: linear-gradient(160deg, #2e6bff 0%, #1d4ed8 60%, #10213d 100%);
+            clip-path: polygon(18% 0, 100% 0, 100% 100%, 0% 100%);
             z-index: 1;
-            pointer-events: none;
           }
-          .cover-dots {
+          .cover-panel-grid {
             position: absolute;
-            top: 16%;
-            left: 6%;
-            width: 130px;
-            height: 90px;
-            z-index: 1;
-            pointer-events: none;
+            top: 80px;
+            right: 64px;
+            width: 220px;
+            height: 100px;
+            z-index: 2;
+            opacity: 0.35;
+          }
+          .cover-chart {
+            position: absolute;
+            top: 220px;
+            right: 64px;
+            width: 280px;
+            z-index: 2;
+          }
+          .cover-stats {
+            position: absolute;
+            bottom: 90px;
+            right: 64px;
+            width: 280px;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+          }
+          .cover-stat {
+            background: rgba(255,255,255,0.13);
+            border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+          }
+          .cover-stat-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
             opacity: 0.85;
           }
-          .cover-inner { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; min-height: calc(100vh - 112px); }
+          .cover-stat-value {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1;
+          }
+
+          .cover-inner { position: relative; z-index: 3; display: flex; flex-direction: column; justify-content: space-between; flex: 1; padding-right: 220px; }
           .cover-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
-          .cover-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-          .cover-brand img { width: 200px; height: auto; max-height: 64px; object-fit: contain; display: block; }
-          .cover-brand-sub { font-size: 10.5px; font-weight: 700; color: #2e6bff; letter-spacing: 0.18em; text-transform: uppercase; padding-left: 4px; }
+          .cover-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+          .cover-brand img { width: 220px; height: auto; max-height: 72px; object-fit: contain; display: block; }
+          .cover-brand-sub { font-size: 10.5px; font-weight: 700; color: #2e6bff; letter-spacing: 0.2em; text-transform: uppercase; padding-left: 4px; }
           .cover-period {
             display: inline-block;
             text-align: right;
-            font-size: 14px;
+            font-size: 12px;
             color: #ffffff;
             font-weight: 700;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.14em;
             text-transform: uppercase;
-            background: #2e6bff;
-            padding: 10px 18px;
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.35);
+            padding: 9px 16px;
             border-radius: 999px;
-            box-shadow: 0 2px 8px rgba(46,107,255,0.25);
+            margin-top: 6px;
           }
-          .cover-title { font-size: 88px; line-height: 0.94; font-weight: 800; color: #10213d; letter-spacing: -0.025em; margin: 0; }
-          .cover-subtitle { margin-top: 24px; max-width: 460px; font-size: 17px; color: #60729a; line-height: 1.55; font-weight: 500; }
-          .cover-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-top: 26px; border-top: 2px solid rgba(46,107,255,0.18); }
-          .cover-prepared { font-size: 11px; font-weight: 700; color: #60729a; text-transform: uppercase; letter-spacing: 0.14em; }
-          .cover-clinic-bottom {
-            text-align: right;
-            font-size: 28px;
+          .cover-tagline {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #2e6bff;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+          }
+          .cover-title {
+            font-size: 92px;
+            line-height: 0.92;
             font-weight: 800;
             color: #10213d;
-            letter-spacing: -0.01em;
-            line-height: 1.1;
-            max-width: 460px;
+            letter-spacing: -0.025em;
+            margin: 0;
+          }
+          .cover-subtitle {
+            margin-top: 24px;
+            max-width: 380px;
+            font-size: 16px;
+            color: #60729a;
+            line-height: 1.55;
+            font-weight: 500;
+          }
+          .cover-bottom {
+            margin-top: 36px;
+            padding-top: 24px;
+            border-top: 2px solid #dbe7ff;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 480px;
           }
           .cover-clinic-kicker {
             font-size: 10.5px;
             font-weight: 700;
             color: #2e6bff;
             text-transform: uppercase;
-            letter-spacing: 0.16em;
-            margin-bottom: 6px;
+            letter-spacing: 0.18em;
+          }
+          .cover-clinic-bottom {
+            font-size: 28px;
+            font-weight: 800;
+            color: #10213d;
+            letter-spacing: -0.01em;
+            line-height: 1.15;
+          }
+          .cover-prepared {
+            margin-top: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #60729a;
+            letter-spacing: 0.06em;
           }
 
           /* --------- CONTENT PAGES --------- */
@@ -1022,59 +1117,73 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       <body>
         <!-- ===== COVER PAGE ===== -->
         <section class="cover">
-          <svg class="cover-blob" viewBox="0 0 780 780" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <defs>
-              <radialGradient id="cb1" cx="40%" cy="32%" r="58%">
-                <stop offset="0%" stop-color="#2e6bff" stop-opacity="0.85"/>
-                <stop offset="100%" stop-color="#2e6bff" stop-opacity="0"/>
-              </radialGradient>
-              <radialGradient id="cb2" cx="68%" cy="38%" r="55%">
-                <stop offset="0%" stop-color="#16b0ff" stop-opacity="0.85"/>
-                <stop offset="100%" stop-color="#16b0ff" stop-opacity="0"/>
-              </radialGradient>
-              <radialGradient id="cb3" cx="55%" cy="72%" r="55%">
-                <stop offset="0%" stop-color="#5b8dff" stop-opacity="0.7"/>
-                <stop offset="100%" stop-color="#5b8dff" stop-opacity="0"/>
-              </radialGradient>
-              <radialGradient id="cb4" cx="38%" cy="78%" r="50%">
-                <stop offset="0%" stop-color="#9bbcff" stop-opacity="0.6"/>
-                <stop offset="100%" stop-color="#9bbcff" stop-opacity="0"/>
-              </radialGradient>
-            </defs>
-            <circle cx="390" cy="390" r="390" fill="url(#cb1)"/>
-            <circle cx="390" cy="390" r="390" fill="url(#cb2)"/>
-            <circle cx="390" cy="390" r="390" fill="url(#cb3)"/>
-            <circle cx="390" cy="390" r="390" fill="url(#cb4)"/>
-          </svg>
-          <svg class="cover-dots" viewBox="0 0 130 90" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <g fill="rgba(46,107,255,0.32)">
-              ${Array.from({ length: 9 }, (_, row) =>
-                Array.from({ length: 13 }, (_, col) =>
-                  `<circle cx="${col * 10 + 5}" cy="${row * 10 + 5}" r="1.4"/>`
+          <!-- Right-side angled brand panel (no big circle) -->
+          <div class="cover-panel"></div>
+
+          <!-- Subtle dotted grid inside the panel -->
+          <svg class="cover-panel-grid" viewBox="0 0 220 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <g fill="rgba(255,255,255,0.7)">
+              ${Array.from({ length: 10 }, (_, row) =>
+                Array.from({ length: 22 }, (_, col) =>
+                  `<circle cx="${col * 10 + 5}" cy="${row * 10 + 5}" r="1.2"/>`
                 ).join('')
               ).join('')}
             </g>
           </svg>
+
+          <!-- Marketing growth chart illustration -->
+          <svg class="cover-chart" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#16b0ff"/>
+                <stop offset="100%" stop-color="#16b0ff" stop-opacity="0.4"/>
+              </linearGradient>
+            </defs>
+            <!-- Soft baseline -->
+            <line x1="10" y1="135" x2="270" y2="135" stroke="rgba(255,255,255,0.25)" stroke-width="1" stroke-dasharray="3 4"/>
+            <!-- Ascending bars (growth) -->
+            <rect x="20"  y="100" width="22" height="35"  rx="3" fill="url(#bar-grad)"/>
+            <rect x="56"  y="80"  width="22" height="55"  rx="3" fill="url(#bar-grad)"/>
+            <rect x="92"  y="58"  width="22" height="77"  rx="3" fill="url(#bar-grad)"/>
+            <rect x="128" y="38"  width="22" height="97"  rx="3" fill="url(#bar-grad)"/>
+            <rect x="164" y="22"  width="22" height="113" rx="3" fill="url(#bar-grad)"/>
+            <rect x="200" y="8"   width="22" height="127" rx="3" fill="url(#bar-grad)"/>
+            <!-- Trend line connecting bar tops -->
+            <polyline points="31,100 67,80 103,58 139,38 175,22 211,8" stroke="#ffffff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Trend markers -->
+            <circle cx="31"  cy="100" r="3.5" fill="#ffffff"/>
+            <circle cx="67"  cy="80"  r="3.5" fill="#ffffff"/>
+            <circle cx="103" cy="58"  r="3.5" fill="#ffffff"/>
+            <circle cx="139" cy="38"  r="3.5" fill="#ffffff"/>
+            <circle cx="175" cy="22"  r="3.5" fill="#ffffff"/>
+            <circle cx="211" cy="8"   r="5"   fill="#ffffff"/>
+            <circle cx="211" cy="8"   r="2.5" fill="#2e6bff"/>
+            <!-- Up-arrow flag -->
+            <path d="M232,22 L256,8 L242,8 Z" fill="#ffffff"/>
+          </svg>
+
+          <!-- Teaser stat tiles (top 3 from the report) -->
+          <div class="cover-stats">${coverStatsHtml}</div>
+
           <div class="cover-inner">
             <div class="cover-top">
               <div class="cover-brand">
-                <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" crossorigin="anonymous" />
+                <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" />
                 <div class="cover-brand-sub">Marketing Analytics</div>
+                <div class="cover-period">${escapeHtml(coverDateRange)}</div>
               </div>
-              <div class="cover-period">${escapeHtml(coverDateRange)}</div>
             </div>
 
             <div>
+              <div class="cover-tagline">Marketing for Modern Clinics</div>
               <h1 class="cover-title">MARKETING<br/>REPORT</h1>
               <div class="cover-subtitle">${escapeHtml(report.period.label)} — performance, reach, and growth across every channel we run for your clinic.</div>
             </div>
 
             <div class="cover-bottom">
-              <div class="cover-prepared">Prepared by CliniMedia</div>
-              <div>
-                <div class="cover-clinic-kicker">Prepared for</div>
-                <div class="cover-clinic-bottom">${escapeHtml(report.clinic.name)}</div>
-              </div>
+              <div class="cover-clinic-kicker">Prepared for</div>
+              <div class="cover-clinic-bottom">${escapeHtml(report.clinic.name)}</div>
+              <div class="cover-prepared">Prepared by CliniMedia · ${escapeHtml(coverDateRange)}</div>
             </div>
           </div>
         </section>
@@ -1258,12 +1367,19 @@ const MarketingReportsPage: React.FC = () => {
         throw new Error('Unable to open print preview. Please allow pop-ups for this site.');
       }
 
-      // Print window opens about:blank with no base URL, so any relative
-      // asset path won't resolve. Absolute-ify the logo URL.
-      const absoluteLogoUrl = logo1.startsWith('http')
-        ? logo1
-        : `${window.location.origin}${logo1.startsWith('/') ? '' : '/'}${logo1}`;
-      const printableHtml = buildPrintHtml(report, emailDraft, absoluteLogoUrl);
+      // Inline the logo as a base64 data URI so the print window doesn't
+      // race against a network fetch. window.open('') has no base URL,
+      // and Chrome can fire print() before an <img src> finishes loading.
+      const logoDataUri = await fetch(logo1)
+        .then((r) => r.blob())
+        .then((blob) => new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error('logo read failed'));
+          reader.readAsDataURL(blob);
+        }))
+        .catch(() => `${window.location.origin}${logo1.startsWith('/') ? '' : '/'}${logo1}`);
+      const printableHtml = buildPrintHtml(report, emailDraft, logoDataUri);
       const triggerPrint = () => {
         printWindow.document.title = report.exportFileName.replace(/\.pdf$/i, '');
         printWindow.focus();
