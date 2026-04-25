@@ -448,14 +448,6 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
   const coverDateRange = formatDateLongRange(report.period.start, report.period.end);
 
   const visibleOverview = visibleOverviewCards(report);
-
-  // Top 3 teaser stats for the cover (any with a non-zero value, fallback to first 3).
-  const coverTeaserCards = (() => {
-    const withValue = visibleOverview.filter(
-      (card) => Number(report.overview[card.key as keyof typeof report.overview] || 0) > 0,
-    );
-    return (withValue.length >= 3 ? withValue : visibleOverview).slice(0, 3);
-  })();
   const overviewHtml = visibleOverview.map((card) => `
     <div class="stat-card">
       <div class="stat-label">${escapeHtml(card.label)}</div>
@@ -649,58 +641,61 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
           @page { size: Letter; margin: 0; }
           html, body { margin: 0; padding: 0; color: #0f172a; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #f4f3fb; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-          /* --------- COVER PAGE (CliniMedia brand, full bleed) --------- */
+          /* --------- COVER PAGE (CliniMedia brand: navy + soft teal) ---------
+             Brand palette pulled directly from the logo:
+               --brand-navy: #36474F  (dark cross icon, "Media", "Marketing That")
+               --brand-teal: #8FB6C2  (orbital rings, "Clini", "Elevates")
+               --brand-cream: #F7F9FA (soft off-white background) */
           .cover {
             position: relative;
             width: 100%;
             height: 11in;
             min-height: 11in;
             padding: 0;
-            background: #f4f8ff;
+            background: #ffffff;
             overflow: hidden;
             page-break-after: always;
             break-after: page;
           }
-          /* Soft watercolor-style blob — top-right corner accent (smaller, less dominant) */
-          .cover-blob {
+          /* Subtle teal accent corner (top-right, small, calm) */
+          .cover-corner-tr {
             position: absolute;
-            top: -260px;
-            right: -260px;
-            width: 560px;
-            height: 560px;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 320px;
             z-index: 1;
             pointer-events: none;
-            opacity: 0.85;
           }
-          /* Secondary subtle blob bottom-left for balance */
-          .cover-blob-2 {
+          /* Tiny navy accent corner (bottom-left) */
+          .cover-corner-bl {
             position: absolute;
-            bottom: -300px;
-            left: -260px;
-            width: 460px;
-            height: 460px;
+            bottom: 0;
+            left: 0;
+            width: 220px;
+            height: 220px;
             z-index: 1;
             pointer-events: none;
-            opacity: 0.45;
+            opacity: 0.5;
           }
           .cover-dots {
             position: absolute;
             top: 18%;
-            left: 6%;
-            width: 130px;
-            height: 90px;
+            right: 8%;
+            width: 90px;
+            height: 70px;
             z-index: 2;
             pointer-events: none;
-            opacity: 0.85;
+            opacity: 0.55;
           }
-          /* Bottom brand band — fills the lower portion so the page is never empty */
+          /* Slim bottom band — minimal navy strip, NOT a full color block */
           .cover-band {
             position: absolute;
             left: 0;
             right: 0;
             bottom: 0;
-            height: 220px;
-            background: linear-gradient(135deg, #2e6bff 0%, #1d4ed8 55%, #10213d 100%);
+            height: 130px;
+            background: #36474F;
             z-index: 3;
             display: flex;
             align-items: center;
@@ -708,15 +703,12 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
             color: #ffffff;
             overflow: hidden;
           }
-          .cover-band::after {
+          .cover-band::before {
             content: '';
             position: absolute;
-            top: -60px;
-            right: -80px;
-            width: 280px;
-            height: 280px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.08);
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background: #8FB6C2;
           }
           .cover-band-inner {
             position: relative;
@@ -732,59 +724,40 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
             min-width: 0;
           }
           .cover-band-tagline {
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 700;
             letter-spacing: 0.22em;
             text-transform: uppercase;
-            opacity: 0.78;
+            color: #8FB6C2;
           }
           .cover-band-clinic {
-            margin-top: 6px;
-            font-size: 30px;
-            font-weight: 800;
-            letter-spacing: -0.015em;
-            line-height: 1.1;
+            margin-top: 4px;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            line-height: 1.15;
           }
           .cover-band-meta {
-            margin-top: 10px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 500;
-            opacity: 0.78;
-            letter-spacing: 0.04em;
+            color: rgba(255,255,255,0.65);
+            letter-spacing: 0.06em;
+            text-align: right;
           }
-          .cover-band-stats {
-            display: flex;
-            gap: 12px;
-            flex-shrink: 0;
-          }
-          .cover-band-stat {
-            background: rgba(255,255,255,0.13);
-            border: 1px solid rgba(255,255,255,0.22);
-            border-radius: 14px;
-            padding: 14px 18px;
-            text-align: center;
-            min-width: 110px;
-          }
-          .cover-band-stat-label {
-            font-size: 9.5px;
+          .cover-band-meta strong {
+            display: block;
+            color: #ffffff;
+            font-size: 13px;
             font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.14em;
-            opacity: 0.85;
-          }
-          .cover-band-stat-value {
-            margin-top: 6px;
-            font-size: 24px;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-            line-height: 1;
+            letter-spacing: 0.04em;
+            margin-bottom: 4px;
           }
 
           .cover-inner {
             position: relative;
             z-index: 4;
-            padding: 56px 64px 0;
-            height: calc(11in - 220px);
+            padding: 64px 64px 0;
+            height: calc(11in - 130px);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -799,7 +772,7 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 6px;
+            gap: 8px;
           }
           .cover-brand-row {
             display: flex;
@@ -807,76 +780,102 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
             gap: 14px;
           }
           .cover-brand img {
-            width: 56px;
-            height: 56px;
+            width: 68px;
+            height: 68px;
             object-fit: contain;
             display: block;
           }
+          .cover-brand-text { display: flex; flex-direction: column; }
           .cover-brand-name {
-            font-size: 28px;
-            font-weight: 800;
-            color: #10213d;
-            letter-spacing: -0.01em;
+            font-size: 26px;
+            font-weight: 700;
+            color: #36474F;
+            letter-spacing: -0.005em;
             line-height: 1;
           }
           .cover-brand-name-accent {
-            color: #16b0ff;
+            color: #8FB6C2;
           }
           .cover-brand-sub {
-            font-size: 10.5px;
-            font-weight: 700;
-            color: #2e6bff;
-            letter-spacing: 0.2em;
+            font-size: 10px;
+            font-weight: 600;
+            color: #36474F;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
-            padding-left: 4px;
+            margin-top: 4px;
+            opacity: 0.7;
           }
           .cover-period {
             display: inline-block;
-            font-size: 12px;
-            color: #ffffff;
+            font-size: 11px;
+            color: #36474F;
             font-weight: 700;
-            letter-spacing: 0.14em;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
-            background: #2e6bff;
-            padding: 10px 18px;
+            background: #ffffff;
+            border: 1.5px solid #8FB6C2;
+            padding: 9px 16px;
             border-radius: 999px;
-            box-shadow: 0 4px 16px rgba(46,107,255,0.25);
+            margin-top: 6px;
           }
           .cover-mid {
             display: flex;
-            align-items: center;
+            align-items: flex-end;
             justify-content: space-between;
             gap: 40px;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
           }
           .cover-headline { flex: 1; min-width: 0; }
           .cover-tagline {
             font-size: 10.5px;
             font-weight: 700;
-            color: #2e6bff;
-            letter-spacing: 0.22em;
+            color: #8FB6C2;
+            letter-spacing: 0.24em;
             text-transform: uppercase;
-            margin-bottom: 16px;
+            margin-bottom: 18px;
           }
           .cover-title {
-            font-size: 96px;
-            line-height: 0.92;
+            font-size: 102px;
+            line-height: 0.9;
             font-weight: 800;
-            color: #10213d;
+            color: #36474F;
             letter-spacing: -0.03em;
             margin: 0;
           }
+          .cover-title-accent {
+            color: #8FB6C2;
+          }
+          .cover-divider {
+            margin-top: 28px;
+            width: 80px;
+            height: 4px;
+            background: #8FB6C2;
+            border-radius: 2px;
+          }
           .cover-subtitle {
-            margin-top: 24px;
+            margin-top: 22px;
             max-width: 480px;
-            font-size: 17px;
-            color: #60729a;
-            line-height: 1.55;
+            font-size: 15px;
+            color: #5a6a73;
+            line-height: 1.6;
             font-weight: 500;
           }
           .cover-chart-wrap {
             flex-shrink: 0;
-            width: 280px;
+            width: 230px;
+            margin-bottom: 8px;
+          }
+          .cover-elevates {
+            font-size: 13px;
+            font-weight: 600;
+            color: #36474F;
+            font-style: italic;
+            opacity: 0.65;
+          }
+          .cover-elevates strong {
+            color: #8FB6C2;
+            font-weight: 700;
+            font-style: normal;
           }
 
           /* --------- CONTENT PAGES --------- */
@@ -1189,56 +1188,36 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
         </style>
       </head>
       <body>
-        <!-- ===== COVER PAGE ===== -->
+        <!-- ===== COVER PAGE (calm, brand-aligned) ===== -->
         <section class="cover">
-          <!-- Big soft watercolor blob top-right -->
-          <svg class="cover-blob" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Soft teal corner accent (top-right) -->
+          <svg class="cover-corner-tr" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
-              <radialGradient id="cb1" cx="38%" cy="32%" r="58%">
-                <stop offset="0%" stop-color="#2e6bff" stop-opacity="0.78"/>
-                <stop offset="100%" stop-color="#2e6bff" stop-opacity="0"/>
-              </radialGradient>
-              <radialGradient id="cb2" cx="68%" cy="38%" r="55%">
-                <stop offset="0%" stop-color="#16b0ff" stop-opacity="0.72"/>
-                <stop offset="100%" stop-color="#16b0ff" stop-opacity="0"/>
-              </radialGradient>
-              <radialGradient id="cb3" cx="55%" cy="72%" r="55%">
-                <stop offset="0%" stop-color="#5b8dff" stop-opacity="0.6"/>
-                <stop offset="100%" stop-color="#5b8dff" stop-opacity="0"/>
-              </radialGradient>
-              <radialGradient id="cb4" cx="38%" cy="78%" r="50%">
-                <stop offset="0%" stop-color="#9bbcff" stop-opacity="0.55"/>
-                <stop offset="100%" stop-color="#9bbcff" stop-opacity="0"/>
+              <radialGradient id="cc1" cx="80%" cy="20%" r="80%">
+                <stop offset="0%" stop-color="#8FB6C2" stop-opacity="0.55"/>
+                <stop offset="100%" stop-color="#8FB6C2" stop-opacity="0"/>
               </radialGradient>
             </defs>
-            <circle cx="400" cy="400" r="400" fill="url(#cb1)"/>
-            <circle cx="400" cy="400" r="400" fill="url(#cb2)"/>
-            <circle cx="400" cy="400" r="400" fill="url(#cb3)"/>
-            <circle cx="400" cy="400" r="400" fill="url(#cb4)"/>
+            <circle cx="280" cy="40" r="280" fill="url(#cc1)"/>
           </svg>
 
-          <!-- Smaller blob bottom-left for balance -->
-          <svg class="cover-blob-2" viewBox="0 0 560 560" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Tiny navy corner accent (bottom-left, behind the band) -->
+          <svg class="cover-corner-bl" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
-              <radialGradient id="cb5" cx="50%" cy="50%" r="55%">
-                <stop offset="0%" stop-color="#9bbcff" stop-opacity="0.55"/>
-                <stop offset="100%" stop-color="#9bbcff" stop-opacity="0"/>
-              </radialGradient>
-              <radialGradient id="cb6" cx="55%" cy="40%" r="50%">
-                <stop offset="0%" stop-color="#16b0ff" stop-opacity="0.45"/>
-                <stop offset="100%" stop-color="#16b0ff" stop-opacity="0"/>
+              <radialGradient id="cc2" cx="20%" cy="80%" r="80%">
+                <stop offset="0%" stop-color="#36474F" stop-opacity="0.18"/>
+                <stop offset="100%" stop-color="#36474F" stop-opacity="0"/>
               </radialGradient>
             </defs>
-            <circle cx="280" cy="280" r="280" fill="url(#cb5)"/>
-            <circle cx="280" cy="280" r="280" fill="url(#cb6)"/>
+            <circle cx="20" cy="200" r="220" fill="url(#cc2)"/>
           </svg>
 
-          <!-- Dotted grid accent -->
-          <svg class="cover-dots" viewBox="0 0 130 90" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <g fill="rgba(46,107,255,0.32)">
-              ${Array.from({ length: 9 }, (_, row) =>
-                Array.from({ length: 13 }, (_, col) =>
-                  `<circle cx="${col * 10 + 5}" cy="${row * 10 + 5}" r="1.4"/>`
+          <!-- Dot pattern accent -->
+          <svg class="cover-dots" viewBox="0 0 90 70" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <g fill="rgba(143,182,194,0.55)">
+              ${Array.from({ length: 7 }, (_, row) =>
+                Array.from({ length: 9 }, (_, col) =>
+                  `<circle cx="${col * 10 + 5}" cy="${row * 10 + 5}" r="1.2"/>`
                 ).join('')
               ).join('')}
             </g>
@@ -1249,63 +1228,64 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
               <div class="cover-brand">
                 <div class="cover-brand-row">
                   <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" />
-                  <div class="cover-brand-name">Clini<span class="cover-brand-name-accent">Media</span></div>
+                  <div class="cover-brand-text">
+                    <div class="cover-brand-name"><span class="cover-brand-name-accent">Clini</span>Media</div>
+                    <div class="cover-brand-sub">Marketing That Elevates</div>
+                  </div>
                 </div>
-                <div class="cover-brand-sub">Marketing Analytics</div>
               </div>
               <div class="cover-period">${escapeHtml(coverDateRange)}</div>
             </div>
 
             <div class="cover-mid">
               <div class="cover-headline">
-                <div class="cover-tagline">Marketing for Modern Clinics</div>
-                <h1 class="cover-title">MARKETING<br/>REPORT</h1>
-                <div class="cover-subtitle">${escapeHtml(report.period.label)} — performance, reach, and growth across every channel we run for ${escapeHtml(report.clinic.name)}.</div>
+                <div class="cover-tagline">${escapeHtml(report.period.label)}</div>
+                <h1 class="cover-title">Marketing<br/><span class="cover-title-accent">Report</span></h1>
+                <div class="cover-divider"></div>
+                <div class="cover-subtitle">A performance summary of every channel we run for ${escapeHtml(report.clinic.name)} this ${escapeHtml(report.period.label.toLowerCase())}.</div>
+                <div class="cover-elevates" style="margin-top: 22px;">
+                  Marketing That <strong>Elevates</strong>.
+                </div>
               </div>
               <div class="cover-chart-wrap">
-                <svg viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <svg viewBox="0 0 230 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                   <defs>
                     <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stop-color="#2e6bff"/>
-                      <stop offset="100%" stop-color="#2e6bff" stop-opacity="0.25"/>
+                      <stop offset="0%" stop-color="#8FB6C2"/>
+                      <stop offset="100%" stop-color="#8FB6C2" stop-opacity="0.25"/>
                     </linearGradient>
                   </defs>
-                  <line x1="10" y1="135" x2="270" y2="135" stroke="rgba(46,107,255,0.25)" stroke-width="1" stroke-dasharray="3 4"/>
-                  <rect x="20"  y="100" width="22" height="35"  rx="3" fill="url(#bar-grad)"/>
-                  <rect x="56"  y="80"  width="22" height="55"  rx="3" fill="url(#bar-grad)"/>
-                  <rect x="92"  y="58"  width="22" height="77"  rx="3" fill="url(#bar-grad)"/>
-                  <rect x="128" y="38"  width="22" height="97"  rx="3" fill="url(#bar-grad)"/>
-                  <rect x="164" y="22"  width="22" height="113" rx="3" fill="url(#bar-grad)"/>
-                  <rect x="200" y="8"   width="22" height="127" rx="3" fill="url(#bar-grad)"/>
-                  <polyline points="31,100 67,80 103,58 139,38 175,22 211,8" stroke="#10213d" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                  <circle cx="31"  cy="100" r="3.5" fill="#10213d"/>
-                  <circle cx="67"  cy="80"  r="3.5" fill="#10213d"/>
-                  <circle cx="103" cy="58"  r="3.5" fill="#10213d"/>
-                  <circle cx="139" cy="38"  r="3.5" fill="#10213d"/>
-                  <circle cx="175" cy="22"  r="3.5" fill="#10213d"/>
-                  <circle cx="211" cy="8"   r="5"   fill="#10213d"/>
-                  <circle cx="211" cy="8"   r="2.5" fill="#ffffff"/>
-                  <path d="M232,22 L256,8 L242,8 Z" fill="#10213d"/>
+                  <line x1="6" y1="135" x2="225" y2="135" stroke="rgba(54,71,79,0.25)" stroke-width="1" stroke-dasharray="3 4"/>
+                  <rect x="14"  y="100" width="20" height="35"  rx="3" fill="url(#bar-grad)"/>
+                  <rect x="46"  y="80"  width="20" height="55"  rx="3" fill="url(#bar-grad)"/>
+                  <rect x="78"  y="58"  width="20" height="77"  rx="3" fill="url(#bar-grad)"/>
+                  <rect x="110" y="38"  width="20" height="97"  rx="3" fill="url(#bar-grad)"/>
+                  <rect x="142" y="22"  width="20" height="113" rx="3" fill="url(#bar-grad)"/>
+                  <rect x="174" y="8"   width="20" height="127" rx="3" fill="url(#bar-grad)"/>
+                  <polyline points="24,100 56,80 88,58 120,38 152,22 184,8" stroke="#36474F" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="24"  cy="100" r="3.5" fill="#36474F"/>
+                  <circle cx="56"  cy="80"  r="3.5" fill="#36474F"/>
+                  <circle cx="88"  cy="58"  r="3.5" fill="#36474F"/>
+                  <circle cx="120" cy="38"  r="3.5" fill="#36474F"/>
+                  <circle cx="152" cy="22"  r="3.5" fill="#36474F"/>
+                  <circle cx="184" cy="8"   r="5"   fill="#36474F"/>
+                  <circle cx="184" cy="8"   r="2.5" fill="#ffffff"/>
+                  <path d="M205,22 L225,8 L213,8 Z" fill="#36474F"/>
                 </svg>
               </div>
             </div>
           </div>
 
-          <!-- Bottom brand band — fills the rest of the page so it never reads as empty -->
+          <!-- Slim bottom brand band — minimal, not heavy -->
           <div class="cover-band">
             <div class="cover-band-inner">
               <div class="cover-band-left">
                 <div class="cover-band-tagline">Prepared for</div>
                 <div class="cover-band-clinic">${escapeHtml(report.clinic.name)}</div>
-                <div class="cover-band-meta">By CliniMedia · ${escapeHtml(coverDateRange)}</div>
               </div>
-              <div class="cover-band-stats">
-                ${coverTeaserCards.map((card) => `
-                  <div class="cover-band-stat">
-                    <div class="cover-band-stat-label">${escapeHtml(card.label)}</div>
-                    <div class="cover-band-stat-value">${escapeHtml(formatMetricValue(report.overview[card.key as keyof typeof report.overview], card.key))}</div>
-                  </div>
-                `).join('')}
+              <div class="cover-band-meta">
+                <strong>CliniMedia</strong>
+                ${escapeHtml(coverDateRange)}
               </div>
             </div>
           </div>
