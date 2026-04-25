@@ -72,6 +72,23 @@ function createOAuthClient(req) {
   );
 }
 
+function isPermanentSearchConsoleOAuthError(error) {
+  const errorMessage = error?.message?.toLowerCase() || '';
+  const errorCode = error?.response?.data?.error || error?.error || '';
+  const errorString = errorCode.toString().toLowerCase();
+  const permanentErrors = [
+    'invalid_grant',
+    'invalid_client',
+    'unauthorized_client',
+    'invalid_refresh_token',
+    'refresh_token_expired',
+    'access_denied',
+  ];
+  return permanentErrors.some(
+    (e) => errorMessage.includes(e) || errorString.includes(e)
+  );
+}
+
 async function refreshSearchConsoleAccessToken(adminUser, req) {
   if (!adminUser?.searchConsoleRefreshToken) {
     throw new Error('Search Console is not connected for the portal admin.');
@@ -91,14 +108,38 @@ async function refreshSearchConsoleAccessToken(adminUser, req) {
     grant_type: 'refresh_token',
   });
 
-  const response = await axios.post('https://oauth2.googleapis.com/token', payload.toString(), {
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-  });
+  let response;
+  try {
+    response = await axios.post('https://oauth2.googleapis.com/token', payload.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+  } catch (error) {
+    if (isPermanentSearchConsoleOAuthError(error)) {
+      // Refresh token is dead — flag the admin user so the dashboard can
+      // surface a Reconnect prompt and we stop using a known-bad token.
+      try {
+        adminUser.searchConsoleNeedsReauth = true;
+        adminUser.searchConsoleAccessToken = null;
+        adminUser.searchConsoleTokenExpiry = null;
+        await adminUser.save();
+      } catch (saveError) {
+        console.error('[SearchConsole] Failed flagging admin for reauth:', saveError.message);
+      }
+    }
+    throw error;
+  }
 
   adminUser.searchConsoleAccessToken = response.data.access_token;
+  // Google MAY rotate the refresh token; persist the new one when present
+  // so we don't keep using a stale token that's about to be invalidated.
+  if (response.data.refresh_token) {
+    adminUser.searchConsoleRefreshToken = response.data.refresh_token;
+  }
   adminUser.searchConsoleTokenExpiry = new Date(Date.now() + (response.data.expires_in || 3600) * 1000);
+  // Successful refresh — clear any prior reauth flag.
+  if (adminUser.searchConsoleNeedsReauth) {
+    adminUser.searchConsoleNeedsReauth = false;
+  }
   await adminUser.save();
 
   return adminUser.searchConsoleAccessToken;

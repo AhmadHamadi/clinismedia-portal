@@ -18,6 +18,21 @@ function uniqueTokens(tokens = []) {
   return [...new Set(tokens.filter(Boolean))];
 }
 
+// Meta returns OAuthException (error.code === 190) when a token is expired,
+// revoked, or invalid. Subcodes 460/463/467 narrow it down to expired session,
+// expired token, or session-blocked respectively. Treat all of these as
+// permanent — the user must reconnect their Facebook page.
+function isMetaTokenError(error) {
+  const data = error?.response?.data;
+  const inner = data?.error;
+  if (!inner) return false;
+  if (Number(inner.code) === 190) return true;
+  if (Number(error?.response?.status) === 401) return true;
+  const type = String(inner.type || '').toLowerCase();
+  if (type === 'oauthexception') return true;
+  return false;
+}
+
 async function graphGet(path, accessToken, params = {}) {
   const response = await axios.get(`${GRAPH_API_BASE}${path}`, {
     params: {
@@ -387,6 +402,36 @@ async function syncInstagramInsightsForUser(user, range, compareRange = null) {
     };
   }
 
+  // Probe the Facebook access token before doing any of the expensive work.
+  // If Meta says the token is dead (OAuthException / 401), flag the user so
+  // the admin dashboard can prompt a Facebook reconnect, and bail out early
+  // instead of grinding through 10+ failing Graph API calls.
+  let probeError = null;
+  for (const token of accessTokens) {
+    try {
+      await graphGet('/me', token, { fields: 'id' });
+      probeError = null;
+      break;
+    } catch (error) {
+      probeError = error;
+    }
+  }
+  if (probeError && isMetaTokenError(probeError)) {
+    if (user._id) {
+      await User.findByIdAndUpdate(user._id, { facebookNeedsReauth: true }).catch((err) => {
+        console.warn(`Failed flagging user ${user._id} as facebookNeedsReauth:`, err.message);
+      });
+    }
+    const reason = probeError.response?.data?.error?.message
+      || 'Facebook access token is invalid or expired — please reconnect.';
+    console.warn(`[InstagramSync] Facebook token failed probe for user ${user._id || 'unknown'}: ${reason}`);
+    return {
+      synced: false,
+      reason,
+      facebookNeedsReauth: true,
+    };
+  }
+
   let hydratedUser = user;
   if (!hydratedUser?.instagramAccountId && hydratedUser?.facebookPageId) {
     const resolvedInstagramAccount = await resolveLinkedInstagramAccount(
@@ -451,6 +496,13 @@ async function syncInstagramInsightsForUser(user, range, compareRange = null) {
   const userResult = {
     upserted: snapshotUpserts + totalValueUpserts.reduce((sum, n) => sum + n, 0),
   };
+
+  // Successful sync — clear any prior facebookNeedsReauth flag.
+  if (user.facebookNeedsReauth && user._id) {
+    await User.findByIdAndUpdate(user._id, { facebookNeedsReauth: false }).catch((err) => {
+      console.warn(`Failed clearing facebookNeedsReauth for user ${user._id}:`, err.message);
+    });
+  }
 
   return {
     synced: true,

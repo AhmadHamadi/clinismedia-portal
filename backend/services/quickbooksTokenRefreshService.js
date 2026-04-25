@@ -130,10 +130,14 @@ class QuickBooksTokenRefreshService {
         const allConnected = await User.find({ quickbooksConnected: true });
         console.log(`[QuickBooksTokenRefresh] 🔍 Found ${allConnected.length} user(s) with quickbooksConnected=true`);
         
-        // Then find users with both connected AND refresh token
-        connectedUsers = await User.find({ 
+        // Then find users with both connected AND refresh token AND not flagged for reauth
+        connectedUsers = await User.find({
           quickbooksConnected: true,
-          quickbooksRefreshToken: { $exists: true, $ne: null }
+          quickbooksRefreshToken: { $exists: true, $ne: null },
+          $or: [
+            { quickbooksNeedsReauth: { $exists: false } },
+            { quickbooksNeedsReauth: { $ne: true } },
+          ],
         });
         console.log(`[QuickBooksTokenRefresh] 🔍 Found ${connectedUsers.length} user(s) with quickbooksConnected=true AND quickbooksRefreshToken`);
         
@@ -257,9 +261,13 @@ class QuickBooksTokenRefreshService {
               continue;
             }
             
+            // Successful refresh — clear any prior reauth flag.
+            if (freshUser.quickbooksNeedsReauth) {
+              freshUser.quickbooksNeedsReauth = false;
+            }
             // Save tokens using centralized helper
             await saveTokensForUser(freshUser, refreshed);
-            
+
             refreshedCount++;
             console.log(`[QuickBooksTokenRefresh] ✅ Successfully refreshed token for user ${freshUser.email || freshUser.name || freshUser._id}`);
           } else {
@@ -272,41 +280,30 @@ class QuickBooksTokenRefreshService {
           // Only mark as disconnected if it's a permanent OAuth error
           // CRITICAL: Only disconnect if refresh token is actually invalid/expired
           // Temporary errors (network, rate limits, etc.) should NOT disconnect user
-          if (isPermanentOAuthError(error)) {
-            console.log(`[QuickBooksTokenRefresh] ⚠️ Permanent OAuth error detected - marking user as disconnected`);
-            console.log(`[QuickBooksTokenRefresh] ⚠️ User will need to reconnect QuickBooks`);
-            
-            // Reload user to ensure we have latest data
+          // Detect permanent OAuth errors via either path (helper or string match)
+          const errorMsg = error.message?.toLowerCase() || '';
+          const errorData = error.response?.data || {};
+          const errorCode = (errorData.error || error.error || '').toString().toLowerCase();
+          const looksPermanent = isPermanentOAuthError(error)
+            || errorCode === 'invalid_grant'
+            || errorMsg.includes('invalid refresh token')
+            || errorMsg.includes('incorrect or invalid refresh token')
+            || (errorMsg.includes('invalid') && errorMsg.includes('token'));
+
+          if (looksPermanent) {
+            console.warn(`[QuickBooksTokenRefresh] ⚠️ Permanent OAuth error — flagging user for reauth and clearing access token`);
             const freshUser = await User.findById(user._id);
             if (freshUser) {
               freshUser.quickbooksConnected = false;
-              await freshUser.save().catch(err => {
-                console.error(`[QuickBooksTokenRefresh] Failed to update connection status for user ${freshUser._id}:`, err);
+              freshUser.quickbooksNeedsReauth = true;
+              freshUser.quickbooksAccessToken = null;
+              freshUser.quickbooksTokenExpiry = null;
+              await freshUser.save().catch((err) => {
+                console.error(`[QuickBooksTokenRefresh] Failed to flag user ${freshUser._id} for reauth:`, err);
               });
             }
           } else {
-            // Double-check: If error message contains "invalid" or "expired", it's likely permanent
-            const errorMsg = error.message?.toLowerCase() || '';
-            const errorData = error.response?.data || {};
-            const errorCode = errorData.error || error.error || '';
-            
-            // Check if error code or message indicates permanent failure
-            if (errorCode === 'invalid_grant' || 
-                errorMsg.includes('invalid refresh token') || 
-                errorMsg.includes('incorrect or invalid refresh token') ||
-                (errorMsg.includes('invalid') && errorMsg.includes('token'))) {
-              console.error(`[QuickBooksTokenRefresh] ⚠️ Detected permanent OAuth error (invalid_grant/invalid token) - marking as disconnected`);
-              const freshUser = await User.findById(user._id);
-              if (freshUser) {
-                freshUser.quickbooksConnected = false;
-                await freshUser.save().catch(err => {
-                  console.error(`[QuickBooksTokenRefresh] Failed to update connection status for user ${freshUser._id}:`, err);
-                });
-              }
-            } else {
-              console.warn(`[QuickBooksTokenRefresh] ⚠️ Temporary error (will retry on next check in 30 seconds):`, error.message);
-              console.warn(`[QuickBooksTokenRefresh] ⚠️ Connection remains active - will retry automatically`);
-            }
+            console.warn(`[QuickBooksTokenRefresh] ⚠️ Temporary error (will retry on next check in 30 seconds):`, error.message);
           }
           
           errorCount++;

@@ -151,6 +151,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  facebookNeedsReauth: {
+    type: Boolean,
+    default: false,
+  },
   googleAdsAccessToken: {
     type: String,
     default: null,
@@ -231,6 +235,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  searchConsoleNeedsReauth: {
+    type: Boolean,
+    default: false,
+  },
   twilioPhoneNumber: {
     type: String,
     default: null,
@@ -306,6 +314,10 @@ const userSchema = new mongoose.Schema({
     default: null,
   },
   quickbooksConnected: {
+    type: Boolean,
+    default: false,
+  },
+  quickbooksNeedsReauth: {
     type: Boolean,
     default: false,
   },
