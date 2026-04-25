@@ -661,26 +661,27 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
             page-break-after: always;
             break-after: page;
           }
-          /* Big soft watercolor-style blob — top-right, hero accent */
+          /* Soft watercolor-style blob — top-right corner accent (smaller, less dominant) */
           .cover-blob {
             position: absolute;
-            top: -160px;
-            right: -200px;
-            width: 800px;
-            height: 800px;
-            z-index: 1;
-            pointer-events: none;
-          }
-          /* Secondary smaller blob bottom-left for balance */
-          .cover-blob-2 {
-            position: absolute;
-            bottom: -240px;
-            left: -200px;
+            top: -260px;
+            right: -260px;
             width: 560px;
             height: 560px;
             z-index: 1;
             pointer-events: none;
-            opacity: 0.7;
+            opacity: 0.85;
+          }
+          /* Secondary subtle blob bottom-left for balance */
+          .cover-blob-2 {
+            position: absolute;
+            bottom: -300px;
+            left: -260px;
+            width: 460px;
+            height: 460px;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.45;
           }
           .cover-dots {
             position: absolute;
@@ -800,12 +801,26 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
             align-items: flex-start;
             gap: 6px;
           }
+          .cover-brand-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+          }
           .cover-brand img {
-            width: 220px;
-            height: auto;
-            max-height: 72px;
+            width: 56px;
+            height: 56px;
             object-fit: contain;
             display: block;
+          }
+          .cover-brand-name {
+            font-size: 28px;
+            font-weight: 800;
+            color: #10213d;
+            letter-spacing: -0.01em;
+            line-height: 1;
+          }
+          .cover-brand-name-accent {
+            color: #16b0ff;
           }
           .cover-brand-sub {
             font-size: 10.5px;
@@ -1232,7 +1247,10 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
           <div class="cover-inner">
             <div class="cover-top">
               <div class="cover-brand">
-                <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" />
+                <div class="cover-brand-row">
+                  <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" />
+                  <div class="cover-brand-name">Clini<span class="cover-brand-name-accent">Media</span></div>
+                </div>
                 <div class="cover-brand-sub">Marketing Analytics</div>
               </div>
               <div class="cover-period">${escapeHtml(coverDateRange)}</div>
