@@ -456,13 +456,6 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
     );
     return (withValue.length >= 3 ? withValue : visibleOverview).slice(0, 3);
   })();
-  const coverStatsHtml = coverTeaserCards.map((card) => `
-    <div class="cover-stat">
-      <div class="cover-stat-label">${escapeHtml(card.label)}</div>
-      <div class="cover-stat-value">${escapeHtml(formatMetricValue(report.overview[card.key as keyof typeof report.overview], card.key))}</div>
-    </div>
-  `).join('');
-
   const overviewHtml = visibleOverview.map((card) => `
     <div class="stat-card">
       <div class="stat-label">${escapeHtml(card.label)}</div>
@@ -656,153 +649,219 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
           @page { size: Letter; margin: 0; }
           html, body { margin: 0; padding: 0; color: #0f172a; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #f4f3fb; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-          /* --------- COVER PAGE (CliniMedia brand) --------- */
+          /* --------- COVER PAGE (CliniMedia brand, full bleed) --------- */
           .cover {
             position: relative;
             width: 100%;
-            min-height: 100vh;
-            padding: 56px 64px 40px;
-            background: #ffffff;
+            height: 11in;
+            min-height: 11in;
+            padding: 0;
+            background: #f4f8ff;
             overflow: hidden;
             page-break-after: always;
             break-after: page;
-            display: flex;
-            flex-direction: column;
           }
-          /* Angled brand panel on the right — replaces the big circle blob */
-          .cover-panel {
+          /* Big soft watercolor-style blob — top-right, hero accent */
+          .cover-blob {
             position: absolute;
-            top: 0;
+            top: -160px;
+            right: -200px;
+            width: 800px;
+            height: 800px;
+            z-index: 1;
+            pointer-events: none;
+          }
+          /* Secondary smaller blob bottom-left for balance */
+          .cover-blob-2 {
+            position: absolute;
+            bottom: -240px;
+            left: -200px;
+            width: 560px;
+            height: 560px;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.7;
+          }
+          .cover-dots {
+            position: absolute;
+            top: 18%;
+            left: 6%;
+            width: 130px;
+            height: 90px;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0.85;
+          }
+          /* Bottom brand band — fills the lower portion so the page is never empty */
+          .cover-band {
+            position: absolute;
+            left: 0;
             right: 0;
             bottom: 0;
-            width: 46%;
-            background: linear-gradient(160deg, #2e6bff 0%, #1d4ed8 60%, #10213d 100%);
-            clip-path: polygon(18% 0, 100% 0, 100% 100%, 0% 100%);
-            z-index: 1;
-          }
-          .cover-panel-grid {
-            position: absolute;
-            top: 80px;
-            right: 64px;
-            width: 220px;
-            height: 100px;
-            z-index: 2;
-            opacity: 0.35;
-          }
-          .cover-chart {
-            position: absolute;
-            top: 220px;
-            right: 64px;
-            width: 280px;
-            z-index: 2;
-          }
-          .cover-stats {
-            position: absolute;
-            bottom: 90px;
-            right: 64px;
-            width: 280px;
-            z-index: 2;
+            height: 220px;
+            background: linear-gradient(135deg, #2e6bff 0%, #1d4ed8 55%, #10213d 100%);
+            z-index: 3;
             display: flex;
-            flex-direction: column;
-            gap: 10px;
-          }
-          .cover-stat {
-            background: rgba(255,255,255,0.13);
-            border: 1px solid rgba(255,255,255,0.22);
-            border-radius: 12px;
-            padding: 12px 16px;
+            align-items: center;
+            padding: 0 64px;
             color: #ffffff;
+            overflow: hidden;
+          }
+          .cover-band::after {
+            content: '';
+            position: absolute;
+            top: -60px;
+            right: -80px;
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+          }
+          .cover-band-inner {
+            position: relative;
+            z-index: 2;
             display: flex;
             justify-content: space-between;
-            align-items: baseline;
-            gap: 12px;
+            align-items: center;
+            width: 100%;
+            gap: 32px;
           }
-          .cover-stat-label {
-            font-size: 10px;
+          .cover-band-left {
+            flex: 1;
+            min-width: 0;
+          }
+          .cover-band-tagline {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            opacity: 0.78;
+          }
+          .cover-band-clinic {
+            margin-top: 6px;
+            font-size: 30px;
+            font-weight: 800;
+            letter-spacing: -0.015em;
+            line-height: 1.1;
+          }
+          .cover-band-meta {
+            margin-top: 10px;
+            font-size: 12px;
+            font-weight: 500;
+            opacity: 0.78;
+            letter-spacing: 0.04em;
+          }
+          .cover-band-stats {
+            display: flex;
+            gap: 12px;
+            flex-shrink: 0;
+          }
+          .cover-band-stat {
+            background: rgba(255,255,255,0.13);
+            border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 14px;
+            padding: 14px 18px;
+            text-align: center;
+            min-width: 110px;
+          }
+          .cover-band-stat-label {
+            font-size: 9.5px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.14em;
             opacity: 0.85;
           }
-          .cover-stat-value {
-            font-size: 22px;
+          .cover-band-stat-value {
+            margin-top: 6px;
+            font-size: 24px;
             font-weight: 800;
             letter-spacing: -0.02em;
             line-height: 1;
           }
 
-          .cover-inner { position: relative; z-index: 3; display: flex; flex-direction: column; justify-content: space-between; flex: 1; padding-right: 220px; }
-          .cover-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
-          .cover-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-          .cover-brand img { width: 220px; height: auto; max-height: 72px; object-fit: contain; display: block; }
-          .cover-brand-sub { font-size: 10.5px; font-weight: 700; color: #2e6bff; letter-spacing: 0.2em; text-transform: uppercase; padding-left: 4px; }
+          .cover-inner {
+            position: relative;
+            z-index: 4;
+            padding: 56px 64px 0;
+            height: calc(11in - 220px);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+          }
+          .cover-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 24px;
+          }
+          .cover-brand {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+          }
+          .cover-brand img {
+            width: 220px;
+            height: auto;
+            max-height: 72px;
+            object-fit: contain;
+            display: block;
+          }
+          .cover-brand-sub {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #2e6bff;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            padding-left: 4px;
+          }
           .cover-period {
             display: inline-block;
-            text-align: right;
             font-size: 12px;
             color: #ffffff;
             font-weight: 700;
             letter-spacing: 0.14em;
             text-transform: uppercase;
-            background: rgba(255,255,255,0.18);
-            border: 1px solid rgba(255,255,255,0.35);
-            padding: 9px 16px;
+            background: #2e6bff;
+            padding: 10px 18px;
             border-radius: 999px;
-            margin-top: 6px;
+            box-shadow: 0 4px 16px rgba(46,107,255,0.25);
           }
+          .cover-mid {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 40px;
+            margin-bottom: 30px;
+          }
+          .cover-headline { flex: 1; min-width: 0; }
           .cover-tagline {
             font-size: 10.5px;
             font-weight: 700;
             color: #2e6bff;
             letter-spacing: 0.22em;
             text-transform: uppercase;
-            margin-bottom: 14px;
+            margin-bottom: 16px;
           }
           .cover-title {
-            font-size: 92px;
+            font-size: 96px;
             line-height: 0.92;
             font-weight: 800;
             color: #10213d;
-            letter-spacing: -0.025em;
+            letter-spacing: -0.03em;
             margin: 0;
           }
           .cover-subtitle {
             margin-top: 24px;
-            max-width: 380px;
-            font-size: 16px;
+            max-width: 480px;
+            font-size: 17px;
             color: #60729a;
             line-height: 1.55;
             font-weight: 500;
           }
-          .cover-bottom {
-            margin-top: 36px;
-            padding-top: 24px;
-            border-top: 2px solid #dbe7ff;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            max-width: 480px;
-          }
-          .cover-clinic-kicker {
-            font-size: 10.5px;
-            font-weight: 700;
-            color: #2e6bff;
-            text-transform: uppercase;
-            letter-spacing: 0.18em;
-          }
-          .cover-clinic-bottom {
-            font-size: 28px;
-            font-weight: 800;
-            color: #10213d;
-            letter-spacing: -0.01em;
-            line-height: 1.15;
-          }
-          .cover-prepared {
-            margin-top: 10px;
-            font-size: 11px;
-            font-weight: 600;
-            color: #60729a;
-            letter-spacing: 0.06em;
+          .cover-chart-wrap {
+            flex-shrink: 0;
+            width: 280px;
           }
 
           /* --------- CONTENT PAGES --------- */
@@ -1117,73 +1176,119 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
       <body>
         <!-- ===== COVER PAGE ===== -->
         <section class="cover">
-          <!-- Right-side angled brand panel (no big circle) -->
-          <div class="cover-panel"></div>
+          <!-- Big soft watercolor blob top-right -->
+          <svg class="cover-blob" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <radialGradient id="cb1" cx="38%" cy="32%" r="58%">
+                <stop offset="0%" stop-color="#2e6bff" stop-opacity="0.78"/>
+                <stop offset="100%" stop-color="#2e6bff" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="cb2" cx="68%" cy="38%" r="55%">
+                <stop offset="0%" stop-color="#16b0ff" stop-opacity="0.72"/>
+                <stop offset="100%" stop-color="#16b0ff" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="cb3" cx="55%" cy="72%" r="55%">
+                <stop offset="0%" stop-color="#5b8dff" stop-opacity="0.6"/>
+                <stop offset="100%" stop-color="#5b8dff" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="cb4" cx="38%" cy="78%" r="50%">
+                <stop offset="0%" stop-color="#9bbcff" stop-opacity="0.55"/>
+                <stop offset="100%" stop-color="#9bbcff" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <circle cx="400" cy="400" r="400" fill="url(#cb1)"/>
+            <circle cx="400" cy="400" r="400" fill="url(#cb2)"/>
+            <circle cx="400" cy="400" r="400" fill="url(#cb3)"/>
+            <circle cx="400" cy="400" r="400" fill="url(#cb4)"/>
+          </svg>
 
-          <!-- Subtle dotted grid inside the panel -->
-          <svg class="cover-panel-grid" viewBox="0 0 220 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <g fill="rgba(255,255,255,0.7)">
-              ${Array.from({ length: 10 }, (_, row) =>
-                Array.from({ length: 22 }, (_, col) =>
-                  `<circle cx="${col * 10 + 5}" cy="${row * 10 + 5}" r="1.2"/>`
+          <!-- Smaller blob bottom-left for balance -->
+          <svg class="cover-blob-2" viewBox="0 0 560 560" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <radialGradient id="cb5" cx="50%" cy="50%" r="55%">
+                <stop offset="0%" stop-color="#9bbcff" stop-opacity="0.55"/>
+                <stop offset="100%" stop-color="#9bbcff" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="cb6" cx="55%" cy="40%" r="50%">
+                <stop offset="0%" stop-color="#16b0ff" stop-opacity="0.45"/>
+                <stop offset="100%" stop-color="#16b0ff" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <circle cx="280" cy="280" r="280" fill="url(#cb5)"/>
+            <circle cx="280" cy="280" r="280" fill="url(#cb6)"/>
+          </svg>
+
+          <!-- Dotted grid accent -->
+          <svg class="cover-dots" viewBox="0 0 130 90" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <g fill="rgba(46,107,255,0.32)">
+              ${Array.from({ length: 9 }, (_, row) =>
+                Array.from({ length: 13 }, (_, col) =>
+                  `<circle cx="${col * 10 + 5}" cy="${row * 10 + 5}" r="1.4"/>`
                 ).join('')
               ).join('')}
             </g>
           </svg>
-
-          <!-- Marketing growth chart illustration -->
-          <svg class="cover-chart" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <defs>
-              <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#16b0ff"/>
-                <stop offset="100%" stop-color="#16b0ff" stop-opacity="0.4"/>
-              </linearGradient>
-            </defs>
-            <!-- Soft baseline -->
-            <line x1="10" y1="135" x2="270" y2="135" stroke="rgba(255,255,255,0.25)" stroke-width="1" stroke-dasharray="3 4"/>
-            <!-- Ascending bars (growth) -->
-            <rect x="20"  y="100" width="22" height="35"  rx="3" fill="url(#bar-grad)"/>
-            <rect x="56"  y="80"  width="22" height="55"  rx="3" fill="url(#bar-grad)"/>
-            <rect x="92"  y="58"  width="22" height="77"  rx="3" fill="url(#bar-grad)"/>
-            <rect x="128" y="38"  width="22" height="97"  rx="3" fill="url(#bar-grad)"/>
-            <rect x="164" y="22"  width="22" height="113" rx="3" fill="url(#bar-grad)"/>
-            <rect x="200" y="8"   width="22" height="127" rx="3" fill="url(#bar-grad)"/>
-            <!-- Trend line connecting bar tops -->
-            <polyline points="31,100 67,80 103,58 139,38 175,22 211,8" stroke="#ffffff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            <!-- Trend markers -->
-            <circle cx="31"  cy="100" r="3.5" fill="#ffffff"/>
-            <circle cx="67"  cy="80"  r="3.5" fill="#ffffff"/>
-            <circle cx="103" cy="58"  r="3.5" fill="#ffffff"/>
-            <circle cx="139" cy="38"  r="3.5" fill="#ffffff"/>
-            <circle cx="175" cy="22"  r="3.5" fill="#ffffff"/>
-            <circle cx="211" cy="8"   r="5"   fill="#ffffff"/>
-            <circle cx="211" cy="8"   r="2.5" fill="#2e6bff"/>
-            <!-- Up-arrow flag -->
-            <path d="M232,22 L256,8 L242,8 Z" fill="#ffffff"/>
-          </svg>
-
-          <!-- Teaser stat tiles (top 3 from the report) -->
-          <div class="cover-stats">${coverStatsHtml}</div>
 
           <div class="cover-inner">
             <div class="cover-top">
               <div class="cover-brand">
                 <img src="${escapeHtml(logoSrc)}" alt="CliniMedia" />
                 <div class="cover-brand-sub">Marketing Analytics</div>
-                <div class="cover-period">${escapeHtml(coverDateRange)}</div>
+              </div>
+              <div class="cover-period">${escapeHtml(coverDateRange)}</div>
+            </div>
+
+            <div class="cover-mid">
+              <div class="cover-headline">
+                <div class="cover-tagline">Marketing for Modern Clinics</div>
+                <h1 class="cover-title">MARKETING<br/>REPORT</h1>
+                <div class="cover-subtitle">${escapeHtml(report.period.label)} — performance, reach, and growth across every channel we run for ${escapeHtml(report.clinic.name)}.</div>
+              </div>
+              <div class="cover-chart-wrap">
+                <svg viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#2e6bff"/>
+                      <stop offset="100%" stop-color="#2e6bff" stop-opacity="0.25"/>
+                    </linearGradient>
+                  </defs>
+                  <line x1="10" y1="135" x2="270" y2="135" stroke="rgba(46,107,255,0.25)" stroke-width="1" stroke-dasharray="3 4"/>
+                  <rect x="20"  y="100" width="22" height="35"  rx="3" fill="url(#bar-grad)"/>
+                  <rect x="56"  y="80"  width="22" height="55"  rx="3" fill="url(#bar-grad)"/>
+                  <rect x="92"  y="58"  width="22" height="77"  rx="3" fill="url(#bar-grad)"/>
+                  <rect x="128" y="38"  width="22" height="97"  rx="3" fill="url(#bar-grad)"/>
+                  <rect x="164" y="22"  width="22" height="113" rx="3" fill="url(#bar-grad)"/>
+                  <rect x="200" y="8"   width="22" height="127" rx="3" fill="url(#bar-grad)"/>
+                  <polyline points="31,100 67,80 103,58 139,38 175,22 211,8" stroke="#10213d" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="31"  cy="100" r="3.5" fill="#10213d"/>
+                  <circle cx="67"  cy="80"  r="3.5" fill="#10213d"/>
+                  <circle cx="103" cy="58"  r="3.5" fill="#10213d"/>
+                  <circle cx="139" cy="38"  r="3.5" fill="#10213d"/>
+                  <circle cx="175" cy="22"  r="3.5" fill="#10213d"/>
+                  <circle cx="211" cy="8"   r="5"   fill="#10213d"/>
+                  <circle cx="211" cy="8"   r="2.5" fill="#ffffff"/>
+                  <path d="M232,22 L256,8 L242,8 Z" fill="#10213d"/>
+                </svg>
               </div>
             </div>
+          </div>
 
-            <div>
-              <div class="cover-tagline">Marketing for Modern Clinics</div>
-              <h1 class="cover-title">MARKETING<br/>REPORT</h1>
-              <div class="cover-subtitle">${escapeHtml(report.period.label)} — performance, reach, and growth across every channel we run for your clinic.</div>
-            </div>
-
-            <div class="cover-bottom">
-              <div class="cover-clinic-kicker">Prepared for</div>
-              <div class="cover-clinic-bottom">${escapeHtml(report.clinic.name)}</div>
-              <div class="cover-prepared">Prepared by CliniMedia · ${escapeHtml(coverDateRange)}</div>
+          <!-- Bottom brand band — fills the rest of the page so it never reads as empty -->
+          <div class="cover-band">
+            <div class="cover-band-inner">
+              <div class="cover-band-left">
+                <div class="cover-band-tagline">Prepared for</div>
+                <div class="cover-band-clinic">${escapeHtml(report.clinic.name)}</div>
+                <div class="cover-band-meta">By CliniMedia · ${escapeHtml(coverDateRange)}</div>
+              </div>
+              <div class="cover-band-stats">
+                ${coverTeaserCards.map((card) => `
+                  <div class="cover-band-stat">
+                    <div class="cover-band-stat-label">${escapeHtml(card.label)}</div>
+                    <div class="cover-band-stat-value">${escapeHtml(formatMetricValue(report.overview[card.key as keyof typeof report.overview], card.key))}</div>
+                  </div>
+                `).join('')}
+              </div>
             </div>
           </div>
         </section>
