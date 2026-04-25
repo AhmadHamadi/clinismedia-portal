@@ -1440,14 +1440,9 @@ const MarketingReportsPage: React.FC = () => {
 
     try {
       setDownloading(true);
-      const printWindow = window.open('', '_blank', 'width=1100,height=900');
-      if (!printWindow) {
-        throw new Error('Unable to open print preview. Please allow pop-ups for this site.');
-      }
 
-      // Inline the logo as a base64 data URI so the print window doesn't
-      // race against a network fetch. window.open('') has no base URL,
-      // and Chrome can fire print() before an <img src> finishes loading.
+      // Inline the logo as a base64 data URI so it travels with the
+      // injected HTML (relative URLs don't resolve in about:blank popups).
       const logoDataUri = await fetch(logo1)
         .then((r) => r.blob())
         .then((blob) => new Promise<string>((resolve, reject) => {
@@ -1457,19 +1452,64 @@ const MarketingReportsPage: React.FC = () => {
           reader.readAsDataURL(blob);
         }))
         .catch(() => `${window.location.origin}${logo1.startsWith('/') ? '' : '/'}${logo1}`);
+
+      // Use a hidden same-document iframe rather than window.open('').
+      // window.print() is synchronous and races image decoding when fired
+      // from the parent right after document.write. Hidden iframe pattern
+      // (used by react-to-print, Print.js, pagedjs) gives deterministic
+      // load semantics, no popup-blocker issues, and lets us await
+      // img.decode() before triggering print from the iframe's own
+      // contentWindow.
+      const existing = document.getElementById('cm-report-print-frame');
+      if (existing) existing.remove();
+      const iframe = document.createElement('iframe');
+      iframe.id = 'cm-report-print-frame';
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument;
+      const win = iframe.contentWindow;
+      if (!doc || !win) {
+        iframe.remove();
+        throw new Error('Unable to prepare PDF preview. Please try again.');
+      }
+
       const printableHtml = buildPrintHtml(report, emailDraft, logoDataUri);
-      const triggerPrint = () => {
-        printWindow.document.title = report.exportFileName.replace(/\.pdf$/i, '');
-        printWindow.focus();
-        printWindow.print();
+
+      let didTrigger = false;
+      const triggerPrint = async () => {
+        if (didTrigger) return;
+        didTrigger = true;
+        try {
+          // img.decode() resolves only when the image is fully decoded and
+          // paint-ready — img.complete returns true before the bitmap is
+          // available, which is why data-URI logos drop out of the PDF.
+          const imgs = Array.from(doc.images || []);
+          await Promise.all(
+            imgs.map((img) => (img as any).decode ? (img as any).decode().catch(() => {}) : Promise.resolve()),
+          );
+          // Tiny tick so layout settles before the synchronous print snapshot.
+          await new Promise((r) => setTimeout(r, 80));
+          doc.title = report.exportFileName.replace(/\.pdf$/i, '');
+          win.focus();
+          win.print();
+        } finally {
+          // Clean up the iframe a bit after print finishes / is cancelled.
+          setTimeout(() => {
+            const node = document.getElementById('cm-report-print-frame');
+            if (node) node.remove();
+          }, 1500);
+        }
       };
 
-      printWindow.onload = triggerPrint;
-      printWindow.document.open();
-      printWindow.document.write(printableHtml);
-      printWindow.document.close();
-      if (printWindow.document.readyState === 'complete') {
-        triggerPrint();
+      // Hook BOTH onload and a readyState fallback so we always trigger.
+      iframe.onload = () => { void triggerPrint(); };
+      doc.open();
+      doc.write(printableHtml);
+      doc.close();
+      if (doc.readyState === 'complete') {
+        // Document already finished; onload may not fire again.
+        void triggerPrint();
       }
     } catch (err: any) {
       setError(err.message || 'Failed to open PDF preview.');
