@@ -85,9 +85,14 @@ class GoogleBusinessAdminTokenRefreshService {
       console.log('[GoogleBusinessAdminTokenRefresh] ========================================');
       console.log('[GoogleBusinessAdminTokenRefresh] Starting token refresh check...');
       
-      // Refresh for every user that has a Google Business refresh token.
+      // Refresh for every user that has a Google Business refresh token AND
+      // is not already flagged as needing manual reconnection.
       const users = await User.find({
-        googleBusinessRefreshToken: { $exists: true, $ne: null }
+        googleBusinessRefreshToken: { $exists: true, $ne: null },
+        $or: [
+          { googleBusinessNeedsReauth: { $exists: false } },
+          { googleBusinessNeedsReauth: { $ne: true } },
+        ],
       });
 
       if (!users.length) {
@@ -126,10 +131,30 @@ class GoogleBusinessAdminTokenRefreshService {
             continue;
           }
 
+          // Successful refresh — clear any prior reauth flag.
+          if (freshUser.googleBusinessNeedsReauth) {
+            freshUser.googleBusinessNeedsReauth = false;
+          }
           await saveTokensForUser(freshUser, refreshed);
           refreshedCount += 1;
         } catch (userError) {
-          console.error(`[GoogleBusinessAdminTokenRefresh] ❌ Failed refreshing user ${user._id}:`, userError.message);
+          console.error(`[GoogleBusinessAdminTokenRefresh] ❌ Failed refreshing user ${user._id}:`, userError.response?.data || userError.message);
+
+          // Permanent OAuth error => the refresh token is dead. Flag the user so
+          // the admin UI can prompt a reconnect, and stop spamming Google's
+          // oauth2/token endpoint with a known-bad token every 30 seconds.
+          if (isPermanentOAuthError(userError)) {
+            try {
+              await User.findByIdAndUpdate(user._id, {
+                googleBusinessNeedsReauth: true,
+                googleBusinessAccessToken: null,
+                googleBusinessTokenExpiry: null,
+              });
+              console.warn(`[GoogleBusinessAdminTokenRefresh] ⚠️ User ${user._id} flagged for reauth (permanent OAuth error)`);
+            } catch (flagError) {
+              console.error(`[GoogleBusinessAdminTokenRefresh] ❌ Failed flagging user ${user._id} for reauth:`, flagError.message);
+            }
+          }
         }
       }
 

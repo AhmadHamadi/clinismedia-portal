@@ -88,7 +88,11 @@ class GoogleAdsTokenRefreshService {
       // Refresh for every user that has a Google Ads refresh token.
       // This keeps tokens alive for all mappings without deleting or resetting anything.
       const users = await User.find({
-        googleAdsRefreshToken: { $exists: true, $ne: null }
+        googleAdsRefreshToken: { $exists: true, $ne: null },
+        $or: [
+          { googleAdsNeedsReauth: { $exists: false } },
+          { googleAdsNeedsReauth: { $ne: true } },
+        ],
       });
 
       if (!users.length) {
@@ -127,10 +131,30 @@ class GoogleAdsTokenRefreshService {
             continue;
           }
 
+          // Successful refresh — clear any prior reauth flag.
+          if (freshUser.googleAdsNeedsReauth) {
+            freshUser.googleAdsNeedsReauth = false;
+          }
           await saveTokensForUser(freshUser, refreshed);
           refreshedCount += 1;
         } catch (userError) {
-          console.error(`[GoogleAdsTokenRefresh] ❌ Failed refreshing user ${user._id}:`, userError.message);
+          console.error(`[GoogleAdsTokenRefresh] ❌ Failed refreshing user ${user._id}:`, userError.response?.data || userError.message);
+
+          // Permanent OAuth error => the refresh token is dead. Flag the user
+          // so the admin UI can prompt a reconnect, and stop spamming Google's
+          // oauth2/token endpoint with a known-bad token every 30 seconds.
+          if (isPermanentOAuthError(userError)) {
+            try {
+              await User.findByIdAndUpdate(user._id, {
+                googleAdsNeedsReauth: true,
+                googleAdsAccessToken: null,
+                googleAdsTokenExpiry: null,
+              });
+              console.warn(`[GoogleAdsTokenRefresh] ⚠️ User ${user._id} flagged for reauth (permanent OAuth error)`);
+            } catch (flagError) {
+              console.error(`[GoogleAdsTokenRefresh] ❌ Failed flagging user ${user._id} for reauth:`, flagError.message);
+            }
+          }
         }
       }
 

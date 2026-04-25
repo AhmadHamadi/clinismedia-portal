@@ -171,6 +171,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  googleAdsNeedsReauth: {
+    type: Boolean,
+    default: false,
+  },
   googleBusinessProfileId: {
     type: String,
     default: null,
