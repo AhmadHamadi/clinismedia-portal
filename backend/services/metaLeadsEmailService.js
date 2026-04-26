@@ -139,6 +139,20 @@ class MetaLeadsEmailService {
     leadInfo.rawContent = textContent || htmlContent || null;
     leadInfo.message = textContent || htmlContent || null;
 
+    const normalizeParsableText = (value) => String(value || '')
+      .replace(/&lt;\s*br\s*\/?\s*&gt;/gi, '\n')
+      .replace(/<\s*br\s*\/?>/gi, '\n')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\r\n|\r/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
     // Get text content for parsing (prefer text over HTML, but try both)
     let text = textContent || '';
     
@@ -229,6 +243,8 @@ class MetaLeadsEmailService {
       }
     }
 
+    text = normalizeParsableText(text);
+
     // Fallback: capture first email address anywhere in body if labeled extraction failed.
     if (!leadInfo.email) {
       const anyEmails = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
@@ -301,6 +317,7 @@ class MetaLeadsEmailService {
             if (
               key === 'lead id' ||
               key === 'lead_id' ||
+              key.startsWith('lead id ') ||
               key.includes('meta lead id') ||
               key.includes('facebook lead id') ||
               key.includes('leadgen')
