@@ -57,6 +57,7 @@ const MetaLeadsPage: React.FC = () => {
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const leadsRequestSeqRef = useRef(0);
   const statsRequestSeqRef = useRef(0);
+  const showLegacyCardLayout = false;
 
   useEffect(() => {
     fetchLeads();
@@ -820,7 +821,7 @@ const MetaLeadsPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {false && (
+              {showLegacyCardLayout && (
               <div className="p-4 space-y-4">
                 {leads.map((lead) => {
                   const draft = getLeadDraft(lead);

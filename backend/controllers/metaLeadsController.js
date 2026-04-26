@@ -44,7 +44,10 @@ function getLeadField(lead, names = []) {
   const normalizedNames = names.map((name) => String(name).toLowerCase().replace(/[\s_-]+/g, ''));
   for (const [key, value] of Object.entries(fields)) {
     const normalizedKey = String(key).toLowerCase().replace(/[\s_-]+/g, '');
-    if (normalizedNames.includes(normalizedKey) && value !== undefined && value !== null && String(value).trim()) {
+    const isMatchingField = normalizedNames.some((normalizedName) =>
+      normalizedKey === normalizedName || normalizedKey.startsWith(normalizedName)
+    );
+    if (isMatchingField && value !== undefined && value !== null && String(value).trim()) {
       return String(value).trim();
     }
   }
