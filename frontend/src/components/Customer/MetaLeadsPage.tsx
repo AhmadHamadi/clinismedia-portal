@@ -1258,8 +1258,8 @@ const MetaLeadsPage: React.FC = () => {
                                 onClick={() => updateLeadDraft(lead._id, { statusUpdate: 'not_contacted', appointmentBooked: null, appointmentReason: '' })}
                                 className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
                                   draft.statusUpdate === 'not_contacted'
-                                    ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                    ? 'border-red-500 bg-red-50 text-red-700'
+                                    : 'border-gray-300 bg-white text-gray-700 hover:border-red-300'
                                 }`}
                               >
                                 No
@@ -1304,8 +1304,8 @@ const MetaLeadsPage: React.FC = () => {
                                     onClick={() => updateLeadDraft(lead._id, { appointmentBooked: false })}
                                     className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
                                       draft.appointmentBooked === false
-                                        ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                        ? 'border-red-500 bg-red-50 text-red-700'
+                                        : 'border-gray-300 bg-white text-gray-700 hover:border-red-300'
                                     }`}
                                   >
                                     No
@@ -1326,12 +1326,6 @@ const MetaLeadsPage: React.FC = () => {
                                 </div>
                               )}
 
-                              {draft.appointmentBooked === true && (
-                                <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
-                                  <p className="text-sm font-semibold text-gray-700">&nbsp;</p>
-                                </div>
-                              )}
-
                               {needsSave && <p className="text-xs text-amber-600">Unsaved change.</p>}
                             </div>
                           )}
@@ -1339,7 +1333,11 @@ const MetaLeadsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleLeadWorkflowSave(lead)}
-                            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                            className={`w-full rounded-lg border px-4 py-2 text-sm font-semibold text-white transition-all ${
+                              needsSave
+                                ? 'border-blue-200 bg-blue-600 shadow-[0_0_0_3px_rgba(37,99,235,0.18),0_10px_22px_rgba(37,99,235,0.22)] hover:bg-blue-700'
+                                : 'border-blue-600 bg-blue-600 hover:bg-blue-700'
+                            }`}
                           >
                             {draft.statusUpdate === 'contacted' && draft.appointmentBooked !== null
                               ? 'Save update'

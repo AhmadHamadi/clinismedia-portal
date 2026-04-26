@@ -3,6 +3,11 @@ const MetaLeadFolderMapping = require('../models/MetaLeadFolderMapping');
 const MetaLeadSubjectMapping = require('../models/MetaLeadSubjectMapping');
 const User = require('../models/User');
 const metaLeadsEmailService = require('../services/metaLeadsEmailService');
+const axios = require('axios');
+
+const META_LEADS_BOOKED_WEBHOOK_URL =
+  process.env.META_LEADS_BOOKED_WEBHOOK_URL ||
+  'https://hook.us2.make.com/lxo7t9dp07ijv5p6gbk6m2pmed783ruo';
 
 /** Normalize subject the same way as metaLeadsEmailService so stored mappings match incoming emails (bullets, Re:, whitespace) */
 function normalizeSubjectForMapping(subject) {
@@ -18,6 +23,83 @@ function normalizeSubjectForMapping(subject) {
 
 function normalizeFolderForMapping(folderName) {
   return metaLeadsEmailService.normalizeFolderName(folderName || '');
+}
+
+function normalizePhoneForMeta(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `1${digits}`;
+  }
+  return digits || null;
+}
+
+function getLeadField(lead, names = []) {
+  const fields = lead?.leadInfo?.fields || {};
+  for (const name of names) {
+    if (fields[name] !== undefined && fields[name] !== null && String(fields[name]).trim()) {
+      return String(fields[name]).trim();
+    }
+  }
+
+  const normalizedNames = names.map((name) => String(name).toLowerCase().replace(/[\s_-]+/g, ''));
+  for (const [key, value] of Object.entries(fields)) {
+    const normalizedKey = String(key).toLowerCase().replace(/[\s_-]+/g, '');
+    if (normalizedNames.includes(normalizedKey) && value !== undefined && value !== null && String(value).trim()) {
+      return String(value).trim();
+    }
+  }
+
+  return null;
+}
+
+function resolveMetaLeadId(lead) {
+  const direct = lead?.metaLeadId ? String(lead.metaLeadId).trim() : null;
+  const fromFields = getLeadField(lead, [
+    'meta_lead_id',
+    'metaLeadId',
+    'meta lead id',
+    'facebook_lead_id',
+    'facebook lead id',
+    'leadgen_id',
+    'leadgen id',
+    'lead_id',
+    'lead id',
+  ]);
+
+  const candidate = direct || fromFields;
+  return candidate ? String(candidate).replace(/[^A-Za-z0-9_-]/g, '').trim() || null : null;
+}
+
+function getClinicName(customer) {
+  return customer?.customerSettings?.displayName || customer?.name || 'Clinic';
+}
+
+async function sendBookedAppointmentWebhook(lead, customer) {
+  const metaLeadId = resolveMetaLeadId(lead);
+  if (!metaLeadId) {
+    console.warn(`[Meta Leads] Booked appointment webhook skipped for lead ${lead?._id}: missing original Meta lead ID.`);
+    return;
+  }
+
+  const payload = {
+    meta_lead_id: metaLeadId,
+    email: lead?.leadInfo?.email || null,
+    phone: normalizePhoneForMeta(lead?.leadInfo?.phone),
+    clinic_name: getClinicName(customer),
+    campaign_name: lead?.campaignName || getLeadField(lead, ['campaign name', 'campaign_name', 'campaignName']) || null,
+    status: 'Appointment Booked',
+    booked_at: (lead?.appointmentBookedAt || new Date()).toISOString(),
+  };
+
+  try {
+    await axios.post(META_LEADS_BOOKED_WEBHOOK_URL, payload, {
+      timeout: 10000,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    console.log(`[Meta Leads] Booked appointment webhook sent for Meta lead ${metaLeadId}.`);
+  } catch (error) {
+    console.error('[Meta Leads] Failed to send booked appointment webhook:', error.response?.data || error.message);
+  }
 }
 
 class MetaLeadsController {
@@ -253,11 +335,17 @@ class MetaLeadsController {
         return res.status(400).json({ message: 'Appointment booking can only be updated for contacted leads' });
       }
 
+      const wasAppointmentBooked = lead.appointmentBooked === true;
       lead.appointmentBooked = appointmentBooked !== undefined ? appointmentBooked : null;
       lead.appointmentBookedAt = appointmentBooked === true ? new Date() : null;
       lead.appointmentBookingReason = reason || null;
 
       await lead.save();
+
+      if (appointmentBooked === true && !wasAppointmentBooked) {
+        const customer = await User.findById(customerId).select('name customerSettings.displayName').lean();
+        await sendBookedAppointmentWebhook(lead, customer);
+      }
 
       res.json({ message: 'Appointment status updated', lead });
     } catch (error) {

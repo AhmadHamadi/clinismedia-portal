@@ -16,6 +16,12 @@ const metaLeadSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  metaLeadId: {
+    type: String,
+    default: null,
+    index: true,
+    sparse: true
+  },
   // Lead information extracted from email
   leadInfo: {
     name: String,

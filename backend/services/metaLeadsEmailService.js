@@ -127,6 +127,7 @@ class MetaLeadsEmailService {
       message: null,
       rawContent: null,
       campaignName: null,
+      metaLeadId: null,
       fields: {}
     };
 
@@ -196,6 +197,11 @@ class MetaLeadsEmailService {
       /^[^:\n]*phone[^:\n]*:\s*([+\d\s\-\(\)]{7,})/im,
     ];
 
+    const metaLeadIdPatterns = [
+      /(?:meta\s+lead\s+id|facebook\s+lead\s+id|lead\s+id|leadgen\s+id|leadgen_id|lead_id)[\s:]*([A-Za-z0-9_-]{6,})/i,
+      /^[^:\n]*(?:meta\s+lead\s+id|facebook\s+lead\s+id|lead\s+id|leadgen\s+id|leadgen_id|lead_id)[^:\n]*:\s*([A-Za-z0-9_-]{6,})/im,
+    ];
+
     // Extract name
     for (const pattern of namePatterns) {
       const match = text.match(pattern);
@@ -243,6 +249,14 @@ class MetaLeadsEmailService {
       }
     }
 
+    for (const pattern of metaLeadIdPatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        leadInfo.metaLeadId = match[1].trim();
+        break;
+      }
+    }
+
     // Parse key-value pairs (more robust)
     // Split by newlines and look for "Key: Value" format
     try {
@@ -283,6 +297,16 @@ class MetaLeadsEmailService {
             if (key.includes('campaign')) {
               const trimmed = value.trim();
               leadInfo.campaignName = trimmed || null;
+            }
+            if (
+              key === 'lead id' ||
+              key === 'lead_id' ||
+              key.includes('meta lead id') ||
+              key.includes('facebook lead id') ||
+              key.includes('leadgen')
+            ) {
+              const trimmed = value.replace(/[^A-Za-z0-9_-]/g, '').trim();
+              if (trimmed) leadInfo.metaLeadId = trimmed;
             }
             if (key.includes('message') || key.includes('comments') || key.includes('notes')) {
               if (!leadInfo.message || leadInfo.message.length < value.length) {
@@ -331,6 +355,10 @@ class MetaLeadsEmailService {
         if (jsonData.phone && !leadInfo.phone) leadInfo.phone = jsonData.phone;
         if (jsonData.phoneNumber && !leadInfo.phone) leadInfo.phone = jsonData.phoneNumber;
         if (jsonData.city) leadInfo.fields.city = jsonData.city;
+        const jsonMetaLeadId = jsonData.metaLeadId || jsonData.meta_lead_id || jsonData.leadId || jsonData.lead_id || jsonData.leadgen_id;
+        if (jsonMetaLeadId && !leadInfo.metaLeadId) {
+          leadInfo.metaLeadId = String(jsonMetaLeadId).replace(/[^A-Za-z0-9_-]/g, '').trim() || null;
+        }
         const jsonCampaign = jsonData.campaignName || jsonData.campaign_name || jsonData['campaign name'];
         if (jsonCampaign && typeof jsonCampaign === 'string') {
           const t = jsonCampaign.trim();
@@ -386,6 +414,11 @@ class MetaLeadsEmailService {
       }
     } else {
       leadInfo.phone = null; // Ensure it's explicitly null
+    }
+
+    if (leadInfo.metaLeadId) {
+      leadInfo.metaLeadId = String(leadInfo.metaLeadId).replace(/^["']|["']$/g, '').replace(/[^A-Za-z0-9_-]/g, '').trim();
+      if (!leadInfo.metaLeadId) leadInfo.metaLeadId = null;
     }
     
     // Ensure message and rawContent are null if empty, not empty strings
@@ -668,6 +701,7 @@ class MetaLeadsEmailService {
       customerId: customer._id,
       emailSubject: subject,
       campaignName: (leadInfo.campaignName && leadInfo.campaignName.trim()) ? leadInfo.campaignName.trim() : null,
+      metaLeadId: leadInfo.metaLeadId || null,
       leadInfo: {
         name: leadInfo.name || null,
         email: leadInfo.email || null,
@@ -696,6 +730,11 @@ class MetaLeadsEmailService {
 
     if (payload.campaignName && existingLead.campaignName !== payload.campaignName) {
       existingLead.campaignName = payload.campaignName;
+      changed = true;
+    }
+
+    if (payload.metaLeadId && existingLead.metaLeadId !== payload.metaLeadId) {
+      existingLead.metaLeadId = payload.metaLeadId;
       changed = true;
     }
 
