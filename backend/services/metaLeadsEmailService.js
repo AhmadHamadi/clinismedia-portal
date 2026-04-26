@@ -259,7 +259,11 @@ class MetaLeadsEmailService {
 
     // Fallback: capture likely phone number if labeled extraction failed.
     if (!leadInfo.phone) {
-      const phoneMatch = text.match(/(?:\+\d[\d\s\-().]{7,}\d|\b\d{10,15}\b)/);
+      const textWithoutLeadIds = text
+        .split(/\r?\n/)
+        .filter((line) => !/(?:meta\s+lead\s+id|facebook\s+lead\s+id|lead\s+id|leadgen\s+id|leadgen_id|lead_id)/i.test(line))
+        .join('\n');
+      const phoneMatch = textWithoutLeadIds.match(/(?:\+\d[\d\s\-().]{7,}\d|\b\d{10,15}\b)/);
       if (phoneMatch && phoneMatch[0]) {
         leadInfo.phone = phoneMatch[0].trim().replace(/\s+/g, ' ');
       }
@@ -426,7 +430,8 @@ class MetaLeadsEmailService {
       leadInfo.phone = leadInfo.phone.replace(/^["']|["']$/g, '').trim();
       // If phone is empty after cleaning or too short, set to null
       // Minimum 7 characters for a valid phone number (e.g., "+1234567")
-      if (!leadInfo.phone || leadInfo.phone.length < 7) {
+      const phoneDigits = leadInfo.phone.replace(/\D/g, '');
+      if (!leadInfo.phone || phoneDigits.length < 7) {
         leadInfo.phone = null;
       }
     } else {
