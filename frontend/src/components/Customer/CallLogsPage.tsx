@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaPhone, FaClock, FaCalendar, FaUser, FaCheckCircle, FaTimesCircle, FaSpinner, FaChartBar, FaInfoCircle, FaHeadphones, FaMapMarkerAlt, FaDollarSign, FaFileAlt, FaEye, FaTimes, FaFilter, FaCalendarCheck, FaTrash } from 'react-icons/fa';
+import { FaPhone, FaClock, FaCalendar, FaUser, FaCheckCircle, FaTimesCircle, FaSpinner, FaChartBar, FaInfoCircle, FaHeadphones, FaMapMarkerAlt, FaDollarSign, FaFileAlt, FaEye, FaTimes, FaFilter, FaCalendarCheck } from 'react-icons/fa';
 import axios from 'axios';
 import { startOfMonth, endOfMonth, subMonths, format, startOfDay, endOfDay, subDays } from 'date-fns';
 import DatePicker from 'react-multi-date-picker';
@@ -99,7 +99,6 @@ const CallLogsPage: React.FC = () => {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [tempStartDate, setTempStartDate] = useState<Date | null>(null);
   const [tempEndDate, setTempEndDate] = useState<Date | null>(null);
-  const [deletingLogs, setDeletingLogs] = useState(false);
 
   useEffect(() => {
     fetchCallLogs();
@@ -447,42 +446,6 @@ const CallLogsPage: React.FC = () => {
       return `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`;
     }
     return 'All Calls';
-  };
-
-  const handleDeleteAllLogs = async () => {
-    // Confirmation dialog
-    const confirmMessage = `Are you sure you want to delete ALL call logs?\n\nThis action cannot be undone and will delete all call history, recordings, and statistics.`;
-    
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
-    
-    // Double confirmation
-    const doubleConfirm = window.confirm(`FINAL CONFIRMATION: Delete ALL call logs?\n\nThis will permanently delete all call history.`);
-    
-    if (!doubleConfirm) {
-      return;
-    }
-    
-    try {
-      setDeletingLogs(true);
-      const token = localStorage.getItem('customerToken');
-      
-      const response = await axios.delete(
-        `${import.meta.env.VITE_API_BASE_URL}/twilio/call-logs`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      alert(`Successfully deleted ${response.data.deletedCount} call log${response.data.deletedCount !== 1 ? 's' : ''}`);
-      
-      // Refresh the page to show empty state
-      window.location.reload();
-    } catch (err: any) {
-      console.error('Failed to delete call logs:', err);
-      alert(err.response?.data?.error || 'Failed to delete call logs');
-    } finally {
-      setDeletingLogs(false);
-    }
   };
 
   if (loading) {
@@ -1289,24 +1252,6 @@ const CallLogsPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Reset Button - Fixed at bottom right */}
-      <button
-        onClick={handleDeleteAllLogs}
-        disabled={deletingLogs}
-        className="fixed bottom-6 right-6 bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm font-medium transition-colors z-50"
-        title="Delete all call logs"
-      >
-        {deletingLogs ? (
-          <>
-            <FaSpinner className="animate-spin" /> Deleting...
-          </>
-        ) : (
-          <>
-            <FaTrash /> Reset Logs
-          </>
-        )}
-      </button>
     </div>
   );
 };

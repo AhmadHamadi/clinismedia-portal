@@ -3222,6 +3222,8 @@ router.delete('/call-logs/:customerId', authenticateToken, authorizeRole(['admin
 
 // DELETE /api/twilio/call-logs - Delete all call logs for authenticated customer (customer only)
 router.delete('/call-logs', authenticateToken, async (req, res) => {
+  return res.status(404).json({ error: 'Customer call log reset is no longer available.' });
+
   try {
     const customerId = req.user.id;
     
