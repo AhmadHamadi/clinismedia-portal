@@ -55,6 +55,21 @@ function getLeadField(lead, names = []) {
   return null;
 }
 
+function extractMetaLeadIdFromText(value) {
+  if (!value || typeof value !== 'string') return null;
+
+  const normalizedText = value
+    .replace(/&lt;\s*br\s*\/?\s*&gt;/gi, '\n')
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/\r\n|\r/g, '\n');
+
+  const match = normalizedText.match(
+    /(?:meta\s+lead\s+id|facebook\s+lead\s+id|lead\s+id|leadgen\s+id|leadgen_id|lead_id)[^:\n]*:\s*([A-Za-z0-9_-]{6,})/i
+  );
+
+  return match?.[1] ? String(match[1]).replace(/[^A-Za-z0-9_-]/g, '').trim() || null : null;
+}
+
 function resolveMetaLeadId(lead) {
   const direct = lead?.metaLeadId ? String(lead.metaLeadId).trim() : null;
   const fromFields = getLeadField(lead, [
@@ -68,8 +83,11 @@ function resolveMetaLeadId(lead) {
     'lead_id',
     'lead id',
   ]);
+  const fromStoredEmailText =
+    extractMetaLeadIdFromText(lead?.leadInfo?.rawContent) ||
+    extractMetaLeadIdFromText(lead?.leadInfo?.message);
 
-  const candidate = direct || fromFields;
+  const candidate = direct || fromFields || fromStoredEmailText;
   return candidate ? String(candidate).replace(/[^A-Za-z0-9_-]/g, '').trim() || null : null;
 }
 
