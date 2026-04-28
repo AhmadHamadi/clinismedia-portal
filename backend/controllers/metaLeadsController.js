@@ -90,7 +90,7 @@ async function sendBookedAppointmentWebhook(lead, customer) {
     phone: normalizePhoneForMeta(lead?.leadInfo?.phone),
     clinic_name: getClinicName(customer),
     campaign_name: lead?.campaignName || getLeadField(lead, ['campaign name', 'campaign_name', 'campaignName']) || null,
-    status: 'Appointment Booked',
+    status: 'Booked Appointment',
     booked_at: (lead?.appointmentBookedAt || new Date()).toISOString(),
   };
 
