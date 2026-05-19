@@ -22,6 +22,14 @@ const metaLeadSchema = new mongoose.Schema({
     index: true,
     sparse: true
   },
+  formName: {
+    type: String,
+    default: null
+  },
+  pageName: {
+    type: String,
+    default: null
+  },
   // Lead information extracted from email
   leadInfo: {
     name: String,
@@ -87,6 +95,20 @@ const metaLeadSchema = new mongoose.Schema({
   notes: {
     type: String,
     default: null
+  },
+  source: {
+    type: String,
+    enum: ['imap-poller', 'make-webhook'],
+    default: 'imap-poller',
+    index: true
+  },
+  rawPayload: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  forwardedAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -96,6 +118,15 @@ const metaLeadSchema = new mongoose.Schema({
 metaLeadSchema.index({ customerId: 1, emailDate: -1 });
 metaLeadSchema.index({ customerId: 1, status: 1 });
 metaLeadSchema.index({ customerId: 1, appointmentBooked: 1 });
+metaLeadSchema.index(
+  { customerId: 1, metaLeadId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      metaLeadId: { $type: 'string' }
+    }
+  }
+);
 metaLeadSchema.index({ emailDate: -1 });
 
 module.exports = mongoose.model('MetaLead', metaLeadSchema);

@@ -724,6 +724,8 @@ class MetaLeadsEmailService {
       emailSubject: subject,
       campaignName: (leadInfo.campaignName && leadInfo.campaignName.trim()) ? leadInfo.campaignName.trim() : null,
       metaLeadId: leadInfo.metaLeadId || null,
+      formName: null,
+      pageName: null,
       leadInfo: {
         name: leadInfo.name || null,
         email: leadInfo.email || null,
@@ -738,7 +740,8 @@ class MetaLeadsEmailService {
       emailFrom: from || null,
       emailDate: date,
       emailMessageId: messageId || null,
-      status: 'new'
+      status: 'new',
+      source: 'imap-poller'
     };
   }
 
@@ -843,6 +846,17 @@ class MetaLeadsEmailService {
       // Parse lead information (will return null values for missing fields)
       const leadInfo = this.parseLeadInfo(parsed, subject);
       const payload = this.buildLeadPayload(customer, subject, leadInfo, from, date, messageId, folderName);
+
+      if (leadInfo.metaLeadId) {
+        const existingMetaLead = await MetaLead.findOne({
+          customerId: customer._id,
+          metaLeadId: leadInfo.metaLeadId
+        });
+
+        if (existingMetaLead) {
+          return this.upsertExistingLead(existingMetaLead, payload);
+        }
+      }
 
       // Check if email already processed (only if messageId exists)
       if (messageId) {

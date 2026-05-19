@@ -76,5 +76,11 @@ router.get('/admin/test-imap-connection', authenticateToken, authorizeRole(['adm
 // Ingestion audit by clinic (admin)
 router.get('/admin/ingestion-audit', authenticateToken, authorizeRole(['admin']), MetaLeadsController.getIngestionAudit);
 
+// Customer-specific Make.com webhook URL/token management (admin)
+router.get('/admin/webhooks', authenticateToken, authorizeRole(['admin']), MetaLeadsController.getWebhookDashboard);
+router.get('/admin/customers/:customerId/webhook', authenticateToken, authorizeRole(['admin']), MetaLeadsController.getCustomerWebhook);
+router.post('/admin/customers/:customerId/webhook/rotate', authenticateToken, authorizeRole(['admin']), MetaLeadsController.rotateCustomerWebhookToken);
+router.get('/admin/customers/:customerId/deliveries', authenticateToken, authorizeRole(['admin']), MetaLeadsController.getCustomerDeliveries);
+
 module.exports = router;
 

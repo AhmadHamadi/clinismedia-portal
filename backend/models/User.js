@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const mongoose = require("mongoose");
 
 const defaultAiReceptionBusinessHours = () => ({
@@ -35,6 +36,12 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ["admin", "customer", "employee", "receptionist"],
     default: "customer",
+  },
+  webhookToken: {
+    type: String,
+    unique: true,
+    sparse: true,
+    select: false,
   },
   parentCustomerId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -330,5 +337,12 @@ const userSchema = new mongoose.Schema({
     default: null, // Temporary state for OAuth flow
   },
 }, { timestamps: true });
+
+userSchema.pre("save", function (next) {
+  if (this.role === "customer" && !this.webhookToken) {
+    this.webhookToken = crypto.randomBytes(32).toString("hex");
+  }
+  next();
+});
 
 module.exports = mongoose.model("User", userSchema);

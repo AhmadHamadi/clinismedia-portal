@@ -51,6 +51,33 @@ interface AuditResponse {
   staleClinics: number;
 }
 
+interface CustomerWebhook {
+  customerId: string;
+  customerName: string;
+  webhookUrl: string;
+  token: string;
+}
+
+interface LeadDelivery {
+  _id: string;
+  createdAt: string;
+  emailDate?: string;
+  source?: 'imap-poller' | 'make-webhook';
+  campaignName?: string | null;
+  formName?: string | null;
+  pageName?: string | null;
+  metaLeadId?: string | null;
+  leadInfo?: {
+    name?: string | null;
+    email?: string | null;
+  };
+}
+
+interface WebhookDashboardCustomer extends CustomerWebhook {
+  customerEmail: string;
+  deliveries: LeadDelivery[];
+}
+
 const apiBase = import.meta.env.VITE_API_BASE_URL;
 const CORE_REQUEST_TIMEOUT_MS = 8000;
 
@@ -68,6 +95,9 @@ const MetaLeadsManagementPage: React.FC = () => {
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus | null>(null);
   const [audit, setAudit] = useState<AuditResponse | null>(null);
+  const [webhooksByCustomer, setWebhooksByCustomer] = useState<Record<string, CustomerWebhook>>({});
+  const [deliveriesByCustomer, setDeliveriesByCustomer] = useState<Record<string, LeadDelivery[]>>({});
+  const [webhookLoadingCustomerId, setWebhookLoadingCustomerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [checkingEmails, setCheckingEmails] = useState(false);
@@ -110,7 +140,9 @@ const MetaLeadsManagementPage: React.FC = () => {
     ]);
 
     if (customersRes.status === 'fulfilled') {
-      setCustomers(customersRes.value.data || []);
+      const loadedCustomers = customersRes.value.data || [];
+      setCustomers(loadedCustomers);
+      void fetchWebhookDataForCustomers(loadedCustomers);
     }
 
     if (folderMappingsRes.status === 'fulfilled') {
@@ -138,6 +170,76 @@ const MetaLeadsManagementPage: React.FC = () => {
 
     if (failures.length > 0) {
       setError(`Some Meta Leads data could not be loaded yet: ${failures.join(', ')}.`);
+    }
+  };
+
+  const fetchWebhookDataForCustomers = async (customerList: Customer[]) => {
+    const headers = getHeaders();
+    if (!headers || customerList.length === 0) return;
+
+    try {
+      const res = await axios.get(`${apiBase}/meta-leads/admin/webhooks`, { headers, timeout: CORE_REQUEST_TIMEOUT_MS });
+      const dashboardCustomers: WebhookDashboardCustomer[] = res.data.customers || [];
+      const nextWebhooks: Record<string, CustomerWebhook> = {};
+      const nextDeliveries: Record<string, LeadDelivery[]> = {};
+
+      for (const item of dashboardCustomers) {
+        nextWebhooks[item.customerId] = {
+          customerId: item.customerId,
+          customerName: item.customerName,
+          webhookUrl: item.webhookUrl,
+          token: item.token,
+        };
+        nextDeliveries[item.customerId] = item.deliveries || [];
+      }
+
+      setWebhooksByCustomer(nextWebhooks);
+      setDeliveriesByCustomer(nextDeliveries);
+    } catch {
+      const nextWebhooks: Record<string, CustomerWebhook> = {};
+      const nextDeliveries: Record<string, LeadDelivery[]> = {};
+
+      await Promise.allSettled(customerList.map(async (customer) => {
+        const [webhookRes, deliveriesRes] = await Promise.all([
+          axios.get(`${apiBase}/meta-leads/admin/customers/${customer._id}/webhook`, { headers, timeout: CORE_REQUEST_TIMEOUT_MS }),
+          axios.get(`${apiBase}/meta-leads/admin/customers/${customer._id}/deliveries`, { headers, timeout: CORE_REQUEST_TIMEOUT_MS }),
+        ]);
+
+        nextWebhooks[customer._id] = webhookRes.data;
+        nextDeliveries[customer._id] = deliveriesRes.data.deliveries || [];
+      }));
+
+      setWebhooksByCustomer((current) => ({ ...current, ...nextWebhooks }));
+      setDeliveriesByCustomer((current) => ({ ...current, ...nextDeliveries }));
+    }
+  };
+
+  const copyWebhookUrl = async (url: string) => {
+    await navigator.clipboard.writeText(url);
+    setSuccess('Webhook URL copied. Add it to the matching Make.com customer scenario.');
+  };
+
+  const rotateWebhookToken = async (customer: Customer) => {
+    const confirmed = window.confirm(`Rotate webhook token for ${customer.name}? The old Make.com URL will stop working immediately.`);
+    if (!confirmed) return;
+
+    const headers = getHeaders();
+    if (!headers) return;
+
+    clearMessages();
+    setWebhookLoadingCustomerId(customer._id);
+    try {
+      const res = await axios.post(
+        `${apiBase}/meta-leads/admin/customers/${customer._id}/webhook/rotate`,
+        {},
+        { headers, timeout: CORE_REQUEST_TIMEOUT_MS }
+      );
+      setWebhooksByCustomer((current) => ({ ...current, [customer._id]: res.data }));
+      setSuccess(`Webhook token rotated for ${customer.name}. Update this customer's Make.com scenario with the new URL.`);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to rotate webhook token');
+    } finally {
+      setWebhookLoadingCustomerId(null);
     }
   };
 
@@ -546,6 +648,77 @@ const MetaLeadsManagementPage: React.FC = () => {
               Last backend poller error: {monitoringStatus.lastError}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="mb-6 bg-white rounded-lg shadow-lg border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Make.com Direct Webhooks</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Add the matching URL to each customer's Make scenario. Keep the email module running during the transition.
+          </p>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {customers.map((customer) => {
+            const webhook = webhooksByCustomer[customer._id];
+            const deliveries = deliveriesByCustomer[customer._id] || [];
+            return (
+              <div key={customer._id} className="p-6">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-gray-900">{customer.name}</h3>
+                    <p className="text-sm text-gray-500">{customer.email}</p>
+                    <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Webhook URL</p>
+                      <p className="mt-1 break-all font-mono text-sm text-blue-950">
+                        {webhook?.webhookUrl || 'Loading webhook URL...'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={!webhook}
+                      onClick={() => webhook && copyWebhookUrl(webhook.webhookUrl)}
+                      className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      type="button"
+                      disabled={webhookLoadingCustomerId === customer._id}
+                      onClick={() => rotateWebhookToken(customer)}
+                      className="px-4 py-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {webhookLoadingCustomerId === customer._id ? 'Rotating...' : 'Rotate token'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Recent deliveries</p>
+                  {deliveries.length === 0 ? (
+                    <p className="text-sm text-gray-500">No leads received yet.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                      {deliveries.slice(0, 4).map((delivery) => (
+                        <div key={delivery._id} className="rounded-lg border border-gray-200 p-3 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${delivery.source === 'make-webhook' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                              {delivery.source === 'make-webhook' ? 'Webhook' : 'IMAP'}
+                            </span>
+                            <span className="text-xs text-gray-500">{fmtDateTime(delivery.createdAt)}</span>
+                          </div>
+                          <p className="mt-2 font-medium text-gray-900 truncate">{delivery.leadInfo?.name || 'Unnamed lead'}</p>
+                          <p className="text-gray-500 truncate">{delivery.campaignName || delivery.formName || delivery.pageName || 'No campaign'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

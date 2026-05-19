@@ -4,6 +4,7 @@ const MetaLeadSubjectMapping = require('../models/MetaLeadSubjectMapping');
 const User = require('../models/User');
 const metaLeadsEmailService = require('../services/metaLeadsEmailService');
 const axios = require('axios');
+const crypto = require('crypto');
 
 const META_LEADS_BOOKED_WEBHOOK_URL =
   process.env.META_LEADS_BOOKED_WEBHOOK_URL ||
@@ -31,6 +32,18 @@ function normalizePhoneForMeta(phone) {
     return `1${digits}`;
   }
   return digits || null;
+}
+
+function getPortalBackendBaseUrl(req) {
+  const envUrl = process.env.BACKEND_PUBLIC_URL || process.env.API_BASE_URL;
+  if (envUrl) return envUrl.replace(/\/$/, '');
+
+  return `${req.protocol}://${req.get('host')}`;
+}
+
+function buildCustomerWebhookUrl(req, customer) {
+  const baseUrl = getPortalBackendBaseUrl(req);
+  return `${baseUrl}/api/leads/webhook/${customer._id}?token=${customer.webhookToken}`;
 }
 
 function getLeadField(lead, names = []) {
@@ -1070,6 +1083,140 @@ class MetaLeadsController {
     } catch (error) {
       console.error('Error getting ingestion audit:', error);
       res.status(500).json({ message: 'Failed to get ingestion audit', error: error.message });
+    }
+  }
+
+  /**
+   * Get or create the customer-specific Make.com direct-delivery webhook URL.
+   */
+  static async getCustomerWebhook(req, res) {
+    try {
+      const { customerId } = req.params;
+      if (!customerId || !customerId.match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({ message: 'Invalid customerId' });
+      }
+
+      let customer = await User.findById(customerId).select('+webhookToken name email role');
+      if (!customer || customer.role !== 'customer') {
+        return res.status(404).json({ message: 'Customer not found' });
+      }
+
+      if (!customer.webhookToken) {
+        customer.webhookToken = crypto.randomBytes(32).toString('hex');
+        await customer.save();
+      }
+
+      res.json({
+        customerId: customer._id,
+        customerName: customer.name,
+        webhookUrl: buildCustomerWebhookUrl(req, customer),
+        token: customer.webhookToken
+      });
+    } catch (error) {
+      console.error('Error getting customer webhook:', error);
+      res.status(500).json({ message: 'Failed to get webhook URL', error: error.message });
+    }
+  }
+
+  /**
+   * Rotate a customer webhook token. The old Make URL stops working immediately.
+   */
+  static async rotateCustomerWebhookToken(req, res) {
+    try {
+      const { customerId } = req.params;
+      if (!customerId || !customerId.match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({ message: 'Invalid customerId' });
+      }
+
+      const customer = await User.findById(customerId).select('+webhookToken name email role');
+      if (!customer || customer.role !== 'customer') {
+        return res.status(404).json({ message: 'Customer not found' });
+      }
+
+      customer.webhookToken = crypto.randomBytes(32).toString('hex');
+      await customer.save();
+
+      res.json({
+        customerId: customer._id,
+        customerName: customer.name,
+        webhookUrl: buildCustomerWebhookUrl(req, customer),
+        token: customer.webhookToken
+      });
+    } catch (error) {
+      console.error('Error rotating customer webhook token:', error);
+      res.status(500).json({ message: 'Failed to rotate webhook token', error: error.message });
+    }
+  }
+
+  /**
+   * Recent direct webhook / IMAP deliveries for a customer.
+   */
+  static async getCustomerDeliveries(req, res) {
+    try {
+      const { customerId } = req.params;
+      if (!customerId || !customerId.match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({ message: 'Invalid customerId' });
+      }
+
+      const deliveries = await MetaLead.find({ customerId })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .select('createdAt emailDate source leadInfo.name leadInfo.email campaignName formName pageName metaLeadId');
+
+      res.json({ deliveries });
+    } catch (error) {
+      console.error('Error getting customer webhook deliveries:', error);
+      res.status(500).json({ message: 'Failed to get webhook deliveries', error: error.message });
+    }
+  }
+
+  /**
+   * Bulk webhook dashboard data for the admin Meta Leads page.
+   */
+  static async getWebhookDashboard(req, res) {
+    try {
+      const customers = await User.find({ role: 'customer' })
+        .select('+webhookToken name email location role')
+        .sort({ name: 1 });
+
+      const now = new Date();
+      const customersMissingTokens = customers.filter((customer) => !customer.webhookToken);
+      for (const customer of customersMissingTokens) {
+        customer.webhookToken = crypto.randomBytes(32).toString('hex');
+        await customer.save();
+      }
+
+      const customerIds = customers.map((customer) => customer._id);
+      const recentLeads = await MetaLead.find({ customerId: { $in: customerIds } })
+        .sort({ createdAt: -1 })
+        .limit(Math.max(customerIds.length * 20, 20))
+        .select('customerId createdAt emailDate source leadInfo.name leadInfo.email campaignName formName pageName metaLeadId')
+        .lean();
+
+      const deliveriesByCustomer = new Map();
+      for (const lead of recentLeads) {
+        const key = String(lead.customerId);
+        const current = deliveriesByCustomer.get(key) || [];
+        if (current.length < 20) {
+          current.push(lead);
+          deliveriesByCustomer.set(key, current);
+        }
+      }
+
+      res.json({
+        generatedAt: now.toISOString(),
+        customers: customers.map((customer) => ({
+          customerId: customer._id,
+          customerName: customer.name,
+          customerEmail: customer.email,
+          webhookUrl: buildCustomerWebhookUrl(req, customer),
+          token: customer.webhookToken,
+          deliveries: deliveriesByCustomer.get(String(customer._id)) || []
+        }))
+      });
+    } catch (error) {
+      console.error('Error getting webhook dashboard:', error);
+      res.status(500).json({ message: 'Failed to get webhook dashboard', error: error.message });
     }
   }
 }
