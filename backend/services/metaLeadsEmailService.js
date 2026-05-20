@@ -1108,12 +1108,11 @@ class MetaLeadsEmailService {
 
     await this.recoverIfCheckIsStale();
 
-    this.lastCheckStartedAt = new Date().toISOString();
-
     if (this.isChecking) {
       return finalizeCheck({ message: 'Check already in progress', skipped: true });
     }
 
+    this.lastCheckStartedAt = new Date().toISOString();
     this.isChecking = true;
     
     const result = {
@@ -1218,12 +1217,11 @@ class MetaLeadsEmailService {
 
     await this.recoverIfCheckIsStale();
 
-    this.lastCheckStartedAt = new Date().toISOString();
-
     if (this.isChecking) {
       return finalizeCheck({ message: 'Check already in progress', skipped: true });
     }
 
+    this.lastCheckStartedAt = new Date().toISOString();
     const uniqueFolders = [...new Set((folderNames || []).map((name) => String(name || '').trim()).filter(Boolean))];
     if (!uniqueFolders.length) {
       return finalizeCheck({
@@ -1391,11 +1389,12 @@ class MetaLeadsEmailService {
 
   /**
    * Start monitoring emails - look back 30 days so we never miss leads (e.g. server down, or emails that stayed unread)
-   * Default interval 1 minute so portal updates quickly after email arrives at leads@clinimedia.ca
+   * Default interval 5 minutes so IMAP remains a gentle backup path. Make webhooks
+   * are the primary instant delivery path and do not depend on cPanel mail.
    * IMPORTANT: Runs on whichever server process calls this (e.g. production backend). Ensure LEADS_EMAIL_PASS
    * (or EMAIL_PASS) is set in production environment so the always-on backend processes leads.
    */
-  startMonitoring(intervalMinutes = 1) {
+  startMonitoring(intervalMinutes = 5) {
     if (!this.hasCredentials()) {
       this.monitoringEnabled = false;
       console.error('[Meta Leads] ❌ Email monitoring NOT started: no password set.');

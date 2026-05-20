@@ -148,4 +148,50 @@ describe('Make.com leads webhook', () => {
     expect(second.body.duplicate).toBe(true);
     expect(await MetaLead.countDocuments({ customerId: customer._id, metaLeadId: 'meta-456' })).toBe(1);
   });
+
+  test('merges into same-day IMAP lead when webhook arrives later with Meta lead id', async () => {
+    const token = 'f'.repeat(64);
+    const customer = await createCustomer(token);
+    const emailDate = new Date('2026-04-24T13:00:00Z');
+
+    const imapLead = await MetaLead.create({
+      customerId: customer._id,
+      emailSubject: 'Hamilton Care Dental Leads',
+      campaignName: 'Hamilton Care Dental Leads',
+      metaLeadId: null,
+      leadInfo: {
+        name: 'Sam Existing',
+        email: 'sam@example.com',
+        phone: '19055551234',
+        fields: { city: 'Hamilton' },
+      },
+      emailFrom: 'leads@clinimedia.ca',
+      emailDate,
+      status: 'new',
+      source: 'imap-poller',
+    });
+
+    const res = await request(app)
+      .post(`/api/leads/webhook/${customer._id}?token=${token}`)
+      .send({
+        metaLeadId: 'meta-merge-1',
+        name: 'Sam Existing',
+        email: 'sam@example.com',
+        phone: '(905) 555-1234',
+        campaignName: 'Hamilton Care Dental Leads',
+        submittedAt: '2026-04-24T16:30:00Z',
+        fields: { full_name: 'Sam Existing' },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.duplicate).toBe(true);
+    expect(res.body.merged).toBe(true);
+    expect(await MetaLead.countDocuments({ customerId: customer._id })).toBe(1);
+
+    const merged = await MetaLead.findById(imapLead._id);
+    expect(merged.metaLeadId).toBe('meta-merge-1');
+    expect(merged.source).toBe('make-webhook');
+    expect(merged.leadInfo.fields.city).toBe('Hamilton');
+    expect(merged.leadInfo.fields.full_name).toBe('Sam Existing');
+  });
 });

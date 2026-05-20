@@ -175,7 +175,9 @@ app.listen(PORT, () => {
   GoogleBusinessDataRefreshService.refreshAllBusinessProfiles();
   
   // Start Meta Leads email monitoring (runs on THIS server - set LEADS_EMAIL_PASS/EMAIL_PASS in production so the always-on backend processes leads)
-  const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL, 10) || 1;
+  // Keep IMAP as a backup path. Five minutes is gentler on cPanel/Imunify than
+  // one-minute polling, while Make webhooks provide the primary instant delivery.
+  const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL, 10) || 5;
   metaLeadsEmailService.startMonitoring(leadsCheckInterval);
   if (metaLeadsEmailService.hasCredentials()) {
     console.log(`[Server] Meta Leads: email monitoring is active. Every lead that arrives at leads@ will be added to the portal automatically (runs every ${leadsCheckInterval} min).`);
