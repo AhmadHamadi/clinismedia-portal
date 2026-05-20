@@ -71,6 +71,7 @@ async function saveTokensForUser(user, tokens) {
   
   user.googleBusinessAccessToken = tokens.access_token;
   user.googleBusinessTokenExpiry = tokenExpiry;
+  user.googleBusinessNeedsReauth = false;
   
   // Save new refresh token if provided (Google may rotate it)
   if (tokens.refresh_token) {
@@ -98,6 +99,7 @@ class GoogleBusinessAdminTokenRefreshService {
       // Refresh for every user that has a Google Business refresh token AND
       // is not already flagged as needing manual reconnection.
       const users = await User.find({
+        role: 'admin',
         googleBusinessRefreshToken: { $exists: true, $ne: null },
         $or: [
           { googleBusinessNeedsReauth: { $exists: false } },

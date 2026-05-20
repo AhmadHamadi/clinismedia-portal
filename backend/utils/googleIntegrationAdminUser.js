@@ -2,16 +2,16 @@ const User = require('../models/User');
 
 const INTEGRATION_FIELDS = {
   googleAds: {
-    accessToken: 'googleAdsAccessToken',
     refreshToken: 'googleAdsRefreshToken',
+    needsReauth: 'googleAdsNeedsReauth',
   },
   googleBusiness: {
-    accessToken: 'googleBusinessAccessToken',
     refreshToken: 'googleBusinessRefreshToken',
+    needsReauth: 'googleBusinessNeedsReauth',
   },
   searchConsole: {
-    accessToken: 'searchConsoleAccessToken',
     refreshToken: 'searchConsoleRefreshToken',
+    needsReauth: 'searchConsoleNeedsReauth',
   },
 };
 
@@ -25,29 +25,41 @@ function getIntegrationFields(integration) {
   return fields;
 }
 
-async function findGoogleIntegrationAdminUser(req, integration) {
-  const { accessToken, refreshToken } = getIntegrationFields(integration);
+async function findGoogleIntegrationAdminUser(req, integration, options = {}) {
+  const { refreshToken, needsReauth } = getIntegrationFields(integration);
+  const { preferCurrentAdmin = false, allowFallbackAdmin = false } = options;
   const currentAdminId = req?.user?._id || req?.user?.id || null;
+  let currentAdmin = null;
 
   if (currentAdminId) {
-    const currentAdmin = await User.findById(currentAdminId);
-    if (currentAdmin && currentAdmin.role === 'admin') {
+    currentAdmin = await User.findById(currentAdminId);
+    if (preferCurrentAdmin && currentAdmin && currentAdmin.role === 'admin') {
       return currentAdmin;
     }
   }
 
   const connectedAdmin = await User.findOne({
     role: 'admin',
+    [refreshToken]: { $exists: true, $ne: null },
     $or: [
-      { [refreshToken]: { $exists: true, $ne: null } },
-      { [accessToken]: { $exists: true, $ne: null } },
+      { [needsReauth]: { $exists: false } },
+      { [needsReauth]: { $ne: true } },
     ],
   }).sort({ updatedAt: -1, createdAt: 1, _id: 1 });
 
   if (connectedAdmin) {
     return connectedAdmin;
   }
-  return User.findOne({ role: 'admin' }).sort({ createdAt: 1, _id: 1 });
+
+  if (allowFallbackAdmin && currentAdmin && currentAdmin.role === 'admin') {
+    return currentAdmin;
+  }
+
+  if (allowFallbackAdmin) {
+    return User.findOne({ role: 'admin' }).sort({ createdAt: 1, _id: 1 });
+  }
+
+  return null;
 }
 
 module.exports = {

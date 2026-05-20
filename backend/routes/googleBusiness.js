@@ -747,7 +747,7 @@ router.get('/callback', async (req, res) => {
     }
     
     // ✅ FIXED: Validate that we received tokens
-    if (!tokens || !tokens.access_token || !tokens.refresh_token) {
+    if (!tokens || !tokens.access_token) {
       console.error('❌ Invalid tokens received from Google:', { 
         hasTokens: !!tokens, 
         hasAccessToken: !!tokens?.access_token, 
@@ -796,8 +796,13 @@ router.get('/callback', async (req, res) => {
           : null;
         const adminUser = adminUserId
           ? await User.findById(adminUserId)
-          : await findGoogleIntegrationAdminUser(req, 'googleBusiness');
+          : await findGoogleIntegrationAdminUser(req, 'googleBusiness', { preferCurrentAdmin: true });
         if (adminUser) {
+          const refreshTokenToSave = tokens.refresh_token || adminUser.googleBusinessRefreshToken;
+          if (!refreshTokenToSave) {
+            throw new Error('No refresh_token returned. Ensure access_type=offline & prompt=consent.');
+          }
+
           // Calculate expiry date
           const tokenExpiry = expires_in 
             ? new Date(Date.now() + expires_in * 1000)
@@ -805,16 +810,20 @@ router.get('/callback', async (req, res) => {
           
           // Save tokens to admin user record
           adminUser.googleBusinessAccessToken = tokens.access_token;
-          adminUser.googleBusinessRefreshToken = tokens.refresh_token;
+          adminUser.googleBusinessRefreshToken = refreshTokenToSave;
           adminUser.googleBusinessTokenExpiry = tokenExpiry;
+          adminUser.googleBusinessNeedsReauth = false;
           await adminUser.save();
           
           console.log('✅ Admin Google Business Profile tokens saved to database');
           console.log(`   Token expiry: ${tokenExpiry.toISOString()}`);
         } else {
-          console.warn('⚠️ Admin user not found - tokens will not be saved to database, but OAuth will still succeed');
+          throw new Error('Admin user not found for Google Business OAuth state.');
         }
       } catch (dbError) {
+        if (dbError.message?.includes('No refresh_token returned') || dbError.message?.includes('Admin user not found')) {
+          return res.redirect(`${frontendUrl}/admin/google-business?oauth_error=true&error=${encodeURIComponent(dbError.message)}`);
+        }
         // Don't fail OAuth flow if database save fails - original code didn't save to DB
         console.error('⚠️ Failed to save tokens to database (non-critical):', dbError.message);
         console.log('   OAuth will still succeed - tokens are in redirect URL');
@@ -828,18 +837,26 @@ router.get('/callback', async (req, res) => {
       try {
         const customerUser = await User.findById(customerId);
         if (customerUser) {
+          const refreshTokenToSave = tokens.refresh_token || customerUser.googleBusinessRefreshToken;
+          if (!refreshTokenToSave) {
+            throw new Error('No refresh_token returned. Ensure access_type=offline & prompt=consent.');
+          }
+
           const tokenExpiry = expires_in
             ? new Date(Date.now() + expires_in * 1000)
             : new Date(Date.now() + 3600 * 1000);
 
           customerUser.googleBusinessAccessToken = tokens.access_token;
-          customerUser.googleBusinessRefreshToken = tokens.refresh_token;
+          customerUser.googleBusinessRefreshToken = refreshTokenToSave;
           customerUser.googleBusinessTokenExpiry = tokenExpiry;
           customerUser.googleBusinessNeedsReauth = false;
           await customerUser.save();
           console.log('[GBP] Customer tokens saved for user:', customerId);
         }
       } catch (dbError) {
+        if (dbError.message?.includes('No refresh_token returned')) {
+          return res.redirect(`${frontendUrl}/customer/google-business-analytics?gbp_error=true&error=${encodeURIComponent(dbError.message)}`);
+        }
         console.error('[GBP] Failed to save customer tokens:', dbError.message);
       }
       res.redirect(`${frontendUrl}/customer/google-business-analytics?gbp_connected=true`);
@@ -879,7 +896,7 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
     let adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
     
     // Priority 1: Database (most reliable, persistent)
-    if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
+    if (adminUser?.googleBusinessRefreshToken) {
       adminTokens = {
         access_token: adminUser.googleBusinessAccessToken,
         refresh_token: adminUser.googleBusinessRefreshToken
@@ -900,7 +917,7 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
       console.log('[Google Business] Using admin tokens from environment variables');
     }
 
-    if (!adminTokens.access_token) {
+    if (!adminTokens.access_token && !adminTokens.refresh_token) {
       return res.status(400).json({ error: 'Admin Google Business Profile not connected. Please connect first.' });
     }
 
@@ -910,7 +927,7 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
       const expiresAt = adminUser.googleBusinessTokenExpiry ? new Date(adminUser.googleBusinessTokenExpiry).getTime() : 0;
       const refreshThreshold = 5 * 60 * 1000; // Refresh 5 minutes before expiry
       
-      if (expiresAt > 0 && now > (expiresAt - refreshThreshold)) {
+      if (!adminTokens.access_token || !expiresAt || now > (expiresAt - refreshThreshold)) {
         console.log('[Google Business] Admin token expires soon, refreshing proactively...');
         
         if (!adminUser.googleBusinessRefreshToken) {
@@ -933,7 +950,8 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
           
           const updateData = {
             googleBusinessAccessToken: refreshedTokens.access_token,
-            googleBusinessTokenExpiry: newExpiry
+            googleBusinessTokenExpiry: newExpiry,
+            googleBusinessNeedsReauth: false
           };
           
           if (refreshedTokens.refresh_token) {
@@ -954,6 +972,11 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
           
           if (refreshError.response?.data?.error === 'invalid_grant' || 
               refreshError.message?.includes('invalid_grant')) {
+            await User.findByIdAndUpdate(adminUser._id, {
+              googleBusinessNeedsReauth: true,
+              googleBusinessAccessToken: null,
+              googleBusinessTokenExpiry: null,
+            });
             return res.status(401).json({ 
               error: 'Admin Google Business Profile refresh token expired. Please reconnect.',
               requiresReauth: true,
@@ -980,6 +1003,13 @@ router.get('/admin-business-profiles', authenticateToken, authorizeRole(['admin'
       // Check if it's an invalid_grant error (expired refresh token)
       if (apiError.message?.includes('invalid_grant') || apiError.response?.data?.error === 'invalid_grant') {
         console.error('❌ Admin refresh token expired or revoked during API call');
+        if (adminUser?._id) {
+          await User.findByIdAndUpdate(adminUser._id, {
+            googleBusinessNeedsReauth: true,
+            googleBusinessAccessToken: null,
+            googleBusinessTokenExpiry: null,
+          });
+        }
         return res.status(401).json({
           error: 'Admin Google Business Profile refresh token expired. Please reconnect.',
           requiresReauth: true,
@@ -1171,7 +1201,7 @@ router.get('/admin-connection-status', authenticateToken, authorizeRole(['admin'
       });
     }
 
-    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
+    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness', { preferCurrentAdmin: true });
 
     if (!adminUser) {
       return res.json({
@@ -1185,7 +1215,18 @@ router.get('/admin-connection-status', authenticateToken, authorizeRole(['admin'
     const hasRefreshToken = !!adminUser.googleBusinessRefreshToken;
     const hasExpiry = !!adminUser.googleBusinessTokenExpiry;
     
-    if (hasAccessToken && hasRefreshToken) {
+    if (hasRefreshToken && adminUser.googleBusinessNeedsReauth) {
+      return res.json({
+        connected: false,
+        hasAccessToken,
+        hasRefreshToken,
+        hasExpiry,
+        requiresReauth: true,
+        message: 'Admin Google Business Profile refresh token expired. Please reconnect.'
+      });
+    }
+
+    if (hasRefreshToken) {
       // Check if token is expired
       let isExpired = false;
       if (hasExpiry) {
@@ -1232,7 +1273,7 @@ router.post('/save-admin-tokens', authenticateToken, authorizeRole(['admin']), a
       return res.status(400).json({ error: 'access_token and refresh_token are required' });
     }
     
-    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
+    const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness', { preferCurrentAdmin: true });
     if (!adminUser) {
       return res.status(404).json({ error: 'Admin user not found' });
     }
@@ -1246,6 +1287,7 @@ router.post('/save-admin-tokens', authenticateToken, authorizeRole(['admin']), a
     adminUser.googleBusinessAccessToken = access_token;
     adminUser.googleBusinessRefreshToken = refresh_token;
     adminUser.googleBusinessTokenExpiry = tokenExpiry;
+    adminUser.googleBusinessNeedsReauth = false;
     await adminUser.save();
     
     console.log('✅ Admin Google Business Profile tokens saved to database (from frontend)');
@@ -1298,7 +1340,20 @@ router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']
     if (!tokens || !tokens.access_token || !tokens.refresh_token) {
       console.log('⚠️ Tokens not provided in request, using admin tokens from database');
       const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
-      if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
+      if (adminUser?.googleBusinessRefreshToken) {
+        if (!adminUser.googleBusinessAccessToken) {
+          const refreshedTokens = await refreshGoogleBusinessToken(adminUser.googleBusinessRefreshToken);
+          const newExpiry = refreshedTokens.expires_in
+            ? new Date(Date.now() + refreshedTokens.expires_in * 1000)
+            : new Date(Date.now() + 3600 * 1000);
+
+          adminUser.googleBusinessAccessToken = refreshedTokens.access_token;
+          adminUser.googleBusinessRefreshToken = refreshedTokens.refresh_token || adminUser.googleBusinessRefreshToken;
+          adminUser.googleBusinessTokenExpiry = newExpiry;
+          adminUser.googleBusinessNeedsReauth = false;
+          await adminUser.save();
+        }
+
         tokensToUse = {
           access_token: adminUser.googleBusinessAccessToken,
           refresh_token: adminUser.googleBusinessRefreshToken,
@@ -1321,21 +1376,33 @@ router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']
       googleBusinessAccountId: accountId || null,
       googleBusinessAccountName: accountName || null,
       googleBusinessLocationName: locationName || (businessProfileId ? `locations/${businessProfileId}` : null),
-      googleBusinessAccessToken: tokensToUse.access_token,
-      googleBusinessRefreshToken: tokensToUse.refresh_token,
       googleBusinessNeedsReauth: false // ✅ FIXED: Always clear reauth flag when saving new tokens
     };
+
+    const shouldStoreCustomerTokens = !!(tokens && tokens.access_token && tokens.refresh_token);
+    if (shouldStoreCustomerTokens) {
+      updateData.googleBusinessAccessToken = tokensToUse.access_token;
+      updateData.googleBusinessRefreshToken = tokensToUse.refresh_token;
+    } else {
+      updateData.googleBusinessAccessToken = null;
+      updateData.googleBusinessRefreshToken = null;
+      updateData.googleBusinessTokenExpiry = null;
+    }
 
     // ✅ FIXED: Always set expiry - default to 1 hour if expires_in is not provided
     // OAuth tokens typically expire in 1 hour, so use that as default
     // This prevents immediate expiry checks that would incorrectly trigger reauth
     if (tokensToUse.expires_in && !isNaN(tokensToUse.expires_in) && tokensToUse.expires_in > 0) {
-      updateData.googleBusinessTokenExpiry = new Date(Date.now() + tokensToUse.expires_in * 1000);
+      if (shouldStoreCustomerTokens) {
+        updateData.googleBusinessTokenExpiry = new Date(Date.now() + tokensToUse.expires_in * 1000);
+      }
       console.log(`✅ Token expiry set: ${tokensToUse.expires_in} seconds from now`);
     } else {
       // Default to 1 hour (3600 seconds) if expires_in is not provided
       // This prevents the expiry check from immediately triggering a refresh
-      updateData.googleBusinessTokenExpiry = new Date(Date.now() + 3600 * 1000);
+      if (shouldStoreCustomerTokens) {
+        updateData.googleBusinessTokenExpiry = new Date(Date.now() + 3600 * 1000);
+      }
       console.log('⚠️ Token expires_in not provided or invalid, defaulting to 1 hour expiry');
     }
     
@@ -1453,7 +1520,7 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
     
     // Priority 1: Use admin tokens (always fresh, auto-refreshed every 30 seconds)
     const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
-    if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
+    if (adminUser?.googleBusinessRefreshToken) {
       tokensToUse = {
         access_token: adminUser.googleBusinessAccessToken,
         refresh_token: adminUser.googleBusinessRefreshToken
@@ -1676,7 +1743,7 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
     });
 
     // ✅ FIXED: Refresh tokens if they expire soon (whether customer or admin tokens)
-    if (expiresAt > 0 && now > (expiresAt - refreshThreshold)) {
+    if (!tokensToUse.access_token || !expiresAt || now > (expiresAt - refreshThreshold)) {
       console.log('🔄 Token expires soon, refreshing proactively...');
       
       if (!tokensToUse.refresh_token) {
@@ -1695,7 +1762,8 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
               await User.findByIdAndUpdate(adminUser._id, {
                 googleBusinessAccessToken: refreshedTokens.access_token,
                 googleBusinessTokenExpiry: newExpiry,
-                googleBusinessRefreshToken: refreshedTokens.refresh_token || adminUser.googleBusinessRefreshToken
+                googleBusinessRefreshToken: refreshedTokens.refresh_token || adminUser.googleBusinessRefreshToken,
+                googleBusinessNeedsReauth: false,
               });
               
               // Update tokens to use
@@ -1752,6 +1820,10 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
             hasRefreshToken: !!refreshedTokens.refresh_token,
             expiresIn: refreshedTokens.expires_in
           });
+
+          if (!refreshedTokens.access_token) {
+            throw new Error('Google Business token refresh returned no access_token');
+          }
           
           // Calculate new expiry
           const newExpiry = refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0
@@ -1772,7 +1844,8 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
               await User.findByIdAndUpdate(adminUser._id, {
                 googleBusinessAccessToken: refreshedTokens.access_token,
                 googleBusinessTokenExpiry: newExpiry,
-                googleBusinessRefreshToken: refreshedTokens.refresh_token || adminUser.googleBusinessRefreshToken
+                googleBusinessRefreshToken: refreshedTokens.refresh_token || adminUser.googleBusinessRefreshToken,
+                googleBusinessNeedsReauth: false,
               });
             }
           } else {
@@ -1798,6 +1871,14 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
               refreshError.message?.includes('invalid_grant')) {
             // If using admin tokens, admin needs to reconnect
             if (usingAdminTokens) {
+              const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
+              if (adminUser?._id) {
+                await User.findByIdAndUpdate(adminUser._id, {
+                  googleBusinessNeedsReauth: true,
+                  googleBusinessAccessToken: null,
+                  googleBusinessTokenExpiry: null,
+                });
+              }
               return res.status(401).json({ 
                 error: 'Google Business Profile connection expired. Please ask your administrator to reconnect their account.',
                 requiresReauth: true,
@@ -2292,9 +2373,12 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
         }
       }
       
-      if (customer?.googleBusinessRefreshToken && !error._refreshAttempted) {
+      const adminTokenOwner = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
+      const recoveryTokenOwner = adminTokenOwner?.googleBusinessRefreshToken ? adminTokenOwner : customer;
+
+      if (recoveryTokenOwner?.googleBusinessRefreshToken && !error._refreshAttempted) {
         try {
-          const refreshedTokens = await refreshGoogleBusinessToken(customer.googleBusinessRefreshToken);
+          const refreshedTokens = await refreshGoogleBusinessToken(recoveryTokenOwner.googleBusinessRefreshToken);
           
           // Update customer with new tokens
           let newExpiry = null;
@@ -2304,10 +2388,10 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
             newExpiry = new Date(Date.now() + 3600 * 1000);
           }
           
-          await User.findByIdAndUpdate(customerId, {
+          await User.findByIdAndUpdate(recoveryTokenOwner._id, {
             googleBusinessAccessToken: refreshedTokens.access_token,
             googleBusinessTokenExpiry: newExpiry,
-            googleBusinessRefreshToken: refreshedTokens.refresh_token || customer.googleBusinessRefreshToken,
+            googleBusinessRefreshToken: refreshedTokens.refresh_token || recoveryTokenOwner.googleBusinessRefreshToken,
             googleBusinessNeedsReauth: false
           });
           
@@ -2328,12 +2412,17 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
           // Mark as needing reauth if refresh token is invalid
           if (refreshError.response?.data?.error === 'invalid_grant' || 
               refreshError.message?.includes('invalid_grant')) {
-            await User.findByIdAndUpdate(customerId, {
-              googleBusinessNeedsReauth: true
+            await User.findByIdAndUpdate(recoveryTokenOwner._id, {
+              googleBusinessNeedsReauth: true,
+              googleBusinessAccessToken: null,
+              googleBusinessTokenExpiry: null,
             });
+            const ownerIsCustomer = String(recoveryTokenOwner._id) === String(customerId);
             
             return res.status(401).json({ 
-              error: 'Google Business Profile connection expired. Please ask your administrator to reconnect your Google Business Profile.',
+              error: ownerIsCustomer
+                ? 'Google Business Profile connection expired. Please ask your administrator to reconnect your Google Business Profile.'
+                : 'Admin Google Business Profile connection expired. Please ask your administrator to reconnect Google Business Profile.',
               requiresReauth: true,
               details: 'Refresh token expired or revoked. Admin needs to re-assign the profile.'
             });
@@ -2429,7 +2518,7 @@ router.get('/group-insights', authenticateToken, authorizeRole(['admin']), async
     let adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
     
     // Priority 1: Database (most reliable, persistent)
-    if (adminUser?.googleBusinessAccessToken && adminUser?.googleBusinessRefreshToken) {
+    if (adminUser?.googleBusinessRefreshToken) {
       adminTokens = {
         access_token: adminUser.googleBusinessAccessToken,
         refresh_token: adminUser.googleBusinessRefreshToken
@@ -2450,7 +2539,7 @@ router.get('/group-insights', authenticateToken, authorizeRole(['admin']), async
       console.log('[Google Business] Using admin tokens from environment variables (group-insights)');
     }
 
-    if (!adminTokens.access_token) {
+    if (!adminTokens.access_token && !adminTokens.refresh_token) {
       return res.status(400).json({ error: 'Admin Google Business Profile not connected. Please connect first.' });
     }
 
@@ -2460,7 +2549,7 @@ router.get('/group-insights', authenticateToken, authorizeRole(['admin']), async
       const expiresAt = adminUser.googleBusinessTokenExpiry ? new Date(adminUser.googleBusinessTokenExpiry).getTime() : 0;
       const refreshThreshold = 5 * 60 * 1000; // Refresh 5 minutes before expiry
       
-      if (expiresAt > 0 && now > (expiresAt - refreshThreshold)) {
+      if (!adminTokens.access_token || !expiresAt || now > (expiresAt - refreshThreshold)) {
         console.log('[Google Business] Admin token expires soon, refreshing proactively (group-insights)...');
         
         if (!adminUser.googleBusinessRefreshToken) {
@@ -2483,7 +2572,8 @@ router.get('/group-insights', authenticateToken, authorizeRole(['admin']), async
           
           const updateData = {
             googleBusinessAccessToken: refreshedTokens.access_token,
-            googleBusinessTokenExpiry: newExpiry
+            googleBusinessTokenExpiry: newExpiry,
+            googleBusinessNeedsReauth: false,
           };
           
           if (refreshedTokens.refresh_token) {
@@ -2504,6 +2594,11 @@ router.get('/group-insights', authenticateToken, authorizeRole(['admin']), async
           
           if (refreshError.response?.data?.error === 'invalid_grant' || 
               refreshError.message?.includes('invalid_grant')) {
+            await User.findByIdAndUpdate(adminUser._id, {
+              googleBusinessNeedsReauth: true,
+              googleBusinessAccessToken: null,
+              googleBusinessTokenExpiry: null,
+            });
             return res.status(401).json({ 
               error: 'Admin Google Business Profile refresh token expired. Please reconnect.',
               requiresReauth: true,

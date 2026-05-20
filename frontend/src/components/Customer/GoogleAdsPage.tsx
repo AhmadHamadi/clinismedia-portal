@@ -141,7 +141,9 @@ const GoogleAdsPage: React.FC = () => {
       
     } catch (error: any) {
       console.error('🔍 Error fetching Google Ads data:', error);
-      setError(error.response?.data?.error || error.message || 'Failed to fetch Google Ads data');
+      setError(error.response?.data?.requiresReauth
+        ? 'Google Ads connection expired. Please contact your administrator to reconnect Google Ads.'
+        : (error.response?.data?.error || error.message || 'Failed to fetch Google Ads data'));
       setStatus('loaded');
     }
   };
@@ -914,7 +916,6 @@ const GoogleAdsPage: React.FC = () => {
 };
 
 export default GoogleAdsPage;
-
 
 
 

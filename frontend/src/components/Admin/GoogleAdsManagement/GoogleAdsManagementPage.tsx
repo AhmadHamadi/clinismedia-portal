@@ -321,7 +321,12 @@ const GoogleAdsManagementPage: React.FC = () => {
                         {customer.location || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {googleAdsStatus.connected ? (
+                        {googleAdsStatus.needsReauth ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <FaExclamationTriangle className="w-3 h-3 mr-1" />
+                            Reconnect Needed
+                          </span>
+                        ) : googleAdsStatus.connected ? (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             <FaCheckCircle className="w-3 h-3 mr-1" />
                             Connected

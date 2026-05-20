@@ -72,6 +72,7 @@ async function saveTokensForUser(user, tokens) {
   
   user.googleAdsAccessToken = tokens.access_token;
   user.googleAdsTokenExpiry = tokenExpiry;
+  user.googleAdsNeedsReauth = false;
   
   // Save new refresh token if provided (Google may rotate it)
   if (tokens.refresh_token) {

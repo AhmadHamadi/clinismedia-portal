@@ -11,6 +11,70 @@ const { findGoogleIntegrationAdminUser } = require('../utils/googleIntegrationAd
 const MCC_CUSTOMER_ID = '4037087680';
 const SCOPES = ['https://www.googleapis.com/auth/adwords'];
 
+function normalizeGoogleAdsCustomerId(customerId) {
+  return String(customerId || '').replace(/^customers\//, '').replace(/-/g, '').trim();
+}
+
+function isPermanentGoogleOAuthError(error) {
+  const code = error?.response?.data?.error || error?.code || '';
+  const message = error?.message || '';
+  return ['invalid_grant', 'admin_policy_enforced', 'invalid_client', 'unauthorized_client'].includes(code)
+    || message.includes('invalid_grant');
+}
+
+async function markGoogleAdsAdminForReauth(adminUser) {
+  if (!adminUser?._id) return;
+  await User.findByIdAndUpdate(adminUser._id, {
+    googleAdsNeedsReauth: true,
+    googleAdsAccessToken: null,
+    googleAdsTokenExpiry: null,
+  });
+}
+
+function sendGoogleAdsError(res, error, fallbackMessage) {
+  if (error?.requiresReauth || isPermanentGoogleOAuthError(error)) {
+    return res.status(401).json({
+      error: 'Admin Google Ads connection expired. Please reconnect Google Ads.',
+      requiresReauth: true,
+    });
+  }
+
+  return res.status(500).json({ error: fallbackMessage, details: error.message });
+}
+
+async function assertGoogleAdsAccountAccess(req, accountId) {
+  const normalizedRequestedId = normalizeGoogleAdsCustomerId(accountId);
+
+  if (req.user?.role === 'admin') {
+    return;
+  }
+
+  if (!['customer', 'receptionist'].includes(req.user?.role)) {
+    const error = new Error('Not authorized to access Google Ads data');
+    error.status = 403;
+    throw error;
+  }
+
+  const effectiveCustomerId = req.user.role === 'receptionist' && req.user.parentCustomerId
+    ? req.user.parentCustomerId
+    : (req.user._id || req.user.id);
+  const customer = await User.findById(effectiveCustomerId).select('googleAdsCustomerId googleAdsNeedsReauth');
+  const assignedAccountId = normalizeGoogleAdsCustomerId(customer?.googleAdsCustomerId);
+
+  if (!customer || !assignedAccountId || assignedAccountId !== normalizedRequestedId) {
+    const error = new Error('Not authorized to access this Google Ads account');
+    error.status = 403;
+    throw error;
+  }
+
+  if (customer.googleAdsNeedsReauth) {
+    const error = new Error('Google Ads connection expired. Please ask your administrator to reconnect Google Ads.');
+    error.status = 401;
+    error.requiresReauth = true;
+    throw error;
+  }
+}
+
 // ============================================
 // Health Check - Debug endpoint
 // ============================================
@@ -152,7 +216,7 @@ router.get('/auth/admin', authenticateToken, authorizeRole(['admin']), async (re
       throw new Error('Missing GOOGLE_ADS_CLIENT_ID or GOOGLE_ADS_CLIENT_SECRET');
     }
 
-  const adminUser = await findGoogleIntegrationAdminUser(req, 'googleAds');
+  const adminUser = await findGoogleIntegrationAdminUser(req, 'googleAds', { preferCurrentAdmin: true });
   if (!adminUser) {
     return res.status(404).json({ error: 'Admin user not found' });
   }
@@ -219,18 +283,28 @@ router.get('/callback', async (req, res) => {
     });
 
     const { access_token, refresh_token, expires_in } = tokenResponse.data;
+    const existingAdmin = await User.findById(adminUserId);
+    if (!existingAdmin) {
+      throw new Error('Admin user not found for Google Ads OAuth state.');
+    }
+    const refreshTokenToSave = refresh_token || existingAdmin?.googleAdsRefreshToken;
 
-    // Save tokens to admin user
-    await User.findByIdAndUpdate(adminUserId, {
-      googleAdsAccessToken: access_token,
-      googleAdsRefreshToken: refresh_token,
-      googleAdsTokenExpiry: new Date(Date.now() + expires_in * 1000),
-    });
+    if (!access_token) {
+      throw new Error('No access_token returned from Google Ads OAuth.');
+    }
 
-    // Check for refresh token
-    if (!refresh_token) {
+    if (!refreshTokenToSave) {
       throw new Error('No refresh_token returned. Ensure access_type=offline & prompt=consent.');
     }
+
+    // Save tokens to admin user. Preserve an existing refresh token if Google
+    // returns only a new access token during a reconnect.
+    await User.findByIdAndUpdate(adminUserId, {
+      googleAdsAccessToken: access_token,
+      googleAdsRefreshToken: refreshTokenToSave,
+      googleAdsTokenExpiry: new Date(Date.now() + (expires_in || 3600) * 1000),
+      googleAdsNeedsReauth: false,
+    });
     
     console.log('✅ Google Ads OAuth successful for admin:', adminUserId);
     
@@ -250,14 +324,14 @@ router.get('/callback', async (req, res) => {
 
 // Helper: Get fresh access token from refresh token (checks expiry first, saves tokens after refresh)
 // ✅ FIXED: Now checks expiry before refreshing and saves new tokens to database
-async function getAccessToken(adminUser) {
+async function getAccessToken(adminUser, forceRefresh = false) {
   // Check if token is expired before refreshing
   const now = Date.now();
   const expiresAt = adminUser.googleAdsTokenExpiry ? new Date(adminUser.googleAdsTokenExpiry).getTime() : 0;
   const refreshThreshold = 5 * 60 * 1000; // Refresh 5 minutes before expiry
   
   // If token is still valid, return it without refreshing
-  if (expiresAt > 0 && now < (expiresAt - refreshThreshold)) {
+  if (!forceRefresh && expiresAt > 0 && now < (expiresAt - refreshThreshold)) {
     // ✅ SAFETY CHECK: If access token is missing even though expiry says it's valid, refresh anyway
     if (!adminUser.googleAdsAccessToken) {
       console.log(`[Google Ads] Token expiry says valid but access token is missing, refreshing...`);
@@ -275,19 +349,33 @@ async function getAccessToken(adminUser) {
     throw new Error('No refresh token available for Google Ads');
   }
   
-  const response = await axios.post('https://oauth2.googleapis.com/token', {
-    client_id: process.env.GOOGLE_ADS_CLIENT_ID,
-    client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
-    refresh_token: adminUser.googleAdsRefreshToken,
-    grant_type: 'refresh_token',
-  });
+  let response;
+  try {
+    response = await axios.post('https://oauth2.googleapis.com/token', {
+      client_id: process.env.GOOGLE_ADS_CLIENT_ID,
+      client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
+      refresh_token: adminUser.googleAdsRefreshToken,
+      grant_type: 'refresh_token',
+    });
+  } catch (error) {
+    if (isPermanentGoogleOAuthError(error)) {
+      await markGoogleAdsAdminForReauth(adminUser);
+      error.requiresReauth = true;
+    }
+    throw error;
+  }
   
   const { access_token, refresh_token, expires_in } = response.data;
+
+  if (!access_token) {
+    throw new Error('Google Ads token refresh returned no access_token');
+  }
   
   // ✅ FIXED: Save the new tokens and expiry time to database
   const updateData = {
     googleAdsAccessToken: access_token,
-    googleAdsTokenExpiry: new Date(Date.now() + (expires_in || 3600) * 1000)
+    googleAdsTokenExpiry: new Date(Date.now() + (expires_in || 3600) * 1000),
+    googleAdsNeedsReauth: false,
   };
   
   // ✅ FIXED: Save new refresh token if Google provides one (they may rotate it)
@@ -303,19 +391,37 @@ async function getAccessToken(adminUser) {
 }
 
 // Helper: Make GAQL query to Google Ads API
-async function executeGAQLQuery(accessToken, customerId, query) {
+async function executeGAQLQuery(accessToken, customerId, query, adminUser = null) {
   const url = `https://googleads.googleapis.com/v22/customers/${customerId}/googleAds:search`;
   
-  const response = await axios.post(url, { query }, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
-      'login-customer-id': MCC_CUSTOMER_ID,
-      'Content-Type': 'application/json'
-    }
-  });
+  try {
+    const response = await axios.post(url, { query }, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+        'login-customer-id': MCC_CUSTOMER_ID,
+        'Content-Type': 'application/json'
+      }
+    });
 
-  return response.data.results || [];
+    return response.data.results || [];
+  } catch (error) {
+    if (adminUser && error.response?.status === 401) {
+      console.warn('[Google Ads] Access token rejected by API, force-refreshing and retrying once...');
+      const freshAccessToken = await getAccessToken(adminUser, true);
+      const retryResponse = await axios.post(url, { query }, {
+        headers: {
+          'Authorization': `Bearer ${freshAccessToken}`,
+          'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+          'login-customer-id': MCC_CUSTOMER_ID,
+          'Content-Type': 'application/json'
+        }
+      });
+      return retryResponse.data.results || [];
+    }
+
+    throw error;
+  }
 }
 
 // ============================================
@@ -345,17 +451,7 @@ router.get('/accounts', authenticateToken, authorizeRole(['admin']), async (req,
       ORDER BY customer_client.descriptive_name
     `;
 
-    const searchUrl = `https://googleads.googleapis.com/v22/customers/${MCC_CUSTOMER_ID}/googleAds:search`;
-    const response = await axios.post(searchUrl, { query: gaqlQuery }, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
-        'login-customer-id': MCC_CUSTOMER_ID,
-          'Content-Type': 'application/json'
-      }
-    });
-
-    const results = response.data.results || [];
+    const results = await executeGAQLQuery(accessToken, MCC_CUSTOMER_ID, gaqlQuery, adminUser);
     console.log(`🔍 Found ${results.length} accounts in hierarchy`);
     
     // Log first result to debug structure
@@ -391,7 +487,7 @@ router.get('/accounts', authenticateToken, authorizeRole(['admin']), async (req,
     res.json(accounts);
   } catch (error) {
     console.error('❌ List accounts error:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Failed to list accounts', details: error.message });
+    sendGoogleAdsError(res, error, 'Failed to list accounts');
   }
 });
 
@@ -407,6 +503,8 @@ router.get('/kpis', authenticateToken, async (req, res) => {
     if (!accountId) {
       return res.status(400).json({ error: 'accountId required' });
     }
+
+    await assertGoogleAdsAccountAccess(req, accountId);
 
     const adminUser = await findGoogleIntegrationAdminUser(req, 'googleAds');
     if (!adminUser?.googleAdsRefreshToken) {
@@ -439,7 +537,7 @@ router.get('/kpis', authenticateToken, async (req, res) => {
       WHERE ${dateClause}
     `;
 
-    const results = await executeGAQLQuery(accessToken, accountId, gaql);
+    const results = await executeGAQLQuery(accessToken, accountId, gaql, adminUser);
 
     // Roll up metrics (API returns camelCase!)
     const totals = results.reduce((acc, row) => {
@@ -453,8 +551,12 @@ router.get('/kpis', authenticateToken, async (req, res) => {
 
     // Calculate derived metrics (guard against division by zero)
     const spend = totals.costMicros / 1_000_000;
-    const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) : 0;
+    const ctrRatio = totals.impressions > 0 ? (totals.clicks / totals.impressions) : 0;
+    const ctrPercent = ctrRatio * 100;
+    const conversionRate = totals.clicks > 0 ? (totals.conversions / totals.clicks) * 100 : 0;
     const cpa = totals.conversions > 0 ? (spend / totals.conversions) : 0;
+    const averageCpc = totals.clicks > 0 ? (spend / totals.clicks) : 0;
+    const averageCpm = totals.impressions > 0 ? (spend / totals.impressions) * 1000 : 0;
 
     // Return in format expected by frontend
     res.json({
@@ -462,19 +564,41 @@ router.get('/kpis', authenticateToken, async (req, res) => {
       clicks: totals.clicks,
       impressions: totals.impressions,
       conversions: totals.conversions,
-      ctr,
+      ctr: ctrPercent,
       cpa,
       // Also include camelCase versions for frontend compatibility
       totalCost: spend,
       totalClicks: totals.clicks,
       totalImpressions: totals.impressions,
       totalConversions: totals.conversions,
-      avgCtr: ctr,
-      avgCpa: cpa
+      avgCtr: ctrRatio,
+      avgCpa: cpa,
+      conversionRate,
+      costPerConversion: cpa,
+      averageCpc,
+      averageCpm,
+      // Keep these fields present so the admin insights panel never crashes
+      // when an account does not return optional network/video metrics.
+      qualityScore: 0,
+      searchImpressionShare: 0,
+      searchRankLostImpressionShare: 0,
+      searchExactMatchImpressionShare: 0,
+      displayImpressionShare: 0,
+      displayRankLostImpressionShare: 0,
+      videoViews: 0,
+      videoViewRate: 0,
+      videoQuartile25Rate: 0,
+      videoQuartile50Rate: 0,
+      videoQuartile75Rate: 0,
+      videoQuartile100Rate: 0,
+      lastUpdated: new Date().toISOString()
     });
   } catch (error) {
     console.error('KPIs error:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Failed to fetch KPIs', details: error.message });
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message, requiresReauth: !!error.requiresReauth });
+    }
+    sendGoogleAdsError(res, error, 'Failed to fetch KPIs');
   }
 });
 
@@ -490,6 +614,8 @@ router.get('/daily', authenticateToken, async (req, res) => {
     if (!accountId) {
       return res.status(400).json({ error: 'accountId required' });
     }
+
+    await assertGoogleAdsAccountAccess(req, accountId);
 
     const adminUser = await findGoogleIntegrationAdminUser(req, 'googleAds');
     if (!adminUser?.googleAdsRefreshToken) {
@@ -522,7 +648,7 @@ router.get('/daily', authenticateToken, async (req, res) => {
       ORDER BY segments.date
     `;
 
-    const results = await executeGAQLQuery(accessToken, accountId, gaql);
+    const results = await executeGAQLQuery(accessToken, accountId, gaql, adminUser);
 
     // Transform to arrays by date (API returns camelCase!)
     const daily = {};
@@ -547,7 +673,10 @@ router.get('/daily', authenticateToken, async (req, res) => {
     res.json({ daily });
   } catch (error) {
     console.error('Daily metrics error:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Failed to fetch daily metrics', details: error.message });
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message, requiresReauth: !!error.requiresReauth });
+    }
+    sendGoogleAdsError(res, error, 'Failed to fetch daily metrics');
   }
 });
 
@@ -563,6 +692,8 @@ router.get('/campaigns', authenticateToken, async (req, res) => {
     if (!accountId) {
       return res.status(400).json({ error: 'accountId required' });
     }
+
+    await assertGoogleAdsAccountAccess(req, accountId);
 
     const adminUser = await findGoogleIntegrationAdminUser(req, 'googleAds');
     if (!adminUser?.googleAdsRefreshToken) {
@@ -595,7 +726,7 @@ router.get('/campaigns', authenticateToken, async (req, res) => {
         AND campaign.status = 'ENABLED'
     `;
 
-    const results = await executeGAQLQuery(accessToken, accountId, gaql);
+    const results = await executeGAQLQuery(accessToken, accountId, gaql, adminUser);
 
     // Transform to table rows (API returns camelCase!)
     const campaigns = results.map(row => {
@@ -603,26 +734,39 @@ router.get('/campaigns', authenticateToken, async (req, res) => {
       const m = row.metrics || {};
       const costMicros = m.costMicros || m.cost_micros || 0;
       const spend = costMicros / 1_000_000;
+      const clicks = Number(m.clicks || 0);
+      const impressions = Number(m.impressions || 0);
       const conversions = Number(m.conversions || 0);
       const cpa = conversions > 0 ? (spend / conversions) : 0;
+      const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+      const channel = c.advertisingChannelType || c.advertising_channel_type || '';
 
       return {
+        id: String(c.id || ''),
         campaignId: String(c.id || ''),
         name: c.name || '',
         status: c.status || '',
-        channel: c.advertisingChannelType || c.advertising_channel_type || '',
+        type: channel,
+        channel,
+        channelType: channel,
         spend,
-        clicks: Number(m.clicks || 0),
-        impressions: Number(m.impressions || 0),
+        cost: spend,
+        clicks,
+        impressions,
         conversions,
-        cpa
+        cpa,
+        ctr,
+        averageCpc: clicks > 0 ? (spend / clicks) : 0
       };
     });
 
     res.json({ campaigns });
   } catch (error) {
     console.error('Campaigns error:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Failed to fetch campaigns', details: error.message });
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message, requiresReauth: !!error.requiresReauth });
+    }
+    sendGoogleAdsError(res, error, 'Failed to fetch campaigns');
   }
 });
 
@@ -643,7 +787,8 @@ router.post('/save-account', authenticateToken, authorizeRole(['admin']), async 
       clinicId,
       { 
         googleAdsCustomerId: accountId,
-        googleAdsAccountName: accountName || null
+        googleAdsAccountName: accountName || null,
+        googleAdsNeedsReauth: false,
       },
       { new: true }
     );
@@ -676,6 +821,8 @@ router.patch('/disconnect/:clinicId', authenticateToken, authorizeRole(['admin']
         googleAdsRefreshToken: null,
         googleAdsTokenExpiry: null,
         googleAdsCustomerId: null,
+        googleAdsAccountName: null,
+        googleAdsNeedsReauth: false,
       },
       { new: true }
     );

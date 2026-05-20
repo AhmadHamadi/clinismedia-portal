@@ -118,7 +118,7 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
     }
   };
 
-  const fetchGoogleBusinessData = async (forceRefresh: boolean = false) => {
+  const fetchGoogleBusinessData = async (forceRefresh: boolean = false, tokenRetryCount: number = 0) => {
     let currentCustomer = null; // ✅ FIXED: Store customer in scope accessible to catch block
     
     try {
@@ -202,15 +202,19 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
         // If profileId exists but API fails, it's a different issue (token/API error)
         if (!hasProfileId && (backendError.includes('Missing customer') || backendError.includes('No Google Business Profile connected'))) {
           setError('No Google Business Profile connected. Please contact your administrator to connect a Google Business Profile.');
+        } else if (requiresReauth === false || (backendError.includes('token expired') && backendError.includes('refresh the page'))) {
+          // Token was refreshed, auto-retry immediately
+          setError(null); // Clear error
+          if (tokenRetryCount < 1) {
+            setTimeout(() => {
+              fetchGoogleBusinessData(forceRefresh, tokenRetryCount + 1);
+            }, 1000);
+          } else {
+            setError('Google Business Profile authentication was refreshed, but Google still rejected the request. Please try again.');
+          }
         } else if (backendError.includes('expired') || backendError.includes('reconnect') || requiresReauth) {
           // Profile is connected but tokens expired - show reconnection message
           setError('Google Business Profile connection expired. Please contact your administrator to reconnect.');
-        } else if (backendError.includes('token expired') && backendError.includes('refresh the page')) {
-          // Token was refreshed, auto-retry immediately
-          setError(null); // Clear error
-          setTimeout(() => {
-            fetchGoogleBusinessData(forceRefresh);
-          }, 1000);
         } else if (hasProfileId) {
           // Profile is connected but API call failed - show generic error, not "not connected"
           setError('Failed to load Google Business Profile data. Please try again or contact support if the issue persists.');
@@ -238,14 +242,18 @@ const GoogleBusinessAnalyticsPage: React.FC = () => {
         const backendError = err.response?.data?.error || '';
         const requiresReauth = err.response?.data?.requiresReauth;
         
-        if (requiresReauth || backendError.includes('expired') || backendError.includes('reconnect')) {
-          setError('Google Business Profile connection expired. Please contact your administrator to reconnect.');
-        } else if (backendError.includes('refresh the page')) {
+        if (requiresReauth === false || backendError.includes('refresh the page')) {
           // Token was refreshed, auto-retry
           setError(null);
-          setTimeout(() => {
-            fetchGoogleBusinessData(forceRefresh);
-          }, 1000);
+          if (tokenRetryCount < 1) {
+            setTimeout(() => {
+              fetchGoogleBusinessData(forceRefresh, tokenRetryCount + 1);
+            }, 1000);
+          } else {
+            setError('Google Business Profile authentication was refreshed, but Google still rejected the request. Please try again.');
+          }
+        } else if (requiresReauth || backendError.includes('expired') || backendError.includes('reconnect')) {
+          setError('Google Business Profile connection expired. Please contact your administrator to reconnect.');
         } else {
           setError('Authentication failed. Please refresh the page and try again.');
         }

@@ -475,6 +475,31 @@ async function refreshGoogleBusinessAccessToken(refreshToken) {
   return response.data;
 }
 
+function isPermanentGoogleOAuthError(error) {
+  const code = error?.response?.data?.error || error?.code || '';
+  const message = error?.message || '';
+  return ['invalid_grant', 'admin_policy_enforced', 'invalid_client', 'unauthorized_client'].includes(code)
+    || message.includes('invalid_grant');
+}
+
+async function markGoogleBusinessTokenOwnerForReauth(tokenOwner) {
+  if (!tokenOwner?._id) return;
+  await User.findByIdAndUpdate(tokenOwner._id, {
+    googleBusinessNeedsReauth: true,
+    googleBusinessAccessToken: null,
+    googleBusinessTokenExpiry: null,
+  });
+}
+
+async function markGoogleAdsAdminForReauth(adminUser) {
+  if (!adminUser?._id) return;
+  await User.findByIdAndUpdate(adminUser._id, {
+    googleAdsNeedsReauth: true,
+    googleAdsAccessToken: null,
+    googleAdsTokenExpiry: null,
+  });
+}
+
 async function getGoogleBusinessAuthContext(req, customer) {
   const adminUser = await findGoogleIntegrationAdminUser(req, 'googleBusiness');
   const tokenOwner = adminUser?.googleBusinessRefreshToken ? adminUser : customer;
@@ -490,8 +515,20 @@ async function getGoogleBusinessAuthContext(req, customer) {
   const shouldRefresh = !accessToken || !expiresAt || expiresAt <= Date.now() + 5 * 60 * 1000;
 
   if (shouldRefresh) {
-    const refreshed = await refreshGoogleBusinessAccessToken(tokenOwner.googleBusinessRefreshToken);
+    let refreshed;
+    try {
+      refreshed = await refreshGoogleBusinessAccessToken(tokenOwner.googleBusinessRefreshToken);
+    } catch (error) {
+      if (isPermanentGoogleOAuthError(error)) {
+        await markGoogleBusinessTokenOwnerForReauth(tokenOwner);
+        error.requiresReauth = true;
+      }
+      throw error;
+    }
     accessToken = refreshed.access_token;
+    if (!accessToken) {
+      throw new Error('Google Business token refresh returned no access_token');
+    }
 
     const updateData = {
       googleBusinessAccessToken: refreshed.access_token,
@@ -700,18 +737,32 @@ async function getGoogleAdsAccessToken(req) {
     return adminUser.googleAdsAccessToken;
   }
 
-  const response = await axios.post('https://oauth2.googleapis.com/token', {
-    client_id: process.env.GOOGLE_ADS_CLIENT_ID,
-    client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
-    refresh_token: adminUser.googleAdsRefreshToken,
-    grant_type: 'refresh_token',
-  });
+  let response;
+  try {
+    response = await axios.post('https://oauth2.googleapis.com/token', {
+      client_id: process.env.GOOGLE_ADS_CLIENT_ID,
+      client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
+      refresh_token: adminUser.googleAdsRefreshToken,
+      grant_type: 'refresh_token',
+    });
+  } catch (error) {
+    if (isPermanentGoogleOAuthError(error)) {
+      await markGoogleAdsAdminForReauth(adminUser);
+      error.requiresReauth = true;
+    }
+    throw error;
+  }
 
   const { access_token, refresh_token, expires_in } = response.data;
+  if (!access_token) {
+    throw new Error('Google Ads token refresh returned no access_token');
+  }
+
   await User.findByIdAndUpdate(adminUser._id, {
     googleAdsAccessToken: access_token,
     googleAdsRefreshToken: refresh_token || adminUser.googleAdsRefreshToken,
     googleAdsTokenExpiry: new Date(Date.now() + (expires_in || 3600) * 1000),
+    googleAdsNeedsReauth: false,
   });
 
   return access_token;

@@ -119,48 +119,6 @@ const GoogleBusinessManagementPage: React.FC = () => {
     }
   };
 
-  const handleOAuthCallback = async (code: string, state: string) => {
-    try {
-      setOauthStatus('loading');
-      const token = localStorage.getItem('adminToken');
-      
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-business/callback?code=${code}&state=${state}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.data.success) {
-        // Store tokens temporarily and fetch business profiles
-        setOauthTokens(response.data.tokens);
-        await fetchBusinessProfiles(state, response.data.tokens);
-      } else {
-        setOauthError('OAuth callback failed');
-        setOauthStatus('error');
-      }
-    } catch (err) {
-      console.error('OAuth callback error', err);
-      setOauthError('OAuth callback failed');
-      setOauthStatus('error');
-    }
-  };
-
-  const fetchBusinessProfiles = async (customerId: string, tokens: any) => {
-    try {
-      setOauthStatus('loading');
-      const token = localStorage.getItem('adminToken');
-      
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-business/business-profiles/${customerId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      setBusinessProfiles(response.data.businessProfiles);
-      setOauthStatus('profiles');
-    } catch (err) {
-      console.error('Failed to fetch business profiles', err);
-      setOauthError('Failed to fetch business profiles');
-      setOauthStatus('error');
-    }
-  };
-
   const handleSaveBusinessProfile = async (customer: Customer, profile: BusinessProfile) => {
     if (!profile || !customer) return;
 
@@ -363,7 +321,7 @@ const GoogleBusinessManagementPage: React.FC = () => {
         localStorage.removeItem('googleBusinessAdminTokens');
         setAdminConnected(false);
         setOauthTokens(null);
-        setOauthError('Admin Google Business Profile refresh token expired. Please reconnect using the "Reconnect" button above.');
+        setOauthError('Admin Google Business Profile refresh token expired. Please use "Connect Admin Account" to reconnect.');
       } else {
         let fullMessage = errorMessage;
         if (details) fullMessage += ` — ${details}`;

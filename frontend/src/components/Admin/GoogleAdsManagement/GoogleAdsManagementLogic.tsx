@@ -11,6 +11,8 @@ export interface Customer {
   googleAdsRefreshToken?: string;
   googleAdsTokenExpiry?: string;
   googleAdsCustomerId?: string;
+  googleAdsAccountName?: string;
+  googleAdsNeedsReauth?: boolean;
 }
 
 export interface GoogleAdsAccount {
@@ -77,6 +79,26 @@ export const useGoogleAdsManagement = () => {
     end: new Date().toISOString().split('T')[0]
   });
 
+  const getDateRangeParams = () => {
+    if (dateRange === 'custom') {
+      return {
+        from: customDateRange.start,
+        to: customDateRange.end,
+      };
+    }
+
+    const days = parseInt(dateRange.replace('d', ''), 10);
+    return {
+      from: new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      to: new Date().toISOString().split('T')[0],
+    };
+  };
+
+  const getAssignedGoogleAdsAccountId = (customerId: string) => {
+    const customer = customers.find(c => c._id === customerId);
+    return customer?.googleAdsCustomerId || null;
+  };
+
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -100,7 +122,7 @@ export const useGoogleAdsManagement = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/auth/${customer._id}`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/auth/admin`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -109,20 +131,6 @@ export const useGoogleAdsManagement = () => {
     } catch (err) {
       console.error("Failed to get Google Ads auth URL", err);
       setOauthError("Failed to initiate Google Ads connection");
-      setOauthStatus('error');
-    }
-  };
-
-  const handleOAuthCallback = async (code: string, state: string) => {
-    try {
-      setOauthStatus('loading');
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/callback?code=${code}&state=${state}`);
-
-      setAccounts(response.data.accounts || []);
-      setOauthStatus('accounts');
-    } catch (err) {
-      console.error("OAuth callback failed", err);
-      setOauthError("Failed to authenticate with Google Ads");
       setOauthStatus('error');
     }
   };
@@ -189,6 +197,8 @@ export const useGoogleAdsManagement = () => {
               googleAdsRefreshToken: undefined,
               googleAdsTokenExpiry: undefined,
               googleAdsCustomerId: undefined,
+              googleAdsAccountName: undefined,
+              googleAdsNeedsReauth: false,
             }
           : c
       ));
@@ -203,14 +213,24 @@ export const useGoogleAdsManagement = () => {
   };
 
   const getGoogleAdsStatus = (customer: Customer) => {
-    if (customer.googleAdsCustomerId) {
+    if (customer.googleAdsNeedsReauth) {
       return {
-        connected: true,
+        connected: false,
+        needsReauth: true,
         customerId: customer.googleAdsCustomerId,
         tokenExpiry: customer.googleAdsTokenExpiry,
       };
     }
-    return { connected: false };
+
+    if (customer.googleAdsCustomerId) {
+      return {
+        connected: true,
+        needsReauth: false,
+        customerId: customer.googleAdsCustomerId,
+        tokenExpiry: customer.googleAdsTokenExpiry,
+      };
+    }
+    return { connected: false, needsReauth: false };
   };
 
   const fetchGoogleAdsInsights = async (customerId: string, forceRefresh = false) => {
@@ -218,25 +238,23 @@ export const useGoogleAdsManagement = () => {
       setRefreshing(customerId);
       const token = localStorage.getItem('adminToken');
 
-      let startDate, endDate;
-      if (dateRange === 'custom') {
-        startDate = customDateRange.start;
-        endDate = customDateRange.end;
-      } else {
-        const days = parseInt(dateRange.replace('d', ''));
-        endDate = new Date().toISOString().split('T')[0];
-        startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const accountId = getAssignedGoogleAdsAccountId(customerId);
+      if (!accountId) {
+        setError('No Google Ads account assigned to this clinic');
+        return;
       }
 
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/insights/${customerId}`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/kpis`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { startDate, endDate, forceRefresh }
+        params: { accountId, ...getDateRangeParams(), forceRefresh }
       });
 
       setInsights(response.data);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch Google Ads insights", err);
-      setError("Failed to fetch Google Ads insights");
+      setError(err.response?.data?.requiresReauth
+        ? "Google Ads connection expired. Please reconnect the admin Google Ads account."
+        : "Failed to fetch Google Ads insights");
     } finally {
       setRefreshing(null);
     }
@@ -246,25 +264,23 @@ export const useGoogleAdsManagement = () => {
     try {
       const token = localStorage.getItem('adminToken');
 
-      let startDate, endDate;
-      if (dateRange === 'custom') {
-        startDate = customDateRange.start;
-        endDate = customDateRange.end;
-      } else {
-        const days = parseInt(dateRange.replace('d', ''));
-        endDate = new Date().toISOString().split('T')[0];
-        startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const accountId = getAssignedGoogleAdsAccountId(customerId);
+      if (!accountId) {
+        setError('No Google Ads account assigned to this clinic');
+        return;
       }
 
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/campaigns/${customerId}`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/google-ads/campaigns`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { startDate, endDate }
+        params: { accountId, ...getDateRangeParams() }
       });
 
-      setCampaigns(response.data);
-    } catch (err) {
+      setCampaigns(response.data.campaigns || []);
+    } catch (err: any) {
       console.error("Failed to fetch Google Ads campaigns", err);
-      setError("Failed to fetch Google Ads campaigns");
+      setError(err.response?.data?.requiresReauth
+        ? "Google Ads connection expired. Please reconnect the admin Google Ads account."
+        : "Failed to fetch Google Ads campaigns");
     }
   };
 
@@ -310,9 +326,13 @@ export const useGoogleAdsManagement = () => {
       });
       // Backend already provides name, descriptiveName, currency - use them!
       setAccounts(response.data || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch Google Ads accounts:', err);
       setAccounts([]);
+      if (err.response?.data?.requiresReauth) {
+        setOauthError('Google Ads connection expired. Please reconnect the admin Google Ads account.');
+        setOauthStatus('error');
+      }
     }
   };
 
@@ -325,16 +345,15 @@ export const useGoogleAdsManagement = () => {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const success = urlParams.get('success');
-    const clinicId = urlParams.get('clinicId');
 
-    if (success === 'true' && clinicId) {
+    if (success === 'true') {
       setOauthStatus('success');
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
       // Refresh customers to get updated data
       fetchCustomers();
-    } else if (urlParams.get('error') === 'true') {
-      setOauthError("Failed to connect Google Ads account");
+    } else if (urlParams.get('error')) {
+      setOauthError(decodeURIComponent(urlParams.get('error') || 'Failed to connect Google Ads account'));
       setOauthStatus('error');
       window.history.replaceState({}, document.title, window.location.pathname);
     }
