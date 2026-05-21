@@ -861,6 +861,7 @@ class MetaLeadsEmailService {
       // Check if email already processed (only if messageId exists)
       if (messageId) {
         const existingLead = await MetaLead.findOne({
+          customerId: customer._id,
           emailMessageId: messageId
         });
 
@@ -900,7 +901,25 @@ class MetaLeadsEmailService {
       // This ensures we track all leads regardless of email body content
       const lead = new MetaLead(payload);
 
-      await lead.save();
+      try {
+        await lead.save();
+      } catch (saveError) {
+        // Some mail systems reuse the same Message-ID when copying/forwarding
+        // one lead notification into multiple clinic folders. Keep customer
+        // dedupe above, but do not let a global Message-ID index suppress a
+        // valid lead for a different customer.
+        if (saveError?.code === 11000 && messageId) {
+          const conflictingLead = await MetaLead.findOne({ emailMessageId: messageId });
+          if (conflictingLead && String(conflictingLead.customerId) !== String(customer._id)) {
+            lead.emailMessageId = null;
+            await lead.save();
+          } else {
+            throw saveError;
+          }
+        } else {
+          throw saveError;
+        }
+      }
       console.log(`[Meta Leads] Lead created for customer ${customer._id} (subject: "${subject.length > 50 ? subject.substring(0, 50) + '...' : subject}")`);
       return { lead, action: 'created' };
     } catch (error) {

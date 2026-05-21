@@ -149,6 +149,39 @@ describe('Make.com leads webhook', () => {
     expect(await MetaLead.countDocuments({ customerId: customer._id, metaLeadId: 'meta-456' })).toBe(1);
   });
 
+  test('merges corrected webhook data into an existing meta lead', async () => {
+    const token = 'b'.repeat(64);
+    const customer = await createCustomer(token);
+    const url = `/api/leads/webhook/${customer._id}?token=${token}`;
+
+    await request(app).post(url).send({
+      metaLeadId: 'meta-corrected-1',
+      name: 'Initial Name',
+      fields: { city: 'Hamilton' },
+    });
+
+    const second = await request(app).post(url).send({
+      metaLeadId: 'meta-corrected-1',
+      email: 'corrected@example.com',
+      phone: '9055551212',
+      campaignName: 'Corrected Campaign',
+      fields: { postal_code: 'L8P 1A1' },
+    });
+
+    expect(second.status).toBe(200);
+    expect(second.body.duplicate).toBe(true);
+    expect(second.body.merged).toBe(true);
+    expect(await MetaLead.countDocuments({ customerId: customer._id, metaLeadId: 'meta-corrected-1' })).toBe(1);
+
+    const merged = await MetaLead.findOne({ customerId: customer._id, metaLeadId: 'meta-corrected-1' });
+    expect(merged.leadInfo.name).toBe('Initial Name');
+    expect(merged.leadInfo.email).toBe('corrected@example.com');
+    expect(merged.leadInfo.phone).toBe('19055551212');
+    expect(merged.campaignName).toBe('Corrected Campaign');
+    expect(merged.leadInfo.fields.city).toBe('Hamilton');
+    expect(merged.leadInfo.fields.postal_code).toBe('L8P 1A1');
+  });
+
   test('merges into same-day IMAP lead when webhook arrives later with Meta lead id', async () => {
     const token = 'f'.repeat(64);
     const customer = await createCustomer(token);

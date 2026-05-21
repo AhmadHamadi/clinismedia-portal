@@ -58,7 +58,7 @@ async function assertGoogleAdsAccountAccess(req, accountId) {
   const effectiveCustomerId = req.user.role === 'receptionist' && req.user.parentCustomerId
     ? req.user.parentCustomerId
     : (req.user._id || req.user.id);
-  const customer = await User.findById(effectiveCustomerId).select('googleAdsCustomerId googleAdsNeedsReauth');
+  const customer = await User.findById(effectiveCustomerId).select('googleAdsCustomerId');
   const assignedAccountId = normalizeGoogleAdsCustomerId(customer?.googleAdsCustomerId);
 
   if (!customer || !assignedAccountId || assignedAccountId !== normalizedRequestedId) {
@@ -67,12 +67,8 @@ async function assertGoogleAdsAccountAccess(req, accountId) {
     throw error;
   }
 
-  if (customer.googleAdsNeedsReauth) {
-    const error = new Error('Google Ads connection expired. Please ask your administrator to reconnect Google Ads.');
-    error.status = 401;
-    error.requiresReauth = true;
-    throw error;
-  }
+  // Google Ads reads with the admin/MCC OAuth token. A stale customer-level
+  // reauth flag should not block an otherwise healthy assigned account.
 }
 
 // ============================================

@@ -193,7 +193,8 @@ router.post('/webhook/:customerId', webhookLimiter, async (req, res) => {
 
     const existingLead = await MetaLead.findOne({ customerId, metaLeadId: normalized.metaLeadId });
     if (existingLead) {
-      return res.status(200).json({ ok: true, leadId: existingLead._id, duplicate: true });
+      const mergedLead = await mergeWebhookIntoExistingLead(existingLead, normalized, req.body);
+      return res.status(200).json({ ok: true, leadId: mergedLead._id, duplicate: true, merged: true });
     }
 
     const sameDayLead = await findSameDayLead(customerId, normalized);

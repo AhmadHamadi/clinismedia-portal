@@ -36,6 +36,10 @@ async function refreshGoogleBusinessToken(refreshToken) {
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
     });
+
+    if (!response?.data?.access_token) {
+      throw new Error('Google Business token refresh returned no access_token');
+    }
     
     return {
       access_token: response.data.access_token,

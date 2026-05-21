@@ -521,6 +521,10 @@ async function refreshGoogleBusinessToken(refreshToken) {
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
     });
+
+    if (!response?.data?.access_token) {
+      throw new Error('Google Business token refresh returned no access_token');
+    }
     
     return {
       access_token: response.data.access_token,
@@ -1383,10 +1387,6 @@ router.post('/save-business-profile', authenticateToken, authorizeRole(['admin']
     if (shouldStoreCustomerTokens) {
       updateData.googleBusinessAccessToken = tokensToUse.access_token;
       updateData.googleBusinessRefreshToken = tokensToUse.refresh_token;
-    } else {
-      updateData.googleBusinessAccessToken = null;
-      updateData.googleBusinessRefreshToken = null;
-      updateData.googleBusinessTokenExpiry = null;
     }
 
     // ✅ FIXED: Always set expiry - default to 1 hour if expires_in is not provided
@@ -2429,8 +2429,8 @@ router.get('/business-insights/:customerId', authenticateToken, async (req, res)
           }
           
           return res.status(401).json({ 
-            error: 'Google Business Profile token refresh failed. Please ask your administrator to reconnect.',
-            requiresReauth: true,
+            error: 'Google Business Profile token refresh failed temporarily. Please retry shortly.',
+            requiresReauth: false,
             details: refreshError.response?.data?.error_description || refreshError.message
           });
         }
