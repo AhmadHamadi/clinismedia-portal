@@ -3127,7 +3127,7 @@ router.get('/call-logs/stats', authenticateToken, authorizeRole(['customer', 're
     // This includes: 'no-answer', 'busy', 'failed', 'canceled'
     const missedCalls = await CallLog.countDocuments({
       ...query,
-      dialCallStatus: { $exists: true, $ne: null, $ne: 'answered' }
+      dialCallStatus: { $exists: true, $nin: [null, 'answered'] }
     });
     
     console.log(`📊 Missed calls: ${missedCalls}`);

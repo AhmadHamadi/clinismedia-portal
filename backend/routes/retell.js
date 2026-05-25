@@ -27,8 +27,20 @@ function preferIncomingValue(incomingValue, existingValue) {
 }
 
 function isRetellEmailKey(key) {
-  const normalizedKey = String(key || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
-  return normalizedKey === "email" || normalizedKey.endsWith("email") || normalizedKey.endsWith("emailaddress");
+  const keyText = String(key || "");
+  const tokenizedKey = keyText.replace(/([a-z0-9])([A-Z])/g, "$1_$2");
+  const tokens = tokenizedKey
+    .split(/[^a-zA-Z0-9]+/)
+    .map((token) => token.toLowerCase())
+    .filter(Boolean);
+  const normalizedKey = keyText.replace(/[^a-z0-9]/gi, "").toLowerCase();
+
+  return (
+    tokens.includes("email") ||
+    normalizedKey === "email" ||
+    normalizedKey === "emailaddress" ||
+    normalizedKey.endsWith("emailaddress")
+  );
 }
 
 function scrubRetellEmailFields(value) {
@@ -184,6 +196,35 @@ function mapCallAnalysis(callAnalysis = {}) {
 }
 
 async function findCustomerIdForRetellCall(call = {}) {
+  const findClinicByNumber = async (number) => {
+    if (!number || typeof number !== "string") {
+      return null;
+    }
+
+    const normalized = number.replace(/\s/g, "").trim();
+    const exactFormats = Array.from(
+      new Set([number, normalized, normalized.replace(/^\+/, ""), normalized.replace(/^\+1/, "")].filter(Boolean))
+    );
+
+    const numberFields = [
+      { twilioPhoneNumber: { $in: exactFormats } },
+      { "aiReceptionistSettings.retellPhoneNumber": { $in: exactFormats } },
+    ];
+
+    const nationalDigits = normalized.replace(/\D/g, "").replace(/^1/, "");
+    if (nationalDigits.length >= 10) {
+      numberFields.push(
+        { twilioPhoneNumber: { $regex: nationalDigits, $options: "i" } },
+        { "aiReceptionistSettings.retellPhoneNumber": { $regex: nationalDigits, $options: "i" } }
+      );
+    }
+
+    return User.findOne({
+      role: "customer",
+      $or: numberFields,
+    }).select("_id");
+  };
+
   const metadataCustomerId = call?.metadata?.customerId;
   if (metadataCustomerId) {
     return metadataCustomerId;
@@ -198,9 +239,7 @@ async function findCustomerIdForRetellCall(call = {}) {
       null;
 
     if (inboundNumber) {
-      const clinic = await User.findOne({ role: "customer", twilioPhoneNumber: inboundNumber }).select(
-        "_id"
-      );
+      const clinic = await findClinicByNumber(inboundNumber);
       return clinic?._id || null;
     }
 
@@ -219,9 +258,7 @@ async function findCustomerIdForRetellCall(call = {}) {
     null;
 
   if (inboundNumber) {
-    const clinic = await User.findOne({ role: "customer", twilioPhoneNumber: inboundNumber }).select(
-      "_id"
-    );
+    const clinic = await findClinicByNumber(inboundNumber);
     return clinic?._id || null;
   }
 

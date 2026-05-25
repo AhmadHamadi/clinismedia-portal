@@ -115,6 +115,7 @@ describe('Retell webhook', () => {
           call_summary: 'Caller asked about booking a cleaning.',
           caller_name: 'Taylor Patient',
           email: 'caller@example.com',
+          voicemail: 'Caller left a voicemail-style handoff note.',
           custom_analysis_data: {
             email_address: 'caller@example.com',
           },
@@ -139,6 +140,7 @@ describe('Retell webhook', () => {
     expect(String(savedCall.customerId)).toBe(String(customer._id));
     expect(savedCall.callAnalysis.email).toBeUndefined();
     expect(savedCall.callAnalysis.raw.email).toBeUndefined();
+    expect(savedCall.callAnalysis.raw.voicemail).toBe('Caller left a voicemail-style handoff note.');
     expect(savedCall.callAnalysis.raw.custom_analysis_data.email_address).toBeUndefined();
     expect(savedCall.rawCall.call_analysis.email).toBeUndefined();
     expect(savedCall.rawCall.call_analysis.custom_analysis_data.email_address).toBeUndefined();
@@ -149,5 +151,45 @@ describe('Retell webhook', () => {
     expect(savedCall.callAnalysis.callerName).toBe('Taylor Patient');
     expect(savedCall.callAnalysis.callbackNumber).toBe('+19055550100');
     expect(EmailService.sendAiReceptionistMissedCallEmail).toHaveBeenCalledTimes(1);
+  });
+
+  test('maps phone-number-mode Retell webhooks back to the clinic Retell number', async () => {
+    const customer = await createCustomer();
+    customer.aiReceptionistSettings.telephonyMode = 'phone_number';
+    customer.aiReceptionistSettings.retellPhoneNumber = '+18885550123';
+    await customer.save();
+
+    const payload = {
+      event: 'call_analyzed',
+      call: {
+        call_id: 'retell-call-phone-number-mode',
+        agent_id: 'agent-test',
+        call_type: 'phone_call',
+        direction: 'inbound',
+        from_number: '+19055550100',
+        to_number: '+18885550123',
+        call_status: 'ended',
+        start_timestamp: '2026-05-25T15:00:00.000Z',
+        duration_ms: 90000,
+        call_analysis: {
+          call_summary: 'Caller asked for office hours.',
+          caller_name: 'Jordan Patient',
+          callback_number: '+19055550100',
+        },
+      },
+    };
+    const rawBody = JSON.stringify(payload);
+
+    const res = await request(app)
+      .post('/api/retell/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-retell-signature', signRetellPayload(rawBody))
+      .send(rawBody);
+
+    expect(res.status).toBe(204);
+
+    const savedCall = await RetellCall.findOne({ retellCallId: 'retell-call-phone-number-mode' }).lean();
+    expect(savedCall).toBeTruthy();
+    expect(String(savedCall.customerId)).toBe(String(customer._id));
   });
 });
