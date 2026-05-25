@@ -192,4 +192,47 @@ describe('Retell webhook', () => {
     expect(savedCall).toBeTruthy();
     expect(String(savedCall.customerId)).toBe(String(customer._id));
   });
+
+  test('still acknowledges Retell webhook when clinic notification email fails', async () => {
+    const customer = await createCustomer();
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    EmailService.sendAiReceptionistMissedCallEmail.mockRejectedValueOnce(new Error('SMTP unavailable'));
+
+    const payload = {
+      event: 'call_analyzed',
+      call: {
+        call_id: 'retell-call-email-failure',
+        agent_id: 'agent-test',
+        call_type: 'phone_call',
+        direction: 'inbound',
+        from_number: '+19055550100',
+        to_number: '+12895550123',
+        call_status: 'ended',
+        start_timestamp: '2026-05-25T16:00:00.000Z',
+        duration_ms: 60000,
+        metadata: {
+          customerId: String(customer._id),
+        },
+        call_analysis: {
+          call_summary: 'Caller requested a callback.',
+          callback_number: '+19055550100',
+        },
+      },
+    };
+    const rawBody = JSON.stringify(payload);
+
+    const res = await request(app)
+      .post('/api/retell/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-retell-signature', signRetellPayload(rawBody))
+      .send(rawBody);
+
+    expect(res.status).toBe(204);
+
+    const savedCall = await RetellCall.findOne({ retellCallId: 'retell-call-email-failure' }).lean();
+    expect(savedCall).toBeTruthy();
+    expect(String(savedCall.customerId)).toBe(String(customer._id));
+    expect(savedCall.aiReceptionEmailSentAt).toBeNull();
+    consoleErrorSpy.mockRestore();
+  });
 });

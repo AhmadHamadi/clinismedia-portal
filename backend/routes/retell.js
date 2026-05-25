@@ -366,14 +366,18 @@ async function maybeSendAiReceptionistEmail(retellCall, event) {
     return;
   }
 
-  await EmailService.sendAiReceptionistMissedCallEmail(clinic, retellCall);
-  await RetellCall.findOneAndUpdate(
-    { retellCallId: retellCall.retellCallId },
-    {
-      aiReceptionEmailSentAt: new Date(),
-      aiReceptionEmailRecipient: clinic.email,
-    }
-  );
+  try {
+    await EmailService.sendAiReceptionistMissedCallEmail(clinic, retellCall);
+    await RetellCall.findOneAndUpdate(
+      { retellCallId: retellCall.retellCallId },
+      {
+        aiReceptionEmailSentAt: new Date(),
+        aiReceptionEmailRecipient: clinic.email,
+      }
+    );
+  } catch (emailError) {
+    console.error("[Retell] Failed to send AI receptionist notification email:", emailError);
+  }
 }
 
 router.post("/webhook", async (req, res) => {
