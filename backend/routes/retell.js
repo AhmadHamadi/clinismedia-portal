@@ -26,19 +26,51 @@ function preferIncomingValue(incomingValue, existingValue) {
   return incomingValue;
 }
 
+function isRetellEmailKey(key) {
+  const normalizedKey = String(key || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return normalizedKey === "email" || normalizedKey.endsWith("email") || normalizedKey.endsWith("emailaddress");
+}
+
+function scrubRetellEmailFields(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => scrubRetellEmailFields(item));
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.entries(value).reduce((scrubbed, [key, entryValue]) => {
+    if (isRetellEmailKey(key)) {
+      return scrubbed;
+    }
+
+    scrubbed[key] = scrubRetellEmailFields(entryValue);
+    return scrubbed;
+  }, {});
+}
+
 function mergeCallAnalysis(existingAnalysis, incomingAnalysis) {
   if (!existingAnalysis && !incomingAnalysis) {
     return undefined;
   }
 
   return {
-    ...(existingAnalysis && typeof existingAnalysis === "object" ? existingAnalysis : {}),
-    ...(incomingAnalysis && typeof incomingAnalysis === "object" ? incomingAnalysis : {}),
+    ...(existingAnalysis && typeof existingAnalysis === "object"
+      ? scrubRetellEmailFields(existingAnalysis)
+      : {}),
+    ...(incomingAnalysis && typeof incomingAnalysis === "object"
+      ? scrubRetellEmailFields(incomingAnalysis)
+      : {}),
     raw:
-      incomingAnalysis?.raw ??
-      existingAnalysis?.raw ??
-      (incomingAnalysis && typeof incomingAnalysis === "object" ? incomingAnalysis : undefined) ??
-      (existingAnalysis && typeof existingAnalysis === "object" ? existingAnalysis : undefined),
+      (incomingAnalysis?.raw ? scrubRetellEmailFields(incomingAnalysis.raw) : undefined) ??
+      (existingAnalysis?.raw ? scrubRetellEmailFields(existingAnalysis.raw) : undefined) ??
+      (incomingAnalysis && typeof incomingAnalysis === "object"
+        ? scrubRetellEmailFields(incomingAnalysis)
+        : undefined) ??
+      (existingAnalysis && typeof existingAnalysis === "object"
+        ? scrubRetellEmailFields(existingAnalysis)
+        : undefined),
   };
 }
 
@@ -90,7 +122,6 @@ function mapCallAnalysis(callAnalysis = {}) {
         : null,
     userSentiment: readAnalysisValue(callAnalysis, "user_sentiment", "userSentiment"),
     callerName: readAnalysisValue(callAnalysis, "caller_name", "callerName", "name"),
-    email: readAnalysisValue(callAnalysis, "email"),
     reasonForCall: readAnalysisValue(callAnalysis, "reason_for_call", "reasonForCall"),
     callbackNumber: readAnalysisValue(
       callAnalysis,
@@ -148,7 +179,7 @@ function mapCallAnalysis(callAnalysis = {}) {
       "booking_readiness",
       "bookingReadiness"
     ),
-    raw: callAnalysis,
+    raw: scrubRetellEmailFields(callAnalysis),
   };
 }
 
@@ -201,7 +232,8 @@ async function upsertRetellCallFromWebhook(event, call) {
   const existingCall = await RetellCall.findOne({ retellCallId: call.call_id }).lean();
   const customerId = await findCustomerIdForRetellCall(call);
   const twilioCallSid = call?.metadata?.twilioCallSid || call?.telephony_identifier?.twilio_call_sid || null;
-  const incomingCallAnalysis = mapCallAnalysis(call?.call_analysis);
+  const scrubbedCall = scrubRetellEmailFields(call);
+  const incomingCallAnalysis = mapCallAnalysis(scrubbedCall?.call_analysis);
 
   return RetellCall.findOneAndUpdate(
     { retellCallId: call.call_id },
@@ -244,19 +276,19 @@ async function upsertRetellCallFromWebhook(event, call) {
         Array.isArray(call?.transcript_with_tool_calls) ? call.transcript_with_tool_calls : undefined,
         existingCall?.transcriptWithToolCalls
       ),
-      metadata: preferIncomingValue(call?.metadata, existingCall?.metadata),
+      metadata: preferIncomingValue(scrubbedCall?.metadata, existingCall?.metadata),
       retellLlmDynamicVariables: preferIncomingValue(
-        call?.retell_llm_dynamic_variables,
+        scrubbedCall?.retell_llm_dynamic_variables,
         existingCall?.retellLlmDynamicVariables
       ),
       collectedDynamicVariables: preferIncomingValue(
-        call?.collected_dynamic_variables,
+        scrubbedCall?.collected_dynamic_variables,
         existingCall?.collectedDynamicVariables
       ),
-      customSipHeaders: preferIncomingValue(call?.custom_sip_headers, existingCall?.customSipHeaders),
+      customSipHeaders: preferIncomingValue(scrubbedCall?.custom_sip_headers, existingCall?.customSipHeaders),
       callAnalysis: mergeCallAnalysis(existingCall?.callAnalysis, incomingCallAnalysis),
       lastWebhookEvent: event,
-      rawCall: preferIncomingValue(call, existingCall?.rawCall),
+      rawCall: preferIncomingValue(scrubbedCall, existingCall?.rawCall),
       $addToSet: {
         webhookEvents: event,
       },

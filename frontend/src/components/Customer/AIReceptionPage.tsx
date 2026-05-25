@@ -21,7 +21,6 @@ interface RetellCall {
     callSuccessful?: boolean | null;
     callerName?: string | null;
     callbackNumber?: string | null;
-    email?: string | null;
     userSentiment?: string | null;
     urgencyLevel?: string | null;
     patientType?: string | null;
