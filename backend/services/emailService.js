@@ -6,6 +6,40 @@ class EmailService {
     return process.env.MEDIA_DAY_TRACKING_EMAIL || 'notifications@clinimedia.ca';
   }
 
+  static firstEnv(...names) {
+    for (const name of names) {
+      const value = process.env[name];
+      if (value && String(value).trim()) {
+        return String(value).trim();
+      }
+    }
+    return null;
+  }
+
+  static getDefaultFromEmail() {
+    return EmailService.firstEnv(
+      'WEBSITE_EMAIL_FROM',
+      'EMAIL_FROM',
+      'SMTP_FROM',
+      'WEBSITE_EMAIL_USER',
+      'SMTP_USER',
+      'EMAIL_USER'
+    ) || 'forms@clinimedia.ca';
+  }
+
+  static getDefaultReplyToEmail() {
+    return EmailService.firstEnv(
+      'WEBSITE_EMAIL_REPLY_TO',
+      'EMAIL_REPLY_TO',
+      'WEBSITE_EMAIL_FROM',
+      'EMAIL_FROM',
+      'SMTP_FROM',
+      'WEBSITE_EMAIL_USER',
+      'SMTP_USER',
+      'EMAIL_USER'
+    ) || 'forms@clinimedia.ca';
+  }
+
   static getPortalBaseUrl() {
     return process.env.FRONTEND_URL || 'https://www.clinimediaportal.ca';
   }
@@ -26,16 +60,17 @@ class EmailService {
   }
 
   // Common email sending function
-  // Default sender is info@clinimedia.ca; auth still uses EMAIL_USER in transporter config.
+  // Default sender follows WEBSITE_EMAIL_FROM/SMTP_USER so website email comes from forms@ by default.
   static async sendEmail(
     subject,
     content,
     toEmail,
     errorMessage,
-    fromEmail = process.env.EMAIL_FROM || 'info@clinimedia.ca',
+    fromEmail = null,
     options = {}
   ) {
     try {
+      const resolvedFromEmail = fromEmail || EmailService.getDefaultFromEmail();
       const logoPath = path.join(__dirname, '../assets/CliniMedia_Logo1.png');
       const fs = require('fs');
       const attachments = [];
@@ -52,11 +87,11 @@ class EmailService {
       }
 
       await transporter.sendMail({
-        from: fromEmail,
+        from: resolvedFromEmail,
         to: toEmail, // Send to specific customer email
         cc: options.cc,
         bcc: options.bcc,
-        replyTo: options.replyTo,
+        replyTo: options.replyTo || EmailService.getDefaultReplyToEmail(),
         subject,
         html: EmailService.createEmailTemplate(content),
         attachments
@@ -77,7 +112,9 @@ class EmailService {
   }
 
   static async sendAiReceptionistMissedCallEmail(clinic, retellCall) {
-    const portalUrl = `${EmailService.getPortalBaseUrl().replace(/\/$/, '')}/customer/ai-reception`;
+    const portalUrl =
+      process.env.AI_RECEPTION_PORTAL_URL ||
+      `${EmailService.getPortalBaseUrl().replace(/\/$/, '')}/customer/ai-reception`;
     const analysis = retellCall?.callAnalysis || {};
     const clinicTimezone = clinic?.aiReceptionistSettings?.timezone || 'America/Toronto';
     const callerName = analysis.callerName || analysis.callbackNumber || retellCall?.fromNumber || 'Unknown caller';
@@ -100,7 +137,8 @@ class EmailService {
     const subject = `AI Receptionist: ${callerName} - ${callDate}`;
     const content = `
       <p>Hi ${clinic.name},</p>
-      <p>You have a new after-hours AI receptionist call to review.</p>
+      <p>Your AI receptionist handled a call and saved the details for your team.</p>
+      <p>Please review the caller information below and follow up with the patient if needed.</p>
       <div style="margin: 18px 0; padding: 16px; background: #f8fbff; border: 1px solid #dbeafe; border-radius: 12px;">
         <p style="margin: 0 0 10px 0;"><strong>Caller:</strong> ${callerName}</p>
         <p style="margin: 0 0 10px 0;"><strong>Callback Number:</strong> ${callbackNumber}</p>
@@ -116,16 +154,18 @@ class EmailService {
           View AI Reception Details
         </a>
       </p>
-      <p>You can review the full handoff, recording, and extracted details in the portal.</p>
+      <p>You can review the full handoff, recording, summary, and extracted details in the CliniMedia Portal.</p>
+      <p style="margin-top: 20px;">
+        Portal link:<br/>
+        <a href="${portalUrl}" style="color: #2563eb; text-decoration: none;">${portalUrl}</a>
+      </p>
     `;
 
     await EmailService.sendEmail(
       subject,
       content,
       clinic.email,
-      'Failed to send AI receptionist missed-call email:',
-      'info@clinimedia.ca',
-      { replyTo: 'info@clinimedia.ca' }
+      'Failed to send AI receptionist missed-call email:'
     );
   }
 
@@ -141,7 +181,7 @@ class EmailService {
       content,
       customerEmail,
       'Failed to send booking confirmation email:',
-      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      null,
       { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
@@ -158,7 +198,7 @@ class EmailService {
       content,
       customerEmail,
       'Failed to send booking accepted email:',
-      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      null,
       { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
@@ -175,7 +215,7 @@ class EmailService {
       content,
       customerEmail,
       'Failed to send booking declined email:',
-      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      null,
       { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
@@ -195,9 +235,8 @@ class EmailService {
       content,
       'notifications@clinimedia.ca', // Send to notifications email
       'Failed to send photographer notification email:',
-      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      null,
       { bcc: EmailService.getMediaDayTrackingEmail() }
-      // FROM defaults to notifications@clinimedia.ca
     );
   }
 
@@ -222,7 +261,7 @@ class EmailService {
           content,
           photographer.email,
           'Failed to send photographer notification email:',
-          process.env.EMAIL_FROM || 'info@clinimedia.ca',
+          null,
           { bcc: EmailService.getMediaDayTrackingEmail() }
         );
       }
@@ -243,7 +282,7 @@ class EmailService {
       content,
       photographerEmail,
       'Failed to send photographer booking secured email:',
-      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      null,
       { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
@@ -260,7 +299,7 @@ class EmailService {
       content,
       customerEmail,
       'Failed to send booking reminder email:',
-      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      null,
       { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
@@ -280,7 +319,7 @@ class EmailService {
       content,
       photographerEmail,
       'Failed to send photographer reminder email:',
-      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      null,
       { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
@@ -332,7 +371,7 @@ class EmailService {
       content,
       customerEmail,
       'Failed to send proactive booking reminder:',
-      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      null,
       { bcc: EmailService.getMediaDayTrackingEmail() }
     );
   }
@@ -354,9 +393,8 @@ class EmailService {
       content,
       'notifications@clinimedia.ca', // Admin notifications go to notifications email
       'Failed to send admin booking notification:',
-      process.env.EMAIL_FROM || 'info@clinimedia.ca',
+      null,
       { bcc: EmailService.getMediaDayTrackingEmail() }
-      // FROM defaults to notifications@clinimedia.ca
     );
   }
 

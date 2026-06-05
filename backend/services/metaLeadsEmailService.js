@@ -1350,44 +1350,53 @@ class MetaLeadsEmailService {
       throw new Error('Missing credentials: LEADS_EMAIL_PASS/EMAIL_PASS is not set.');
     }
 
-    const folderNames = [];
-
     try {
-      await this.connect();
+      const folderNames = await new Promise((resolve, reject) => {
+        const imap = new Imap(this.getImapConfig());
+        let settled = false;
 
-      await new Promise((resolve, reject) => {
-        this.imap.getBoxes((err, boxes) => {
+        const finish = (err, folders = []) => {
+          if (settled) return;
+          settled = true;
+
           if (err) {
             reject(err);
             return;
           }
 
-          const getFolderNames = (boxTree, prefix = '') => {
-            for (const name in boxTree) {
-              const fullName = prefix ? `${prefix}${boxTree[name].delimiter || '.'}${name}` : name;
-              if (fullName && String(fullName).trim()) {
-                folderNames.push(fullName);
-              }
-              if (boxTree[name].children && typeof boxTree[name].children === 'object') {
-                getFolderNames(boxTree[name].children, fullName || name);
-              }
-            }
-          };
+          resolve(folders);
+        };
 
-          getFolderNames(boxes);
-          resolve();
+        imap.once('ready', () => {
+          imap.getBoxes((err, boxes) => {
+            if (err) {
+              try { imap.end(); } catch (_) {}
+              finish(err);
+              return;
+            }
+
+            const folders = this.extractFolderNames(boxes).sort((a, b) => a.localeCompare(b));
+            try { imap.end(); } catch (_) {}
+            finish(null, folders);
+          });
         });
+
+        imap.once('error', (err) => finish(err));
+
+        try {
+          imap.connect();
+        } catch (err) {
+          finish(err);
+        }
       });
 
-      return folderNames.sort((a, b) => a.localeCompare(b));
+      return folderNames;
     } catch (error) {
       console.warn('[Meta Leads] Folder discovery failed, falling back to saved mapped folders:', error.message);
       const mappedFolders = await MetaLeadFolderMapping.find({ isActive: true })
         .distinct('folderName');
       return [...new Set(mappedFolders.map((folder) => String(folder || '').trim()).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b));
-    } finally {
-      await this.disconnect();
     }
   }
 

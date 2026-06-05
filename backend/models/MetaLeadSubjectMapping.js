@@ -36,8 +36,5 @@ const metaLeadSubjectMappingSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Ensure one mapping per subject
-metaLeadSubjectMappingSchema.index({ emailSubject: 1 }, { unique: true });
-
 module.exports = mongoose.model('MetaLeadSubjectMapping', metaLeadSubjectMappingSchema);
 

@@ -3,9 +3,22 @@
  * Run: node scripts/checkEmailConfig.js
  */
 
-require('dotenv').config();
-const transporter = require('../config/email_config');
+const dotenv = require('dotenv');
 const path = require('path');
+
+const explicitEnvPath = process.env.EMAIL_ENV_PATH || process.argv[2];
+dotenv.config(explicitEnvPath ? { path: explicitEnvPath, override: true } : undefined);
+const transporter = require('../config/email_config');
+
+function firstEnv(...names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value && String(value).trim()) {
+      return String(value).trim();
+    }
+  }
+  return null;
+}
 
 async function checkEmailConfig() {
   try {
@@ -13,35 +26,37 @@ async function checkEmailConfig() {
 
     // Check environment variables
     console.log('📋 Environment Variables:');
-    const emailHost = process.env.EMAIL_HOST || 'mail.clinimedia.ca';
-    const emailPort = process.env.EMAIL_PORT || '465';
-    const emailUser = process.env.EMAIL_USER || 'notifications@clinimedia.ca';
-    const emailPass = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
+    const emailHost = firstEnv('WEBSITE_EMAIL_HOST', 'SMTP_HOST', 'EMAIL_HOST') || 'mail.clinimedia.ca';
+    const emailPort = firstEnv('WEBSITE_EMAIL_PORT', 'SMTP_PORT', 'EMAIL_PORT') || '465';
+    const emailUser = firstEnv('WEBSITE_EMAIL_USER', 'SMTP_USER', 'EMAIL_USER') || 'forms@clinimedia.ca';
+    const emailPass = firstEnv('WEBSITE_EMAIL_PASS', 'SMTP_PASS', 'EMAIL_PASS', 'EMAIL_PASSWORD');
+    const emailFrom = firstEnv('WEBSITE_EMAIL_FROM', 'EMAIL_FROM', 'SMTP_FROM', 'WEBSITE_EMAIL_USER', 'SMTP_USER', 'EMAIL_USER') || 'forms@clinimedia.ca';
     
-    console.log(`   EMAIL_HOST: ${emailHost}`);
-    console.log(`   EMAIL_PORT: ${emailPort}`);
-    console.log(`   EMAIL_USER: ${emailUser}`);
-    console.log(`   EMAIL_PASS: ${emailPass ? '***SET***' : '❌ NOT SET'}`);
+    console.log(`   WEBSITE_EMAIL_HOST/SMTP_HOST/EMAIL_HOST: ${emailHost}`);
+    console.log(`   WEBSITE_EMAIL_PORT/SMTP_PORT/EMAIL_PORT: ${emailPort}`);
+    console.log(`   WEBSITE_EMAIL_USER/SMTP_USER/EMAIL_USER: ${emailUser}`);
+    console.log(`   WEBSITE_EMAIL_FROM/EMAIL_FROM/SMTP_FROM: ${emailFrom}`);
+    console.log(`   WEBSITE_EMAIL_PASS/SMTP_PASS/EMAIL_PASS: ${emailPass ? '***SET***' : '❌ NOT SET'}`);
     console.log(`   EMAIL_PASSWORD: ${process.env.EMAIL_PASSWORD ? '***SET***' : 'NOT SET'}`);
 
     // Check if password is missing
     if (!emailPass) {
       console.log('\n❌ ERROR: Email password is not set!');
-      console.log('   → Fix: Set either EMAIL_PASS or EMAIL_PASSWORD in .env file');
+      console.log('   → Fix: Set WEBSITE_EMAIL_PASS, SMTP_PASS, EMAIL_PASS, or EMAIL_PASSWORD in .env file');
       process.exit(1);
     }
 
     // Check if using defaults vs env variables
     console.log('\n📊 Configuration Status:');
-    const usingEnvHost = !!process.env.EMAIL_HOST;
-    const usingEnvPort = !!process.env.EMAIL_PORT;
-    const usingEnvUser = !!process.env.EMAIL_USER;
+    const usingEnvHost = !!firstEnv('WEBSITE_EMAIL_HOST', 'SMTP_HOST', 'EMAIL_HOST');
+    const usingEnvPort = !!firstEnv('WEBSITE_EMAIL_PORT', 'SMTP_PORT', 'EMAIL_PORT');
+    const usingEnvUser = !!firstEnv('WEBSITE_EMAIL_USER', 'SMTP_USER', 'EMAIL_USER');
     const usingEnvPass = !!emailPass;
 
-    console.log(`   Using EMAIL_HOST from env: ${usingEnvHost ? '✅ Yes' : '⚠️  No (using default)'}`);
-    console.log(`   Using EMAIL_PORT from env: ${usingEnvPort ? '✅ Yes' : '⚠️  No (using default)'}`);
-    console.log(`   Using EMAIL_USER from env: ${usingEnvUser ? '✅ Yes' : '⚠️  No (using default)'}`);
-    console.log(`   Using EMAIL_PASS from env: ${usingEnvPass ? '✅ Yes' : '❌ No'}`);
+    console.log(`   Using email host from env: ${usingEnvHost ? '✅ Yes' : '⚠️  No (using default)'}`);
+    console.log(`   Using email port from env: ${usingEnvPort ? '✅ Yes' : '⚠️  No (using default)'}`);
+    console.log(`   Using email user from env: ${usingEnvUser ? '✅ Yes' : '⚠️  No (using default)'}`);
+    console.log(`   Using email password from env: ${usingEnvPass ? '✅ Yes' : '❌ No'}`);
 
     // Verify transporter configuration
     console.log('\n🔧 Transporter Configuration:');
@@ -60,9 +75,9 @@ async function checkEmailConfig() {
       console.log('   ❌ Email server connection failed!');
       console.log(`   Error: ${error.message}`);
       console.log('\n   Possible issues:');
-      console.log('   1. Incorrect email credentials (EMAIL_USER or EMAIL_PASS)');
-      console.log('   2. Incorrect email host (EMAIL_HOST)');
-      console.log('   3. Incorrect email port (EMAIL_PORT)');
+      console.log('   1. Incorrect email credentials (WEBSITE_EMAIL_USER/SMTP_USER or WEBSITE_EMAIL_PASS/SMTP_PASS)');
+      console.log('   2. Incorrect email host (WEBSITE_EMAIL_HOST/SMTP_HOST)');
+      console.log('   3. Incorrect email port (WEBSITE_EMAIL_PORT/SMTP_PORT)');
       console.log('   4. Firewall blocking connection');
       console.log('   5. Email server is down');
       process.exit(1);
