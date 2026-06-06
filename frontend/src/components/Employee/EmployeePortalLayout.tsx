@@ -11,7 +11,9 @@ interface EmployeePortalLayoutProps {
 
 const EmployeePortalLayout: React.FC<EmployeePortalLayoutProps> = ({ children, title, hideBackButton }) => {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true); // State to manage sidebar open/close
+  const [sidebarOpen, setSidebarOpen] = useState(() => (
+    typeof window === 'undefined' ? true : window.innerWidth >= 768
+  ));
 
 
 
@@ -19,12 +21,12 @@ const EmployeePortalLayout: React.FC<EmployeePortalLayoutProps> = ({ children, t
     navigate(-1); // Go back to the previous page
   };
 
-  const contentMarginClass = sidebarOpen ? "ml-64" : "ml-16"; // Dynamic margin for content
+  const contentMarginClass = sidebarOpen ? "md:ml-64" : "md:ml-16";
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-gray-100 overflow-x-hidden">
       <EmployeeSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} /> {/* Pass state and setter */}
-      <div className={`flex-1 flex flex-col ${contentMarginClass} transition-all duration-300`}>
+      <div className={`flex-1 flex flex-col ml-16 ${contentMarginClass} transition-all duration-300 min-w-0`}>
         {/* Header with Back Button and Title */}
         <header className="bg-white shadow-sm p-4 flex items-center">
           {!hideBackButton && ( // Conditionally render back button
@@ -36,11 +38,11 @@ const EmployeePortalLayout: React.FC<EmployeePortalLayoutProps> = ({ children, t
               <IoMdArrowBack className="h-6 w-6 text-gray-600" />
             </button>
           )}
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{title}</h1>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-x-hidden">
           {children}
         </main>
       </div>
@@ -48,4 +50,4 @@ const EmployeePortalLayout: React.FC<EmployeePortalLayoutProps> = ({ children, t
   );
 };
 
-export default EmployeePortalLayout; 
+export default EmployeePortalLayout;

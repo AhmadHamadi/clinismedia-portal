@@ -1,4 +1,4 @@
-import { FaBars, FaSignOutAlt } from "react-icons/fa";
+import { FaBars, FaCalendarAlt, FaFileInvoice, FaHome, FaSignOutAlt } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import React, { useState, useEffect } from "react";
 import axios from "axios";
@@ -56,9 +56,9 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
   }, []);
 
   const navItems = [
-    { label: "Dashboard", path: "/employee/dashboard" },
-    { label: "Photography Session Booking", path: "/employee/media-day-calendar", section: "sessions" },
-    { label: "Payment Receipt", path: "/employee/payment-receipt" },
+    { label: "Dashboard", path: "/employee/dashboard", icon: <FaHome /> },
+    { label: "Photography Session Booking", path: "/employee/media-day-calendar", section: "sessions", icon: <FaCalendarAlt /> },
+    { label: "Payment Receipt", path: "/employee/payment-receipt", icon: <FaFileInvoice /> },
   ];
 
   const getButtonClasses = (path: string) => {
@@ -91,17 +91,19 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
       </div>
 
       {/* Navigation */}
-      <nav className="p-4 space-y-3 text-sm">
-        {navItems.map(({ label, path, section }) => (
+      <nav className="p-2 sm:p-4 space-y-3 text-sm">
+        {navItems.map(({ label, path, section, icon }) => (
           <div key={path} className="relative">
             <button
               onClick={() => navigate(path)}
-              className={getButtonClasses(path)}
+              className={`${getButtonClasses(path)} ${sidebarOpen ? '' : 'flex justify-center px-0'}`}
+              title={!sidebarOpen ? label : undefined}
             >
-              <div className="flex items-center justify-between w-full">
-                <span>{label}</span>
+              <div className={`flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} w-full min-w-0`}>
+                <span className="flex-shrink-0">{icon}</span>
+                {sidebarOpen && <span className="ml-2 truncate">{label}</span>}
                 {/* Notification badge for Photography Session Booking */}
-                {section === "sessions" && availableSessionsCount > 0 && (
+                {sidebarOpen && section === "sessions" && availableSessionsCount > 0 && (
                   <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
                     {availableSessionsCount}
                   </span>
@@ -116,14 +118,15 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
       <div className="p-4 border-t border-gray-200 mt-auto">
         <button
           onClick={handleLogout}
-          className="flex items-center w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          className={`flex items-center w-full ${sidebarOpen ? 'justify-start px-3' : 'justify-center px-0'} py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors`}
+          title={!sidebarOpen ? 'Logout' : undefined}
         >
           <FaSignOutAlt />
-          <span className="ml-3">Logout</span>
+          {sidebarOpen && <span className="ml-3">Logout</span>}
         </button>
       </div>
     </div>
   );
 };
 
-export default EmployeeSidebar; 
+export default EmployeeSidebar;

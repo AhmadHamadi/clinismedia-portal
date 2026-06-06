@@ -27,8 +27,23 @@ const CustomerPortalLayout: React.FC = () => {
   const location = useLocation();
   // After /auth/validate, we merge role/parentCustomerId/canBookMediaDay into this; null = use localStorage
   const [userFromValidate, setUserFromValidate] = useState<{ role?: string; canBookMediaDay?: boolean; parentCustomerId?: string } | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(() => (
+    typeof window === 'undefined' ? true : window.innerWidth >= 768
+  ));
   const metaLeadsSyncInFlightRef = useRef(false);
   const metaLeadsLastAttemptRef = useRef(0);
+
+  useEffect(() => {
+    const handleSidebarToggle = (event: CustomEvent) => {
+      setSidebarOpen(event.detail.isOpen);
+    };
+
+    window.addEventListener('customerSidebarToggle', handleSidebarToggle as EventListener);
+
+    return () => {
+      window.removeEventListener('customerSidebarToggle', handleSidebarToggle as EventListener);
+    };
+  }, []);
 
   // On mount: refresh customerData from /auth/validate so canBookMediaDay/parentCustomerId stay in sync (e.g. after admin edits)
   useEffect(() => {
@@ -205,9 +220,9 @@ const CustomerPortalLayout: React.FC = () => {
       <CustomerSidebar onLogout={handleLogout} allowedPages={allowedPages ?? undefined} />
       
       {/* Main Content */}
-      <div className="flex-1 flex flex-col ml-64 overflow-x-hidden">
+      <div className={`flex-1 flex flex-col ml-16 ${sidebarOpen ? 'md:ml-64' : 'md:ml-16'} overflow-x-hidden min-w-0`}>
         {/* Page Content */}
-        <main className="customer-main flex-1 overflow-x-hidden w-full">
+        <main className="customer-main flex-1 overflow-x-hidden w-full min-w-0">
           <div className="customer-main-inner">
             <Routes>
               <Route path="dashboard" element={<CustomerDashboard />} />

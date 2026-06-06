@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaHome, FaCalendarAlt, FaTasks, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt, FaGoogle, FaShare, FaInstagram, FaPhone, FaDollarSign, FaRobot, FaSearch } from 'react-icons/fa';
+import { FaHome, FaCalendarAlt, FaTasks, FaFacebook, FaFileInvoice, FaImages, FaSignOutAlt, FaGoogle, FaShare, FaInstagram, FaPhone, FaDollarSign, FaRobot, FaSearch, FaBars } from 'react-icons/fa';
 import axios from 'axios';
 import logo1 from '../../assets/CliniMedia_Logo1.png';
 import { logout } from '../../utils/auth';
@@ -23,6 +23,9 @@ interface NavItem {
 
 const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPages }) => {
   const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(() => (
+    typeof window === 'undefined' ? true : window.innerWidth >= 768
+  ));
   const [unreadCounts, setUnreadCounts] = useState({
     metaInsights: 0,
     gallery: 0,
@@ -37,6 +40,13 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
 
   const filterItems = (items: NavItem[]) =>
     allowedPages ? items.filter((i) => allowedPages.includes(i.pageKey)) : items;
+  const showLabels = sidebarOpen;
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('customerSidebarToggle', {
+      detail: { isOpen: sidebarOpen }
+    }));
+  }, [sidebarOpen]);
 
   // MAIN ACTIONS section items
   const mainActionsItems: NavItem[] = [
@@ -165,47 +175,58 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
   };
 
   return (
-    <div className="fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl w-64 flex flex-col z-40">
+    <div className={`fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl ${sidebarOpen ? 'w-64' : 'w-16'} flex flex-col z-40 transition-all duration-300`}>
       {/* Top: Logo */}
-      <div className="p-3 border-b border-gray-700">
-        <img
-          src={logo1}
-          alt="CliniMedia Logo"
-          className="h-10 object-contain cursor-pointer hover:opacity-90 transition-opacity"
-          onClick={() => navigate(allowedPages?.length ? `/customer/${allowedPages[0]}` : "/customer/dashboard")}
-        />
+      <div className="p-3 border-b border-gray-700 flex items-center justify-between gap-2">
+        {showLabels && (
+          <img
+            src={logo1}
+            alt="CliniMedia Logo"
+            className="h-10 object-contain cursor-pointer hover:opacity-90 transition-opacity min-w-0"
+            onClick={() => navigate(allowedPages?.length ? `/customer/${allowedPages[0]}` : "/customer/dashboard")}
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => setSidebarOpen((open) => !open)}
+          className="text-gray-400 hover:text-white transition-colors p-1 flex-shrink-0"
+          aria-label={sidebarOpen ? 'Collapse navigation' : 'Expand navigation'}
+        >
+          <FaBars className="text-sm" />
+        </button>
       </div>
       {/* Middle: Navigation */}
       <nav className="flex-1 p-2 overflow-y-auto">
         {/* MAIN ACTIONS Section */}
         {filterItems(mainActionsItems).length > 0 && (
         <div className="mb-3">
-          <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
+          {showLabels && <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             MAIN ACTIONS
-          </h3>
+          </h3>}
           <ul className="space-y-0.5">
             {filterItems(mainActionsItems).map((item) => (
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} py-1.5 rounded-md text-xs font-medium transition-all ${
                     window.location.pathname === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
                   }`}
+                  title={!showLabels ? item.label : undefined}
                 >
                   <span className={`${window.location.pathname === item.path ? 'text-blue-400' : 'text-gray-400'} text-sm`}>
                     {item.icon}
                   </span>
-                  <span className="ml-2 flex-1 text-left">{item.label}</span>
+                  {showLabels && <span className="ml-2 flex-1 text-left">{item.label}</span>}
                   {/* QuickBooks unpaid invoices badge */}
-                  {item.section === 'quickbooksInvoices' && unpaidInvoicesCount > 0 && (
+                  {showLabels && item.section === 'quickbooksInvoices' && unpaidInvoicesCount > 0 && (
                     <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-semibold leading-none text-white bg-red-500 rounded-full">
                       {unpaidInvoicesCount}
                     </span>
                   )}
                   {/* Notification badge for other sections */}
-                  {item.section && item.section !== 'quickbooksInvoices' && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
+                  {showLabels && item.section && item.section !== 'quickbooksInvoices' && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
                     <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-semibold leading-none text-white bg-red-500 rounded-full">
                       {unreadCounts[item.section as keyof typeof unreadCounts]}
                     </span>
@@ -220,26 +241,27 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
         {/* MARKETING & INSIGHTS Section */}
         {filterItems(marketingInsightsItems).length > 0 && (
         <div className="mb-3">
-          <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
+          {showLabels && <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             MARKETING & INSIGHTS
-          </h3>
+          </h3>}
           <ul className="space-y-0.5">
             {filterItems(marketingInsightsItems).map((item) => (
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} py-1.5 rounded-md text-xs font-medium transition-all ${
                     window.location.pathname === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
                   }`}
+                  title={!showLabels ? item.label : undefined}
                 >
                   <span className={`${window.location.pathname === item.path ? 'text-blue-400' : 'text-gray-400'} text-sm`}>
                     {item.icon}
                   </span>
-                  <span className="ml-2 flex-1 text-left">{item.label}</span>
+                  {showLabels && <span className="ml-2 flex-1 text-left">{item.label}</span>}
                   {/* Notification badge */}
-                  {item.section && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
+                  {showLabels && item.section && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
                     <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-semibold leading-none text-white bg-red-500 rounded-full">
                       {unreadCounts[item.section as keyof typeof unreadCounts]}
                     </span>
@@ -254,35 +276,36 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
         {/* TRACKING Section */}
         {filterItems(trackingItems).length > 0 && (
         <div className="mb-3">
-          <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
+          {showLabels && <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             TRACKING
-          </h3>
+          </h3>}
           <ul className="space-y-0.5">
             {filterItems(trackingItems).map((item) => (
               <li key={item.path}>
                 <button
                   onClick={() => !item.comingSoon && navigate(item.path)}
                   disabled={item.comingSoon}
-                  className={`flex items-center w-full px-3 py-2.5 rounded-md text-sm font-medium transition-all ${
+                  className={`flex items-center w-full ${showLabels ? 'justify-start px-3' : 'justify-center px-0'} py-2.5 rounded-md text-sm font-medium transition-all ${
                     item.comingSoon
                       ? 'text-gray-500 cursor-not-allowed opacity-50'
                       : window.location.pathname === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
                   }`}
+                  title={!showLabels ? item.label : undefined}
                 >
                   <span className={window.location.pathname === item.path ? 'text-blue-400' : 'text-gray-400'}>
                     {item.icon}
                   </span>
-                  <span className="ml-3 flex-1 text-left">{item.label}</span>
+                  {showLabels && <span className="ml-3 flex-1 text-left">{item.label}</span>}
                   {/* Coming Soon badge */}
-                  {item.comingSoon && (
+                  {showLabels && item.comingSoon && (
                     <span className="ml-auto text-[10px] font-medium text-gray-500 italic">
                       Coming Soon
                     </span>
                   )}
                   {/* Notification badge */}
-                  {!item.comingSoon && item.section && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
+                  {showLabels && !item.comingSoon && item.section && unreadCounts[item.section as keyof typeof unreadCounts] > 0 && (
                     <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-semibold leading-none text-white bg-red-500 rounded-full">
                       {unreadCounts[item.section as keyof typeof unreadCounts]}
                     </span>
@@ -298,10 +321,11 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
       <div className="p-2 border-t border-gray-700">
         <button
           onClick={handleLogout}
-          className="flex items-center w-full px-2 py-1.5 text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors"
+          className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} py-1.5 text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors`}
+          title={!showLabels ? 'Logout' : undefined}
         >
           <FaSignOutAlt className="text-sm" />
-          <span className="ml-2">Logout</span>
+          {showLabels && <span className="ml-2">Logout</span>}
         </button>
       </div>
     </div>

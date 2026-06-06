@@ -23,7 +23,9 @@ import MarketingReportsPage from './Reports/MarketingReportsPage';
 import SearchConsoleManagementPage from './SearchConsoleManagement/SearchConsoleManagementPage';
 
 const AdminLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => (
+    typeof window === 'undefined' ? true : window.innerWidth >= 768
+  ));
 
   useEffect(() => {
     const handleSidebarToggle = (event: CustomEvent) => {
@@ -41,9 +43,9 @@ const AdminLayout = () => {
     <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
       <SidebarMenu />
       <div 
-        className={`flex-1 flex flex-col transition-all duration-300 ${ sidebarOpen ? 'ml-64' : 'ml-16' } overflow-x-hidden`}
+        className={`flex-1 flex flex-col transition-all duration-300 ml-16 ${sidebarOpen ? 'md:ml-64' : 'md:ml-16'} overflow-x-hidden min-w-0`}
       >
-        <main className="flex-1 overflow-x-hidden w-full">
+        <main className="flex-1 overflow-x-hidden w-full min-w-0">
           <Routes>
             <Route path="/" element={<AdminDash />} />
             <Route path="/media" element={<AdminMediaDayBookingPage />} />

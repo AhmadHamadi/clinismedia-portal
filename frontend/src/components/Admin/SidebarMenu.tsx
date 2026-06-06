@@ -7,7 +7,9 @@ import logo1 from "../../assets/CliniMedia_Logo1.png";
 import { logout } from "../../utils/auth";
 
 const SidebarMenu = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => (
+    typeof window === 'undefined' ? true : window.innerWidth >= 768
+  ));
   const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
   const [unreadNotesCount, setUnreadNotesCount] = useState(0);
   const navigate = useNavigate();
