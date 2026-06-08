@@ -175,9 +175,9 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
   };
 
   return (
-    <div className={`fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl ${sidebarOpen ? 'w-64' : 'w-16'} flex flex-col z-40 transition-all duration-300`}>
+    <div className={`fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl ${sidebarOpen ? 'w-64' : 'w-16'} flex flex-col z-40 transition-all duration-300 overflow-hidden`}>
       {/* Top: Logo */}
-      <div className="p-3 border-b border-gray-700 flex items-center justify-between gap-2">
+      <div className={`${showLabels ? 'p-3' : 'p-1.5'} border-b border-gray-700 flex items-center justify-between gap-2`}>
         {showLabels && (
           <img
             src={logo1}
@@ -189,18 +189,18 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
         <button
           type="button"
           onClick={() => setSidebarOpen((open) => !open)}
-          className="text-gray-400 hover:text-white transition-colors min-h-11 min-w-11 inline-flex items-center justify-center flex-shrink-0"
+          className={`${showLabels ? 'min-w-11' : 'min-w-9'} portal-sidebar-toggle text-gray-400 hover:text-white transition-colors inline-flex items-center justify-center flex-shrink-0`}
           aria-label={sidebarOpen ? 'Collapse navigation' : 'Expand navigation'}
         >
           <FaBars className="text-sm" />
         </button>
       </div>
       {/* Middle: Navigation */}
-      <nav className="flex-1 p-2 overflow-y-auto">
+      <nav className="portal-sidebar-nav flex-1 min-h-0 p-1.5">
         {/* MAIN ACTIONS Section */}
         {filterItems(mainActionsItems).length > 0 && (
-        <div className="mb-3">
-          {showLabels && <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
+        <div className={`portal-sidebar-section ${showLabels ? "mb-3" : "mb-1"}`}>
+          {showLabels && <h3 className="portal-sidebar-heading text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             MAIN ACTIONS
           </h3>}
           <ul className="space-y-0.5">
@@ -208,7 +208,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} min-h-11 rounded-md text-xs font-medium transition-all ${
+                  className={`portal-sidebar-row flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} rounded-md text-xs font-medium transition-all ${
                     window.location.pathname === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
@@ -240,8 +240,8 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
 
         {/* MARKETING & INSIGHTS Section */}
         {filterItems(marketingInsightsItems).length > 0 && (
-        <div className="mb-3">
-          {showLabels && <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
+        <div className={`portal-sidebar-section ${showLabels ? "mb-3" : "mb-1"}`}>
+          {showLabels && <h3 className="portal-sidebar-heading text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             MARKETING & INSIGHTS
           </h3>}
           <ul className="space-y-0.5">
@@ -249,7 +249,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} min-h-11 rounded-md text-xs font-medium transition-all ${
+                  className={`portal-sidebar-row flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} rounded-md text-xs font-medium transition-all ${
                     window.location.pathname === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
@@ -275,8 +275,8 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
 
         {/* TRACKING Section */}
         {filterItems(trackingItems).length > 0 && (
-        <div className="mb-3">
-          {showLabels && <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
+        <div className={`portal-sidebar-section ${showLabels ? "mb-3" : "mb-1"}`}>
+          {showLabels && <h3 className="portal-sidebar-heading text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             TRACKING
           </h3>}
           <ul className="space-y-0.5">
@@ -285,7 +285,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
                 <button
                   onClick={() => !item.comingSoon && navigate(item.path)}
                   disabled={item.comingSoon}
-                  className={`flex items-center w-full ${showLabels ? 'justify-start px-3' : 'justify-center px-0'} min-h-11 rounded-md text-sm font-medium transition-all ${
+                  className={`portal-sidebar-row flex items-center w-full ${showLabels ? 'justify-start px-3' : 'justify-center px-0'} rounded-md text-sm font-medium transition-all ${
                     item.comingSoon
                       ? 'text-gray-500 cursor-not-allowed opacity-50'
                       : window.location.pathname === item.path
@@ -318,10 +318,10 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
         )}
       </nav>
       {/* Bottom: Logout */}
-      <div className="p-2 border-t border-gray-700">
+      <div className={`${showLabels ? 'p-2' : 'p-1.5'} border-t border-gray-700`}>
         <button
           onClick={handleLogout}
-          className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} min-h-11 text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors`}
+          className={`portal-sidebar-footer-button flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors`}
           title={!showLabels ? 'Logout' : undefined}
         >
           <FaSignOutAlt className="text-sm" />

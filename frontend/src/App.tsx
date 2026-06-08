@@ -17,7 +17,6 @@ import CustomerGalleryPage from "./components/Customer/CustomerGalleryPage";
 import CustomerInvoicePage from "./components/Customer/CustomerInvoicePage";
 import GoogleBusinessAnalyticsPage from "./components/Customer/GoogleBusinessAnalyticsPage";
 import GoogleBusinessManagementPage from "./components/Admin/GoogleBusinessManagement/GoogleBusinessManagementPage";
-import QRReviewPage from "./components/Public/QRReview/QRReviewPage";
 import PageTitle from "./components/PageTitle";
 
 function App() {
@@ -31,9 +30,6 @@ function App() {
           
           {/* Login Page */}
           <Route path="/login" element={<Login />} />
-
-          {/* Public QR Review Page (no auth) */}
-          <Route path="/r/:slug" element={<QRReviewPage />} />
 
           {/* Admin Routes */}
           <Route 
@@ -121,6 +117,8 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
     </div>

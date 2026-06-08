@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Routes, Route } from 'react-router-dom';
 import SidebarMenu from './SidebarMenu';
 import AdminDash from './AdminDash/AdminDashPage';
 import AdminMediaDayBookingPage from './AdminMediaDayBooking/AdminMediaDayBookingPage';
@@ -17,7 +17,6 @@ import GoogleBusinessManagementPage from './GoogleBusinessManagement/GoogleBusin
 import TwilioManagementPage from './TwilioManagement/TwilioManagementPage';
 import MetaLeadsManagementPage from './MetaLeadsManagementPage';
 import QuickBooksManagementPage from './QuickBooksManagement/QuickBooksManagementPage';
-import QRReviewsPage from './QRReviews/QRReviewsPage';
 import AIReceptionManagementPage from './AIReceptionManagement/AIReceptionManagementPage';
 import MarketingReportsPage from './Reports/MarketingReportsPage';
 import SearchConsoleManagementPage from './SearchConsoleManagement/SearchConsoleManagementPage';
@@ -63,10 +62,10 @@ const AdminLayout = () => {
             <Route path="/twilio" element={<TwilioManagementPage />} />
             <Route path="/meta-leads" element={<MetaLeadsManagementPage />} />
             <Route path="/quickbooks" element={<QuickBooksManagementPage />} />
-            <Route path="/qr-reviews" element={<QRReviewsPage />} />
             <Route path="/ai-reception" element={<AIReceptionManagementPage />} />
             <Route path="/reports" element={<MarketingReportsPage />} />
             <Route path="/search-console" element={<SearchConsoleManagementPage />} />
+            <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>
         </main>
       </div>

@@ -15,7 +15,6 @@ import {
   FaPrint,
   FaRobot,
   FaSpinner,
-  FaStar,
   FaSyncAlt,
 } from 'react-icons/fa';
 import logo1 from '../../../assets/CliniMedia_Logo1.png';
@@ -114,7 +113,6 @@ const sectionIcons: Record<string, React.ReactNode> = {
   googleAds: <FaGoogle className="text-amber-500" />,
   instagram: <FaInstagram className="text-fuchsia-600" />,
   facebook: <FaFacebookF className="text-sky-600" />,
-  qrReviews: <FaStar className="text-yellow-500" />,
   searchConsole: <FaChartLine className="text-blue-600" />,
 };
 
@@ -162,12 +160,6 @@ function getSectionTheme(sectionId: string) {
       label: 'text-sky-700',
       chip: 'bg-sky-100 text-sky-800',
     },
-    qrReviews: {
-      shell: 'border-yellow-200 bg-gradient-to-br from-yellow-50 via-white to-orange-50',
-      iconWrap: 'bg-yellow-100 text-yellow-700',
-      label: 'text-yellow-700',
-      chip: 'bg-yellow-100 text-yellow-800',
-    },
     searchConsole: {
       shell: 'border-blue-200 bg-gradient-to-br from-blue-50 via-white to-sky-50',
       iconWrap: 'bg-blue-100 text-blue-700',
@@ -186,6 +178,7 @@ function getSectionTheme(sectionId: string) {
 
 function getTopHighlights(report: ReportPayload) {
   return report.sections
+    .filter((section) => section.id !== 'qrReviews')
     .flatMap((section) => (section.highlights || []).map((highlight) => `${section.title}: ${highlight}`))
     .slice(0, 8);
 }
@@ -369,11 +362,6 @@ function getPrintSectionIcon(sectionId: string) {
         <path fill="#fff" d="M13.75 22v-7.92h2.66l.4-3.08h-3.06V9.05c0-.89.25-1.5 1.53-1.5h1.63V4.8c-.28-.04-1.25-.12-2.38-.12-2.36 0-3.97 1.44-3.97 4.08v2.24H7.88v3.08h2.68V22z"/>
       </svg>
     `,
-    qrReviews: `
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path fill="#a16207" d="M12 2l2.7 5.46L20.7 8l-4.35 4.24L17.4 18 12 15.27 6.6 18l1.05-5.76L3.3 8l6-.54z"/>
-      </svg>
-    `,
     searchConsole: `
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#1d4ed8" stroke-width="2.2"/>
@@ -398,9 +386,8 @@ const SECTION_ORDER: Record<string, number> = {
   facebook: 4,
   instagram: 5,
   googleBusiness: 6,
-  qrReviews: 7,
-  googleAds: 8,
-  searchConsole: 9,
+  googleAds: 7,
+  searchConsole: 8,
 };
 
 function formatDateLongRange(startIso: string, endIso: string) {
@@ -424,7 +411,6 @@ const SECTION_FEATURE: Record<string, { key: string; label: string; caption: str
   instagram: { key: 'totalReach', label: 'Total Reach', caption: 'Unique Instagram accounts reached by your posts and reels.' },
   googleBusiness: { key: 'totalViews', label: 'Profile Impressions', caption: 'How many times your Google Business Profile appeared in Search and Maps.' },
   googleAds: { key: 'impressions', label: 'Ad Impressions', caption: 'Times your Google Ads were shown to potential patients.' },
-  qrReviews: { key: 'scans', label: 'QR Scans', caption: 'Patients who scanned the QR review prompt in-clinic.' },
   searchConsole: { key: 'totalClicks', label: 'Organic Clicks', caption: 'Clicks from Google search results to your website.' },
 };
 
@@ -436,13 +422,12 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
   instagram: 'Reach, engagement, and follower trends across your Instagram content.',
   googleBusiness: 'Search and Maps impressions, profile actions, and reviews.',
   googleAds: 'Spend, clicks, conversions, and campaign-level performance.',
-  qrReviews: 'In-clinic QR review program funnel and conversion metrics.',
   searchConsole: 'Organic search performance, top queries, and landing page visibility.',
 };
 
 function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | null, logoSrc: string) {
   const visibleSections = report.sections
-    .filter(hasRenderableSectionContent)
+    .filter((section) => section.id !== 'qrReviews' && hasRenderableSectionContent(section))
     .sort((a, b) => (SECTION_ORDER[a.id] || 99) - (SECTION_ORDER[b.id] || 99));
 
   const coverDateRange = formatDateLongRange(report.period.start, report.period.end);
@@ -460,7 +445,7 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
     const accentMap: Record<string, string> = {
       metaLeads: '#2e6bff', callTracking: '#10b981', aiReception: '#8b5cf6',
       googleBusiness: '#2563eb', googleAds: '#f59e0b', instagram: '#d946ef',
-      facebook: '#0ea5e9', qrReviews: '#eab308', searchConsole: '#0284c7',
+      facebook: '#0ea5e9', searchConsole: '#0284c7',
     };
     const accent = accentMap[section.id] || '#64748b';
     const desc = SECTION_DESCRIPTIONS[section.id] || '';
@@ -485,7 +470,6 @@ function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | 
     googleAds: { primary: '#f59e0b', soft: '#fef3c7', deep: '#92400e', kicker: 'Paid Search' },
     instagram: { primary: '#d946ef', soft: '#fae8ff', deep: '#86198f', kicker: 'Instagram Insights' },
     facebook: { primary: '#0ea5e9', soft: '#e0f2fe', deep: '#075985', kicker: 'Facebook Insights' },
-    qrReviews: { primary: '#eab308', soft: '#fef9c3', deep: '#854d0e', kicker: 'QR Review Program' },
     searchConsole: { primary: '#0284c7', soft: '#e0f2fe', deep: '#075985', kicker: 'Website & SEO' },
   };
 
@@ -1535,7 +1519,7 @@ const MarketingReportsPage: React.FC = () => {
     );
   };
 
-  const visibleSections = report ? report.sections.filter(hasRenderableSectionContent) : [];
+  const visibleSections = report ? report.sections.filter((section) => section.id !== 'qrReviews' && hasRenderableSectionContent(section)) : [];
   const topHighlights = report ? getTopHighlights(report) : [];
 
   const renderTable = (rows: Array<Record<string, any>>) => {

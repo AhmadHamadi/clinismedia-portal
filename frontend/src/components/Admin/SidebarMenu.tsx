@@ -2,7 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FaHome, FaCalendarAlt, FaTasks, FaUsers, FaUserTie, FaFileInvoice, FaGoogle, FaFacebook, FaPhone, FaImages, FaFolderOpen, FaDollarSign, FaSignOutAlt, FaBars, FaStar, FaRobot, FaChartLine, FaSearch } from 'react-icons/fa';
+import { FaHome, FaCalendarAlt, FaTasks, FaUsers, FaUserTie, FaFileInvoice, FaGoogle, FaFacebook, FaPhone, FaImages, FaFolderOpen, FaDollarSign, FaSignOutAlt, FaBars, FaRobot, FaChartLine, FaSearch } from 'react-icons/fa';
 import logo1 from "../../assets/CliniMedia_Logo1.png";
 import { logout } from "../../utils/auth";
 
@@ -103,7 +103,6 @@ const SidebarMenu = () => {
     { label: "Manage Gallery Edits", path: "/admin/gallery", icon: <FaImages /> },
     { label: "Manage Shared Folder", path: "/admin/shared-folders", icon: <FaFolderOpen />, notificationCount: unreadNotesCount },
     { label: "Manage Meta Leads", path: "/admin/meta-leads", icon: <FaFacebook /> },
-    { label: "QR Reviews", path: "/admin/qr-reviews", icon: <FaStar /> },
   ];
 
   const handleLogout = async () => {
@@ -115,9 +114,9 @@ const SidebarMenu = () => {
   };
 
   return (
-    <div className={`fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl z-40 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"} flex flex-col`}>
+    <div className={`fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl z-40 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"} flex flex-col overflow-hidden`}>
       {/* Top: Logo and Toggle */}
-      <div className="p-3 border-b border-gray-700 flex-shrink-0 flex items-center justify-between">
+      <div className={`${sidebarOpen ? 'p-3' : 'p-1.5'} border-b border-gray-700 flex-shrink-0 flex items-center justify-between`}>
         {sidebarOpen && (
           <img
             src={logo1}
@@ -128,18 +127,18 @@ const SidebarMenu = () => {
         )}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="text-gray-400 hover:text-white transition-colors min-h-11 min-w-11 inline-flex items-center justify-center"
+          className={`${sidebarOpen ? 'min-w-11' : 'min-w-9'} portal-sidebar-toggle text-gray-400 hover:text-white transition-colors inline-flex items-center justify-center`}
         >
           <FaBars className="text-sm" />
         </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-2 overflow-y-auto">
+      <nav className="portal-sidebar-nav flex-1 min-h-0 p-1.5">
         {/* MAIN ACTIONS Section */}
-        <div className="mb-3">
+        <div className={`portal-sidebar-section ${sidebarOpen ? "mb-3" : "mb-1"}`}>
           {sidebarOpen && (
-            <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
+            <h3 className="portal-sidebar-heading text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
               MAIN ACTIONS
             </h3>
           )}
@@ -148,7 +147,7 @@ const SidebarMenu = () => {
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full px-2 min-h-11 rounded-md text-xs font-medium transition-all ${
+                  className={`portal-sidebar-row flex items-center w-full ${sidebarOpen ? 'justify-start px-2' : 'justify-center px-0'} rounded-md text-xs font-medium transition-all ${
                     currentPath === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
@@ -180,9 +179,9 @@ const SidebarMenu = () => {
         </div>
 
         {/* INTEGRATIONS Section */}
-        <div className="mb-3">
+        <div className={`portal-sidebar-section ${sidebarOpen ? "mb-3" : "mb-1"}`}>
           {sidebarOpen && (
-            <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
+            <h3 className="portal-sidebar-heading text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
               INTEGRATIONS
             </h3>
           )}
@@ -191,7 +190,7 @@ const SidebarMenu = () => {
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full px-2 min-h-11 rounded-md text-xs font-medium transition-all ${
+                  className={`portal-sidebar-row flex items-center w-full ${sidebarOpen ? 'justify-start px-2' : 'justify-center px-0'} rounded-md text-xs font-medium transition-all ${
                     currentPath === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
@@ -209,9 +208,9 @@ const SidebarMenu = () => {
         </div>
 
         {/* CONTENT Section */}
-        <div className="mb-3">
+        <div className={`portal-sidebar-section ${sidebarOpen ? "mb-3" : "mb-1"}`}>
           {sidebarOpen && (
-            <h3 className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
+            <h3 className="portal-sidebar-heading text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
               CONTENT
             </h3>
           )}
@@ -220,7 +219,7 @@ const SidebarMenu = () => {
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full px-2 min-h-11 rounded-md text-xs font-medium transition-all ${
+                  className={`portal-sidebar-row flex items-center w-full ${sidebarOpen ? 'justify-start px-2' : 'justify-center px-0'} rounded-md text-xs font-medium transition-all ${
                     currentPath === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
@@ -253,10 +252,10 @@ const SidebarMenu = () => {
       </nav>
 
       {/* Bottom: Logout */}
-      <div className="p-2 border-t border-gray-700 flex-shrink-0">
+      <div className={`${sidebarOpen ? 'p-2' : 'p-1.5'} border-t border-gray-700 flex-shrink-0`}>
         <button
           onClick={handleLogout}
-          className="flex items-center w-full px-2 min-h-11 text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors"
+          className={`portal-sidebar-footer-button flex items-center w-full ${sidebarOpen ? 'justify-start px-2' : 'justify-center px-0'} text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors`}
           title={!sidebarOpen ? "Logout" : undefined}
         >
           <FaSignOutAlt className="text-sm flex-shrink-0" />

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, Routes, Route, useLocation } from 'react-router-dom';
+import { Navigate, useNavigate, Routes, Route, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import CustomerSidebar from './CustomerSidebar';
 import CustomerDashboard from './CustomerDash/CustomerDashPage';
@@ -19,7 +19,6 @@ import GoogleBusinessAnalyticsPage from './GoogleBusinessAnalyticsPage';
 import SearchConsolePage from './SearchConsolePage';
 import CustomerQuickBooksInvoicesPage from './CustomerQuickBooksInvoicesPage';
 import MetaLeadsPage from './MetaLeadsPage';
-import CustomerQRReviewsPage from './CustomerQRReviewsPage';
 import AIReceptionPage from './AIReceptionPage';
 
 const CustomerPortalLayout: React.FC = () => {
@@ -248,9 +247,9 @@ const CustomerPortalLayout: React.FC = () => {
               })()} />
               <Route path="meta-leads" element={<MetaLeadsPage />} />
               <Route path="quickbooks-invoices" element={<CustomerQuickBooksInvoicesPage />} />
-              <Route path="qr-reviews" element={<CustomerQRReviewsPage />} />
               <Route path="ai-reception" element={<AIReceptionPage />} />
               <Route path="" element={<CustomerDashboard />} />
+              <Route path="*" element={<Navigate to="/customer/dashboard" replace />} />
             </Routes>
           </div>
         </main>
