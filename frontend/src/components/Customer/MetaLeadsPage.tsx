@@ -57,7 +57,7 @@ const MetaLeadsPage: React.FC = () => {
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const leadsRequestSeqRef = useRef(0);
   const statsRequestSeqRef = useRef(0);
-  const showLegacyCardLayout = false;
+  const showLegacyCardLayout = true;
 
   useEffect(() => {
     fetchLeads();
@@ -822,7 +822,7 @@ const MetaLeadsPage: React.FC = () => {
           ) : (
             <>
               {showLegacyCardLayout && (
-              <div className="p-4 space-y-4">
+              <div className="p-4 space-y-4 lg:hidden">
                 {leads.map((lead) => {
                   const draft = getLeadDraft(lead);
                   const showAppointmentQuestion = draft.statusUpdate === 'contacted';
@@ -935,7 +935,7 @@ const MetaLeadsPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => updateLeadDraft(lead._id, { statusUpdate: 'contacted' })}
-                                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                  className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
                                     draft.statusUpdate === 'contacted'
                                       ? 'border-green-500 bg-green-100 text-green-900'
                                       : 'border-gray-300 bg-white text-gray-700 hover:border-green-300'
@@ -946,7 +946,7 @@ const MetaLeadsPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => updateLeadDraft(lead._id, { statusUpdate: 'not_contacted', appointmentBooked: null, appointmentReason: '' })}
-                                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                  className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
                                     draft.statusUpdate === 'not_contacted'
                                       ? 'border-red-500 bg-red-100 text-red-900'
                                       : 'border-gray-300 bg-white text-gray-700 hover:border-red-300'
@@ -973,7 +973,7 @@ const MetaLeadsPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleStatusUpdate(lead._id, 'not_contacted', draft.notContactedReason)}
-                                  className="w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                                  className="w-full min-h-11 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
                                 >
                                   Save
                                 </button>
@@ -985,7 +985,7 @@ const MetaLeadsPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleStatusUpdate(lead._id, 'contacted')}
-                                  className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                                  className="w-full min-h-11 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                                 >
                                   {savedContacted ? 'Keep as Contacted' : 'Save Contacted'}
                                 </button>
@@ -998,7 +998,7 @@ const MetaLeadsPage: React.FC = () => {
                                         <button
                                           type="button"
                                           onClick={() => updateLeadDraft(lead._id, { appointmentBooked: true, appointmentReason: '' })}
-                                          className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                          className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
                                             draft.appointmentBooked === true
                                               ? 'border-purple-500 bg-purple-100 text-purple-900'
                                               : 'border-gray-300 bg-white text-gray-700 hover:border-purple-300'
@@ -1009,7 +1009,7 @@ const MetaLeadsPage: React.FC = () => {
                                         <button
                                           type="button"
                                           onClick={() => updateLeadDraft(lead._id, { appointmentBooked: false })}
-                                          className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                                          className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
                                             draft.appointmentBooked === false
                                               ? 'border-orange-500 bg-orange-100 text-orange-900'
                                               : 'border-gray-300 bg-white text-gray-700 hover:border-orange-300'
@@ -1042,7 +1042,7 @@ const MetaLeadsPage: React.FC = () => {
                                     <button
                                       type="button"
                                       onClick={() => handleAppointmentUpdate(lead._id, draft.appointmentBooked, draft.appointmentReason)}
-                                      className="w-full rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700"
+                                      className="w-full min-h-11 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700"
                                     >
                                       Save Appointment
                                     </button>
@@ -1058,7 +1058,7 @@ const MetaLeadsPage: React.FC = () => {
                 })}
               </div>
               )}
-              <div className="overflow-x-auto">
+              <div className="hidden lg:block overflow-x-auto">
               <table className="w-full table-fixed divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>

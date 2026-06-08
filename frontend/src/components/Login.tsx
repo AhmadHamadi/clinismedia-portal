@@ -177,46 +177,54 @@ const Login = () => {
 
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3 mt-2">
           {/* Email input */}
-          <div className="w-full flex items-center gap-2 bg-gray-800 p-2 rounded-xl">
+          <div className="w-full flex items-center gap-2 bg-gray-800 p-3 rounded-xl">
             <MdOutlinePerson className="text-gray-400" />
             <input
               type="text"
               placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="bg-transparent border-0 w-full outline-none text-sm md:text-base text-white placeholder-gray-500"
+              className="min-h-11 bg-transparent border-0 w-full outline-none text-sm md:text-base text-white placeholder-gray-500"
               disabled={loading}
             />
           </div>
 
           {/* Password input */}
-          <div className="w-full flex items-center gap-2 bg-gray-800 p-2 rounded-xl relative">
+          <div className="w-full flex items-center gap-2 bg-gray-800 p-3 rounded-xl relative">
             <FaFingerprint className="text-gray-400" />
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="bg-transparent border-0 w-full outline-none text-sm md:text-base text-white placeholder-gray-500"
+              className="min-h-11 bg-transparent border-0 w-full pr-12 outline-none text-sm md:text-base text-white placeholder-gray-500"
               disabled={loading}
             />
             {showPassword ? (
-              <FaRegEyeSlash
-                className="absolute right-5 cursor-pointer text-gray-400"
+              <button
+                type="button"
+                className="absolute right-3 min-h-11 min-w-11 inline-flex items-center justify-center text-gray-400"
                 onClick={togglePasswordView}
-              />
+                aria-label="Hide password"
+              >
+                <FaRegEyeSlash />
+              </button>
             ) : (
-              <FaRegEye
-                className="absolute right-5 cursor-pointer text-gray-400"
+              <button
+                type="button"
+                className="absolute right-3 min-h-11 min-w-11 inline-flex items-center justify-center text-gray-400"
                 onClick={togglePasswordView}
-              />
+                aria-label="Show password"
+              >
+                <FaRegEye />
+              </button>
             )}
           </div>
 
           <button 
             type="submit"
             disabled={loading}
-            className="w-full p-2 bg-blue-600 rounded-xl mt-3 hover:bg-blue-700 text-sm md:text-base text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full min-h-11 px-3 py-2 bg-blue-600 rounded-xl mt-3 hover:bg-blue-700 text-sm md:text-base text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Logging in..." : "Login"}
           </button>
@@ -231,7 +239,7 @@ const Login = () => {
             Please contact{" "}
             <a 
               href="mailto:info@clinimedia.ca" 
-              className="underline hover:text-blue-300"
+              className="underline hover:text-blue-300 inline-flex min-h-11 items-center"
             >
               info@clinimedia.ca
             </a>

@@ -128,7 +128,7 @@ const SidebarMenu = () => {
         )}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="text-gray-400 hover:text-white transition-colors p-1"
+          className="text-gray-400 hover:text-white transition-colors min-h-11 min-w-11 inline-flex items-center justify-center"
         >
           <FaBars className="text-sm" />
         </button>
@@ -148,7 +148,7 @@ const SidebarMenu = () => {
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  className={`flex items-center w-full px-2 min-h-11 rounded-md text-xs font-medium transition-all ${
                     currentPath === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
@@ -191,7 +191,7 @@ const SidebarMenu = () => {
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  className={`flex items-center w-full px-2 min-h-11 rounded-md text-xs font-medium transition-all ${
                     currentPath === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
@@ -220,7 +220,7 @@ const SidebarMenu = () => {
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  className={`flex items-center w-full px-2 min-h-11 rounded-md text-xs font-medium transition-all ${
                     currentPath === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
@@ -256,7 +256,7 @@ const SidebarMenu = () => {
       <div className="p-2 border-t border-gray-700 flex-shrink-0">
         <button
           onClick={handleLogout}
-          className="flex items-center w-full px-2 py-1.5 text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors"
+          className="flex items-center w-full px-2 min-h-11 text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors"
           title={!sidebarOpen ? "Logout" : undefined}
         >
           <FaSignOutAlt className="text-sm flex-shrink-0" />

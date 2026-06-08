@@ -448,6 +448,77 @@ const CallLogsPage: React.FC = () => {
     return 'All Calls';
   };
 
+  const openCallRecording = async (log: CallLog) => {
+    try {
+      setLoadingRecording(true);
+      setSelectedCall(log);
+      setShowRecordingModal(true);
+
+      const token = localStorage.getItem('customerToken');
+      if (!token) {
+        alert('Please log in to access recordings');
+        setShowRecordingModal(false);
+        return;
+      }
+
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+      const isProduction = hostname === 'www.clinimediaportal.ca' ||
+        hostname === 'clinimediaportal.ca' ||
+        hostname.includes('clinimediaportal.ca');
+      const audioApiBaseUrl = isProduction
+        ? 'https://api.clinimediaportal.ca'
+        : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000');
+      const isVoicemail = Boolean(log.dialCallStatus && log.dialCallStatus !== 'answered' && log.voicemailUrl);
+      const audioUrl = isVoicemail
+        ? `${audioApiBaseUrl}/api/twilio/voicemail/${log.callSid}`
+        : `${audioApiBaseUrl}/api/twilio/recording/${log.recordingSid}`;
+
+      const response = await fetch(audioUrl, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        alert(`Failed to load ${isVoicemail ? 'voicemail' : 'recording'} (${response.status}): ${errorText}`);
+        setShowRecordingModal(false);
+        return;
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('audio')) {
+        alert('Invalid response format. Expected audio file.');
+        setShowRecordingModal(false);
+        return;
+      }
+
+      const blob = await response.blob();
+      if (!blob || blob.size === 0) {
+        alert(`${isVoicemail ? 'Voicemail' : 'Recording'} file is empty or corrupted.`);
+        setShowRecordingModal(false);
+        return;
+      }
+
+      setRecordingUrl(URL.createObjectURL(blob));
+    } catch (error) {
+      console.error('Error loading call audio:', error);
+      alert('Failed to load recording');
+      setShowRecordingModal(false);
+    } finally {
+      setLoadingRecording(false);
+    }
+  };
+
+  const openCallSummary = (log: CallLog) => {
+    setSelectedCall(log);
+    setShowCallDetails(true);
+    setSummaryText(null);
+    if (log.transcriptSid || config?.recordingEnabled) {
+      fetchSummary(log.callSid);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4 flex items-center justify-center min-h-screen">
@@ -790,7 +861,78 @@ const CallLogsPage: React.FC = () => {
               <p className="text-xs text-gray-500 mt-1">Calls will appear here once they are received</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="lg:hidden divide-y divide-gray-200">
+              {callLogs.map((log) => {
+                const isVoicemail = Boolean(log.dialCallStatus && log.dialCallStatus !== 'answered' && log.voicemailUrl);
+                const hasAudio = Boolean(config?.recordingEnabled && (isVoicemail || log.recordingSid));
+                return (
+                  <div key={log.id} className="p-4 space-y-3 bg-white">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                          <FaPhone className="text-gray-400 flex-shrink-0" />
+                          <span className="font-mono break-all">{log.fromDisplay ?? formatPhoneDisplay(log.from)}</span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-gray-600">
+                          <FaCalendar className="text-gray-400 flex-shrink-0" />
+                          <span>{formatDate(log.startedAt)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-800">
+                        <span>{getStatusIcon(log.dialCallStatus, log.status)}</span>
+                        <span>{getStatusLabel(log.dialCallStatus, log.status, log.duration)}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
+                      <div className="rounded-lg bg-gray-50 p-2">
+                        <div className="font-semibold text-gray-500">Duration</div>
+                        <div className="mt-1 flex items-center gap-1">
+                          <FaClock className="text-gray-400" />
+                          {formatDuration(log.duration)}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 p-2">
+                        <div className="font-semibold text-gray-500">Patient</div>
+                        <div className="mt-1">{log.menuChoiceLabel || 'Not set'}</div>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 p-2">
+                        <div className="font-semibold text-gray-500">Location</div>
+                        <div className="mt-1">{[log.callerCity, log.callerState].filter(Boolean).join(', ') || 'Unknown'}</div>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 p-2">
+                        <div className="font-semibold text-gray-500">Appointment</div>
+                        <div className="mt-1">{log.appointmentBooked === true ? 'Booked' : log.appointmentBooked === false ? 'No' : 'Not set'}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {hasAudio && (
+                        <button
+                          type="button"
+                          onClick={() => openCallRecording(log)}
+                          className="min-h-11 inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700"
+                        >
+                          <FaHeadphones />
+                          {isVoicemail ? 'Voicemail' : 'Listen'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openCallSummary(log)}
+                        className="min-h-11 inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white"
+                      >
+                        <FaEye />
+                        Summary
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -1086,6 +1228,7 @@ const CallLogsPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>

@@ -189,7 +189,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
         <button
           type="button"
           onClick={() => setSidebarOpen((open) => !open)}
-          className="text-gray-400 hover:text-white transition-colors p-1 flex-shrink-0"
+          className="text-gray-400 hover:text-white transition-colors min-h-11 min-w-11 inline-flex items-center justify-center flex-shrink-0"
           aria-label={sidebarOpen ? 'Collapse navigation' : 'Expand navigation'}
         >
           <FaBars className="text-sm" />
@@ -208,7 +208,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} py-1.5 rounded-md text-xs font-medium transition-all ${
+                  className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} min-h-11 rounded-md text-xs font-medium transition-all ${
                     window.location.pathname === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
@@ -249,7 +249,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
-                  className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} py-1.5 rounded-md text-xs font-medium transition-all ${
+                  className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} min-h-11 rounded-md text-xs font-medium transition-all ${
                     window.location.pathname === item.path
                       ? 'bg-[#334155] text-white shadow-sm border-l-2 border-blue-500'
                       : 'text-gray-300 hover:bg-[#334155] hover:text-white'
@@ -285,7 +285,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
                 <button
                   onClick={() => !item.comingSoon && navigate(item.path)}
                   disabled={item.comingSoon}
-                  className={`flex items-center w-full ${showLabels ? 'justify-start px-3' : 'justify-center px-0'} py-2.5 rounded-md text-sm font-medium transition-all ${
+                  className={`flex items-center w-full ${showLabels ? 'justify-start px-3' : 'justify-center px-0'} min-h-11 rounded-md text-sm font-medium transition-all ${
                     item.comingSoon
                       ? 'text-gray-500 cursor-not-allowed opacity-50'
                       : window.location.pathname === item.path
@@ -321,7 +321,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
       <div className="p-2 border-t border-gray-700">
         <button
           onClick={handleLogout}
-          className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} py-1.5 text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors`}
+          className={`flex items-center w-full ${showLabels ? 'justify-start px-2' : 'justify-center px-0'} min-h-11 text-xs font-medium text-gray-300 hover:bg-[#334155] hover:text-white rounded-md transition-colors`}
           title={!showLabels ? 'Logout' : undefined}
         >
           <FaSignOutAlt className="text-sm" />

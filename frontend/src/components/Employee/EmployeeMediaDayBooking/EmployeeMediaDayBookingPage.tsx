@@ -69,26 +69,32 @@ const Icons = {
 };
 
 // Custom toolbar component
+const MonthDateHeader: React.FC<any> = ({ label }) => (
+  <span className="flex min-h-10 items-start justify-center pt-2 text-sm font-semibold text-[#303b45]">
+    {label}
+  </span>
+);
+
 const CustomToolbar: React.FC<any> = (toolbar) => (
-  <div className="flex items-center justify-between mb-6">
-    <div className="flex items-center space-x-4">
+  <div className="flex flex-col items-center gap-3 mb-6 sm:flex-row sm:justify-between">
+    <div className="flex items-center gap-2">
       <button
         onClick={() => toolbar.onNavigate('PREV')}
-        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+        className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
       >
         <ChevronLeftIcon className="w-6 h-6 text-[#303b45]" />
       </button>
       <button
         onClick={() => toolbar.onNavigate('NEXT')}
-        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+        className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
       >
         <ChevronRightIcon className="w-6 h-6 text-[#303b45]" />
       </button>
     </div>
-    <h2 className="text-2xl font-semibold text-[#303b45]">
+    <h2 className="text-xl font-semibold text-[#303b45] sm:text-2xl">
       {format(toolbar.date, 'MMMM yyyy')}
     </h2>
-    <div className="w-24" />
+    <div className="hidden w-24 sm:block" />
   </div>
 );
 
@@ -137,7 +143,7 @@ const BookingCard: React.FC<{
         <button 
           onClick={() => onAccept(booking._id)}
           disabled={isAccepting}
-          className="bg-[#98c6d5] hover:bg-[#7bb3c4] disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+          className="min-h-11 bg-[#98c6d5] hover:bg-[#7bb3c4] disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
         >
           {isAccepting ? (
             <>
@@ -176,7 +182,7 @@ const TabButton: React.FC<{
 }> = ({ isActive, onClick, children, activeColor }) => (
   <button
     onClick={onClick}
-    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+    className={`min-h-11 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
       isActive
         ? `${activeColor} text-white shadow-sm`
         : 'text-gray-600 hover:text-gray-800'
@@ -247,11 +253,11 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f9fafb] via-[#f3f4f6] to-[#e5e7eb] py-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#f9fafb] via-[#f3f4f6] to-[#e5e7eb] py-6 sm:py-8 overflow-x-hidden">
       <div className="max-w-6xl mx-auto px-4">
         {/* Header */}
-        <div className="text-center mb-12 relative flex flex-col items-center">
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-2 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow font-sans tracking-tight flex items-center justify-center gap-2">
+        <div className="text-center mb-8 sm:mb-12 relative flex flex-col items-center">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-2 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow font-sans tracking-tight flex items-center justify-center gap-2">
             <span>Book your Photography Sessions!</span>
           </h1>
           <p className="text-base md:text-lg font-normal text-gray-800 max-w-xl mx-auto px-6 py-4 mt-2 rounded-2xl shadow-xl backdrop-blur-md bg-white/60 border border-transparent">
@@ -275,9 +281,9 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
         )}
 
         {/* Calendar Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-3 mb-12 transform transition-all duration-300 hover:shadow-2xl relative border-8 border-[#e5e7eb]">
+        <div className="bg-white rounded-2xl shadow-xl p-2 sm:p-3 mb-12 transform transition-all duration-300 hover:shadow-2xl relative border-4 sm:border-8 border-[#e5e7eb]">
           {/* Booking Legend (top right corner) */}
-          <div className="absolute top-6 right-8 flex flex-wrap gap-4 items-center justify-end z-10">
+          <div className="static mb-4 flex flex-wrap gap-3 items-center justify-center sm:absolute sm:top-6 sm:right-8 sm:mb-0 sm:justify-end sm:z-10">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded bg-[#60a5fa]"></div>
               <span className="text-sm text-gray-700">Available</span>
@@ -287,7 +293,7 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
               <span className="text-sm text-gray-700">Accepted</span>
             </div>
           </div>
-          <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-bg]:transition-colors [&_.rbc-day-bg:hover]:bg-[#98c6d5] [&_.rbc-day-bg:hover]:bg-opacity-20 [&_.rbc-day-bg.rbc-off-range]:opacity-50 [&_.rbc-day-bg.rbc-off-range]:cursor-not-allowed [&_.rbc-day-bg.rbc-off-range]:hover:bg-transparent">
+          <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-2 sm:[&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-bg]:transition-colors [&_.rbc-day-bg:hover]:bg-[#98c6d5] [&_.rbc-day-bg:hover]:bg-opacity-20 [&_.rbc-day-bg.rbc-off-range]:opacity-50 [&_.rbc-day-bg.rbc-off-range]:cursor-not-allowed [&_.rbc-day-bg.rbc-off-range]:hover:bg-transparent">
             <Calendar
               localizer={localizer}
               events={calendarEvents}
@@ -301,7 +307,7 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
               tooltipAccessor={(event) => event.title}
               selectable
               popup
-              components={{ toolbar: CustomToolbar }}
+              components={{ toolbar: CustomToolbar, month: { dateHeader: MonthDateHeader } }}
               formats={{
                 dayHeaderFormat: (date: Date) => format(date, 'EEE')
               }}
@@ -311,11 +317,11 @@ export const EmployeeMediaDayBookingPage: React.FC = () => {
         </div>
 
         {/* My Photography Sessions */}
-        <div className="bg-white border-8 rounded-2xl shadow-xl p-8 mb-8">
+        <div className="bg-white border-4 sm:border-8 rounded-2xl shadow-xl p-4 sm:p-8 mb-8">
           <h2 className="text-2xl md:text-3xl font-extrabold mb-8 bg-gradient-to-r from-gray-500 via-gray-700 to-black bg-clip-text text-transparent drop-shadow tracking-wide font-sans text-left">
             My Photography Sessions
           </h2>
-          <div className="flex bg-gray-100 rounded-lg p-1 mb-6 w-fit">
+          <div className="grid grid-cols-1 gap-1 bg-gray-100 rounded-lg p-1 mb-6 w-full sm:w-fit sm:grid-cols-2">
             <TabButton
               isActive={activeTab === 'available'}
               onClick={() => setActiveTab('available')}

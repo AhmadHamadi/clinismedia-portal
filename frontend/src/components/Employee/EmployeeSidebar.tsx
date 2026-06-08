@@ -63,7 +63,7 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
 
   const getButtonClasses = (path: string) => {
     const baseClasses =
-      "text-left w-full p-2 rounded transition hover:bg-blue-100 text-[#303b45]";
+      "text-left w-full p-2 min-h-11 rounded transition hover:bg-blue-100 text-[#303b45]";
     const activeClasses = "bg-[#98c6d5] text-white";
     return currentPath === path ? `${baseClasses} ${activeClasses}` : baseClasses;
   };
@@ -77,7 +77,7 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
   };
 
   return (
-    <div className={`fixed top-0 left-0 h-screen bg-white shadow-md ${sidebarOpen ? "w-64" : "w-16"} transition-all z-40`}>
+    <div className={`fixed top-0 left-0 h-screen bg-white shadow-md ${sidebarOpen ? "w-64" : "w-16"} transition-all z-40 flex flex-col`}>
       {/* Top: Logo left, hamburger right */}
       <div className="p-4 flex items-center justify-between">
         {sidebarOpen && (
@@ -87,11 +87,18 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
             className="h-20 object-contain"
           />
         )}
-        <FaBars onClick={() => setSidebarOpen(!sidebarOpen)} className="cursor-pointer" />
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg hover:bg-gray-100"
+          aria-label={sidebarOpen ? "Collapse navigation" : "Expand navigation"}
+        >
+          <FaBars />
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="p-2 sm:p-4 space-y-3 text-sm">
+      <nav className="flex-1 p-2 sm:p-4 space-y-3 text-sm">
         {navItems.map(({ label, path, section, icon }) => (
           <div key={path} className="relative">
             <button
@@ -115,10 +122,10 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({ sidebarOpen, setSideb
       </nav>
 
       {/* Logout Button */}
-      <div className="p-4 border-t border-gray-200 mt-auto">
+      <div className={`${sidebarOpen ? 'p-4' : 'p-2'} border-t border-gray-200 mt-auto`}>
         <button
           onClick={handleLogout}
-          className={`flex items-center w-full ${sidebarOpen ? 'justify-start px-3' : 'justify-center px-0'} py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors`}
+          className={`flex items-center w-full ${sidebarOpen ? 'justify-start px-3' : 'justify-center px-0'} min-h-11 min-w-11 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors`}
           title={!sidebarOpen ? 'Logout' : undefined}
         >
           <FaSignOutAlt />

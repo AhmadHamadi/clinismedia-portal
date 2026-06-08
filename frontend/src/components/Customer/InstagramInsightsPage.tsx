@@ -187,7 +187,7 @@ const InstagramInsightsPage: React.FC = () => {
                 <button
                   onClick={refreshAll}
                   disabled={refreshing}
-                  className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
+                  className="min-h-11 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
                 >
                   {refreshing ? 'Refreshing...' : 'Refresh'}
                 </button>

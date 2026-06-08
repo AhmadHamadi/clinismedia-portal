@@ -85,8 +85,10 @@ const customModalStyles = {
     bottom: 'auto',
     marginRight: '-50%',
     transform: 'translate(-50%, -50%)',
-    width: '50%',
-    padding: '2rem',
+    width: 'min(92vw, 42rem)',
+    maxHeight: '90vh',
+    overflowY: 'auto' as const,
+    padding: 'clamp(1rem, 4vw, 2rem)',
   },
   overlay: {
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -94,26 +96,32 @@ const customModalStyles = {
 };
 
 // Custom toolbar component
+const MonthDateHeader: React.FC<any> = ({ label }) => (
+  <span className="flex min-h-10 items-start justify-center pt-2 text-sm font-semibold text-[#303b45]">
+    {label}
+  </span>
+);
+
 const CustomToolbar: React.FC<any> = (toolbar) => (
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center space-x-4">
+    <div className="flex flex-col items-center gap-3 mb-6 sm:flex-row sm:justify-between">
+      <div className="flex items-center gap-2">
         <button
         onClick={() => toolbar.onNavigate('PREV')}
-          className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
         >
           <ChevronLeftIcon className="w-6 h-6 text-[#303b45]" />
         </button>
         <button
         onClick={() => toolbar.onNavigate('NEXT')}
-          className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
         >
           <ChevronRightIcon className="w-6 h-6 text-[#303b45]" />
         </button>
       </div>
-      <h2 className="text-2xl font-semibold text-[#303b45]">
+      <h2 className="text-xl font-semibold text-[#303b45] sm:text-2xl">
         {format(toolbar.date, 'MMMM yyyy')}
       </h2>
-    <div className="w-24" />
+    <div className="hidden w-24 sm:block" />
     </div>
   );
 
@@ -360,11 +368,11 @@ const AdminMediaDayBookingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8 overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4">
         {/* Header Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-[#303b45] mb-4">
+        <div className="text-center mb-8 sm:mb-12">
+          <h1 className="text-3xl sm:text-4xl font-bold text-[#303b45] mb-4">
             Media Day Management
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
@@ -394,7 +402,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
         {/* Block Dates Modal */}
         {isBlockModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-8 max-w-lg w-full">
+            <div className="bg-white rounded-xl p-4 sm:p-8 max-w-lg w-[92vw] max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold text-[#303b45] mb-6">Block Dates</h2>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Date(s) to Block</label>
@@ -420,16 +428,16 @@ const AdminMediaDayBookingPage: React.FC = () => {
                   <span className="text-gray-400 text-sm">No dates selected</span>
                 )}
               </div>
-              <div className="flex justify-end gap-4">
+              <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row sm:gap-4">
                 <button
                   onClick={() => setIsBlockModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  className="min-h-11 px-4 py-2 text-gray-600 hover:text-gray-800"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmBlock}
-                  className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
+                  className="min-h-11 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
                 >
                   Confirm Block
                 </button>
@@ -441,7 +449,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
         {/* Unblock Dates Modal */}
         {isUnblockModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-8 max-w-lg w-full max-h-[80vh] overflow-y-auto">
+            <div className="bg-white rounded-xl p-4 sm:p-8 max-w-lg w-[92vw] max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold text-[#303b45] mb-6">Unblock Dates</h2>
               
               {blockedDatesEvents.length === 0 ? (
@@ -503,24 +511,24 @@ const AdminMediaDayBookingPage: React.FC = () => {
                     ))}
                   </div>
                   
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
                     <span className="text-sm text-gray-600">
                       {selectedBlockedDates.length} of {blockedDatesEvents.length} dates selected
                     </span>
-                    <div className="flex gap-4">
+                    <div className="flex flex-col-reverse gap-3 sm:flex-row sm:gap-4">
                       <button
                         onClick={() => {
                           setIsUnblockModalOpen(false);
                           setSelectedBlockedDates([]);
                         }}
-                        className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                        className="min-h-11 px-4 py-2 text-gray-600 hover:text-gray-800"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleConfirmUnblock}
                         disabled={selectedBlockedDates.length === 0 || isUnblocking}
-                        className={`px-4 py-2 rounded-lg transition-colors ${
+                        className={`min-h-11 px-4 py-2 rounded-lg transition-colors ${
                           selectedBlockedDates.length > 0 && !isUnblocking
                             ? 'bg-red-600 text-white hover:bg-red-700'
                             : 'bg-red-200 text-red-400 cursor-not-allowed'
@@ -537,23 +545,23 @@ const AdminMediaDayBookingPage: React.FC = () => {
         )}
 
         {/* Calendar Section */}
-        <div className="bg-white rounded-xl shadow-xl p-8 mb-8 transform transition-all duration-300 hover:shadow-2xl">
-          <div className="mb-6 flex justify-between items-center">
+        <div className="bg-white rounded-xl shadow-xl p-4 sm:p-6 lg:p-8 mb-8 transform transition-all duration-300 hover:shadow-2xl">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
             <div>
             <h2 className="text-2xl font-semibold text-[#303b45] mb-2">Scheduled Media Days</h2>
             <p className="text-gray-600">View all scheduled and pending media day requests</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 onClick={() => setIsBlockModalOpen(true)}
-                className="px-6 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-semibold shadow"
+                className="min-h-11 px-6 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-semibold shadow"
               >
                 Block Dates
               </button>
               {blockedDatesEvents.length > 0 && (
                 <button
                   onClick={() => setIsUnblockModalOpen(true)}
-                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold shadow"
+                  className="min-h-11 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold shadow"
                 >
                   Unblock Dates
                 </button>
@@ -581,7 +589,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-slot]:cursor-pointer [&_.rbc-day-slot:hover]:bg-blue-50 [&_.rbc-day-slot.rbc-off-range]:cursor-default [&_.rbc-day-slot.rbc-off-range:hover]:bg-transparent">
+          <div className="[&_.rbc-calendar]:bg-white [&_.rbc-calendar]:rounded-lg [&_.rbc-calendar]:p-2 sm:[&_.rbc-calendar]:p-4 [&_.rbc-calendar]:shadow-sm [&_.rbc-header]:bg-[#98c6d5] [&_.rbc-header]:text-white [&_.rbc-header]:font-semibold [&_.rbc-header]:py-3 [&_.rbc-today]:bg-gray-50 [&_.rbc-off-range-bg]:bg-gray-50 [&_.rbc-button-link]:text-[#303b45] [&_.rbc-button-link]:transition-colors [&_.rbc-day-slot]:cursor-pointer [&_.rbc-day-slot:hover]:bg-blue-50 [&_.rbc-day-slot.rbc-off-range]:cursor-default [&_.rbc-day-slot.rbc-off-range:hover]:bg-transparent">
             {localizer && Array.isArray(combinedEvents) ? (
               <Calendar
                 localizer={localizer}
@@ -593,7 +601,8 @@ const AdminMediaDayBookingPage: React.FC = () => {
                 className="rounded-lg"
                 selectable={true}
                 components={{
-                  toolbar: CustomToolbar
+                  toolbar: CustomToolbar,
+                  month: { dateHeader: MonthDateHeader }
                 }}
                 formats={{
                   monthHeaderFormat: () => '' // Hide default month header
@@ -613,15 +622,15 @@ const AdminMediaDayBookingPage: React.FC = () => {
         </div>
 
         {/* Requests Section */}
-        <div className="bg-white rounded-xl shadow-xl p-8">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-white rounded-xl shadow-xl p-4 sm:p-6 lg:p-8">
+          <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:justify-between lg:items-center">
             <h2 className="text-2xl font-semibold text-[#303b45]">
               Media Day Requests
             </h2>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:flex">
               <button
                 onClick={() => setBookingView('pending')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
+                className={`min-h-11 px-4 py-2 rounded-lg transition-colors ${
                   bookingView === 'pending'
                     ? 'bg-[#fbbf24] text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -631,7 +640,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setBookingView('accepted')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
+                className={`min-h-11 px-4 py-2 rounded-lg transition-colors ${
                   bookingView === 'accepted'
                     ? 'bg-green-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -641,7 +650,7 @@ const AdminMediaDayBookingPage: React.FC = () => {
               </button>
             <button
                 onClick={() => setBookingView('declined')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
+                className={`min-h-11 px-4 py-2 rounded-lg transition-colors ${
                   bookingView === 'declined'
                     ? 'bg-red-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'

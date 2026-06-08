@@ -44,14 +44,14 @@ const CustomerManagementPage = () => {
   } = useCustomerManagement();
 
   return (
-    <div className="min-h-screen flex bg-gray-50 font-sans w-full">
-      <div className="flex-1 p-6 max-w-full">
-        <div className="max-w-6xl mx-auto bg-white rounded-lg p-6 shadow-lg">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-extrabold text-gray-900">Customer Management</h1>
+    <div className="min-h-screen flex bg-gray-50 font-sans w-full overflow-x-hidden">
+      <div className="flex-1 p-4 sm:p-6 max-w-full min-w-0">
+        <div className="max-w-6xl mx-auto bg-white rounded-lg p-4 sm:p-6 shadow-lg min-w-0">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight">Customer Management</h1>
             <button
               onClick={() => setShowModal(true)}
-              className="bg-[#98c6d5] hover:bg-blue-700 text-white px-5 py-2 rounded-lg transition"
+              className="bg-[#98c6d5] hover:bg-blue-700 text-white px-5 min-h-11 rounded-lg transition w-full sm:w-auto"
             >
               Add Customer
             </button>
@@ -68,15 +68,43 @@ const CustomerManagementPage = () => {
             }}
           />
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse table-auto">
+          <div className="lg:hidden space-y-4">
+            {paginatedCustomers.length === 0 ? (
+              <p className="p-6 text-center text-gray-500 border border-gray-200 rounded-lg">No customers found.</p>
+            ) : (
+              paginatedCustomers.map((customer) => (
+                <div key={customer._id} className="border border-gray-200 rounded-lg p-4 space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{customer.name}</h3>
+                    <p className="text-sm text-gray-600 break-words">{customer.email}</p>
+                    <p className="text-sm text-gray-500">Username: {customer.username || '-'}</p>
+                    <p className="text-sm text-gray-500">Location: {customer.location || '-'}</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <button className="min-h-11 inline-flex items-center justify-center text-[#98c6d5] border border-[#98c6d5] rounded-lg px-3" onClick={() => handleViewCustomer(customer)}>
+                      View
+                    </button>
+                    <button className="min-h-11 inline-flex items-center justify-center text-blue-600 border border-blue-200 rounded-lg px-3" onClick={() => handleEditClick(customer)}>
+                      Edit
+                    </button>
+                    <button className="min-h-11 inline-flex items-center justify-center text-red-600 border border-red-200 rounded-lg px-3" onClick={() => handleDeleteCustomer(customer._id)}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="hidden lg:block overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table className="min-w-[620px] sm:min-w-full border-collapse table-auto">
               <thead className="bg-gray-100">
                 <tr className="bg-gray-50">
-                  <th className="p-6 text-left font-semibold text-gray-700">Name</th>
-                  <th className="p-6 text-left font-semibold text-black">Username</th>
-                  <th className="p-6 text-left font-semibold text-black">Email</th>
-                  <th className="p-6 text-left font-semibold text-black">Location</th>
-                  <th className="p-6 text-left font-semibold text-gray-700">Actions</th>
+                  <th className="p-4 sm:p-6 text-left font-semibold text-gray-700">Name</th>
+                  <th className="p-4 sm:p-6 text-left font-semibold text-black">Username</th>
+                  <th className="p-4 sm:p-6 text-left font-semibold text-black">Email</th>
+                  <th className="p-4 sm:p-6 text-left font-semibold text-black">Location</th>
+                  <th className="p-4 sm:p-6 text-left font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -87,20 +115,22 @@ const CustomerManagementPage = () => {
                 ) : (
                   paginatedCustomers.map((customer) => (
                     <tr key={customer._id} className="border-b hover:bg-gray-50 transition">
-                      <td className="p-6 text-black">{customer.name}</td>
-                      <td className="p-6 text-black">{customer.username || '-'}</td>
-                      <td className="p-6 text-black">{customer.email}</td>
-                      <td className="p-6 text-black">{customer.location || '-'}</td>
-                      <td className="p-6">
-                        <button className="text-[#98c6d5] hover:underline mr-4" onClick={() => handleViewCustomer(customer)}>
+                      <td className="p-4 sm:p-6 text-black">{customer.name}</td>
+                      <td className="p-4 sm:p-6 text-black">{customer.username || '-'}</td>
+                      <td className="p-4 sm:p-6 text-black">{customer.email}</td>
+                      <td className="p-4 sm:p-6 text-black">{customer.location || '-'}</td>
+                      <td className="p-4 sm:p-6">
+                        <div className="flex flex-wrap gap-2">
+                        <button className="min-h-11 inline-flex items-center text-[#98c6d5] hover:underline px-2" onClick={() => handleViewCustomer(customer)}>
                           View
                         </button>
-                        <button className="text-blue-600 hover:underline mr-4" onClick={() => handleEditClick(customer)}>
+                        <button className="min-h-11 inline-flex items-center text-blue-600 hover:underline px-2" onClick={() => handleEditClick(customer)}>
                           Edit
                         </button>
-                        <button className="text-red-600 hover:underline" onClick={() => handleDeleteCustomer(customer._id)}>
+                        <button className="min-h-11 inline-flex items-center text-red-600 hover:underline px-2" onClick={() => handleDeleteCustomer(customer._id)}>
                           Delete
                         </button>
+                        </div>
                       </td>
                     </tr>
                   ))

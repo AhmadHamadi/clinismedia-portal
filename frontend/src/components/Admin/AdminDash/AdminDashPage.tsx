@@ -60,31 +60,31 @@ const AdminDash = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-sans">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8 font-sans overflow-x-hidden">
       {/* Header with logo left, title centered */}
-      <div className="relative flex items-center justify-between mb-10 bg-gray-50 p-4 rounded">
+      <div className="relative flex flex-col md:flex-row items-center justify-center md:justify-between gap-4 mb-8 md:mb-10 bg-gray-50 p-2 sm:p-4 rounded text-center md:text-left">
         {/* Logo */}
         <div className="flex-shrink-0">
           <img
             src={logo1}
             alt="CliniMedia Logo"
-            className="w-64 h-auto"
+            className="w-40 sm:w-48 md:w-64 h-auto mx-auto md:mx-0"
           />
         </div>
 
         {/* Title */}
         <h1
-          className="text-5xl font-extrabold tracking-tight pointer-events-none select-none mx-auto"
+          className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight pointer-events-none select-none md:mx-auto"
           style={{ color: "#303b45" }}
         >
           Admin Portal
         </h1>
 
         {/* Spacer for balance */}
-        <div className="w-64"></div>
+        <div className="hidden md:block w-64"></div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-6 md:mt-8">
         <DashboardBox
           title="Media Day Calendar"
           description="View and manage media day events"

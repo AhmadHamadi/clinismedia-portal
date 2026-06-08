@@ -230,11 +230,11 @@ const AdminInvoicePage: React.FC = () => {
       <div className="max-w-6xl mx-auto">
         {/* Email Notification Section - At Top */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-bold text-[#303b45]">Email Notifications</h2>
             <button
               onClick={() => setShowEmailModal(true)}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center gap-2"
+              className="min-h-11 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center justify-center gap-2"
             >
               <FaEnvelope /> Send Email
             </button>
@@ -253,11 +253,11 @@ const AdminInvoicePage: React.FC = () => {
         </div>
 
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:justify-between sm:items-center">
           <h1 className="text-3xl font-bold text-[#303b45]">Invoice Management</h1>
           <button
             onClick={() => setShowInvoiceModal(true)}
-            className="px-4 py-2 bg-[#98c6d5] text-white rounded hover:bg-[#7bb3c7]"
+            className="min-h-11 px-4 py-2 bg-[#98c6d5] text-white rounded hover:bg-[#7bb3c7]"
           >
             Add New Invoice
           </button>
@@ -313,8 +313,64 @@ const AdminInvoicePage: React.FC = () => {
             </p>
           </div>
 
+          <div className="lg:hidden space-y-4">
+            {filteredInvoices.length === 0 ? (
+              <p className="py-6 text-center text-gray-500 border border-gray-200 rounded-lg">
+                No invoice items found with the current filters.
+              </p>
+            ) : (
+              filteredInvoices.map(invoice => {
+                const assignments = getInvoiceAssignments(invoice._id);
+
+                return (
+                  <div key={invoice._id} className="border border-gray-200 rounded-lg p-4 space-y-4">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{invoice.name}</h3>
+                      <p className="text-sm text-gray-600">{new Date(invoice.date).toLocaleDateString()}</p>
+                      <p className="text-sm text-gray-500">
+                        {assignments.length === 0 ? 'Not assigned' : `${assignments.length} assignment(s)`}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <a
+                        href={`${import.meta.env.VITE_BACKEND_BASE_URL}/api/invoices/view/${invoice.url.split('/').pop()}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-h-11 inline-flex items-center justify-center px-3 py-2 text-blue-600 border border-blue-200 rounded-lg"
+                      >
+                        View PDF
+                      </a>
+                      <a
+                        href={`${import.meta.env.VITE_BACKEND_BASE_URL}/api/invoices/file/${invoice.url.split('/').pop()}`}
+                        download
+                        className="min-h-11 inline-flex items-center justify-center px-3 py-2 text-green-600 border border-green-200 rounded-lg"
+                      >
+                        Download
+                      </a>
+                      <button
+                        onClick={() => {
+                          setEditInvoice(invoice);
+                          setShowEditModal(true);
+                        }}
+                        className="min-h-11 inline-flex items-center justify-center px-3 py-2 text-blue-600 border border-blue-200 rounded-lg"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteInvoice(invoice._id)}
+                        className="min-h-11 inline-flex items-center justify-center px-3 py-2 text-red-600 border border-red-200 rounded-lg"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
           {/* Invoice Items Table */}
-          <div className="overflow-x-auto">
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="text-left text-gray-600 border-b">
@@ -594,4 +650,4 @@ const AdminInvoicePage: React.FC = () => {
   );
 };
 
-export default AdminInvoicePage; 
+export default AdminInvoicePage;

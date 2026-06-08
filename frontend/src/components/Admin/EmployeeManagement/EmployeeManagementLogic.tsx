@@ -23,20 +23,22 @@ export const EmployeeTableRow: React.FC<EmployeeTableRowProps> = ({
   onView,
 }) => (
   <tr className="border-b hover:bg-gray-50 transition">
-    <td className="p-6 text-black">{employee.name}</td>
-    <td className="p-6 text-black">{employee.username || '-'}</td>
-    <td className="p-6 text-black">{employee.email}</td>
-    <td className="p-6 text-black">{employee.department || '-'}</td>
-    <td className="p-6">
-      <button className="text-[#98c6d5] hover:underline mr-4" onClick={() => onView(employee)}>
+    <td className="p-4 sm:p-6 text-black">{employee.name}</td>
+    <td className="p-4 sm:p-6 text-black">{employee.username || '-'}</td>
+    <td className="p-4 sm:p-6 text-black">{employee.email}</td>
+    <td className="p-4 sm:p-6 text-black">{employee.department || '-'}</td>
+    <td className="p-4 sm:p-6">
+      <div className="flex flex-wrap gap-2">
+      <button className="min-h-11 inline-flex items-center text-[#98c6d5] hover:underline px-2" onClick={() => onView(employee)}>
         View
       </button>
-      <button className="text-blue-600 hover:underline mr-4" onClick={() => onEdit(employee)}>
+      <button className="min-h-11 inline-flex items-center text-blue-600 hover:underline px-2" onClick={() => onEdit(employee)}>
         Edit
       </button>
-      <button className="text-red-600 hover:underline" onClick={() => onDelete(employee._id)}>
+      <button className="min-h-11 inline-flex items-center text-red-600 hover:underline px-2" onClick={() => onDelete(employee._id)}>
         Delete
       </button>
+      </div>
     </td>
   </tr>
 );

@@ -28,14 +28,14 @@ const EmployeeManagementPage = () => {
   } = useEmployeeManagement();
 
   return (
-    <div className="min-h-screen flex bg-gray-100 font-sans w-full">
-      <div className="flex-1 p-6 max-w-full">
-        <div className="max-w-6xl mx-auto bg-white rounded-lg p-6 shadow-lg">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-extrabold text-gray-900">Employee Management</h1>
+    <div className="min-h-screen flex bg-gray-100 font-sans w-full overflow-x-hidden">
+      <div className="flex-1 p-4 sm:p-6 max-w-full min-w-0">
+        <div className="max-w-6xl mx-auto bg-white rounded-lg p-4 sm:p-6 shadow-lg min-w-0">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight">Employee Management</h1>
             <button
               onClick={() => setShowModal(true)}
-              className="bg-[#98c6d5] hover:bg-blue-700 text-white px-5 py-2 rounded-lg transition"
+              className="bg-[#98c6d5] hover:bg-blue-700 text-white px-5 min-h-11 rounded-lg transition w-full sm:w-auto"
             >
               Add Employee
             </button>
@@ -52,15 +52,43 @@ const EmployeeManagementPage = () => {
             }}
           />
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse table-auto">
+          <div className="lg:hidden space-y-4">
+            {paginatedEmployees.length === 0 ? (
+              <p className="p-6 text-center text-gray-500 border border-gray-200 rounded-lg">No employees found.</p>
+            ) : (
+              paginatedEmployees.map((employee) => (
+                <div key={employee._id} className="border border-gray-200 rounded-lg p-4 space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{employee.name}</h3>
+                    <p className="text-sm text-gray-600 break-words">{employee.email}</p>
+                    <p className="text-sm text-gray-500">Username: {employee.username || '-'}</p>
+                    <p className="text-sm text-gray-500">Department: {employee.department || '-'}</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <button className="min-h-11 inline-flex items-center justify-center text-[#98c6d5] border border-[#98c6d5] rounded-lg px-3" onClick={() => handleViewEmployee(employee)}>
+                      View
+                    </button>
+                    <button className="min-h-11 inline-flex items-center justify-center text-blue-600 border border-blue-200 rounded-lg px-3" onClick={() => handleEditClick(employee)}>
+                      Edit
+                    </button>
+                    <button className="min-h-11 inline-flex items-center justify-center text-red-600 border border-red-200 rounded-lg px-3" onClick={() => handleDeleteEmployee(employee._id)}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="hidden lg:block overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table className="min-w-[640px] sm:min-w-full border-collapse table-auto">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="p-6 text-left font-semibold text-gray-700">Name</th>
-                  <th className="p-6 text-left font-semibold text-black">Username</th>
-                  <th className="p-6 text-left font-semibold text-black">Email</th>
-                  <th className="p-6 text-left font-semibold text-black">Department</th>
-                  <th className="p-6 text-left font-semibold text-gray-700">Actions</th>
+                  <th className="p-4 sm:p-6 text-left font-semibold text-gray-700">Name</th>
+                  <th className="p-4 sm:p-6 text-left font-semibold text-black">Username</th>
+                  <th className="p-4 sm:p-6 text-left font-semibold text-black">Email</th>
+                  <th className="p-4 sm:p-6 text-left font-semibold text-black">Department</th>
+                  <th className="p-4 sm:p-6 text-left font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -266,4 +294,4 @@ const EmployeeManagementPage = () => {
   );
 };
 
-export default EmployeeManagementPage; 
+export default EmployeeManagementPage;
