@@ -178,7 +178,6 @@ function getSectionTheme(sectionId: string) {
 
 function getTopHighlights(report: ReportPayload) {
   return report.sections
-    .filter((section) => section.id !== 'qrReviews')
     .flatMap((section) => (section.highlights || []).map((highlight) => `${section.title}: ${highlight}`))
     .slice(0, 8);
 }
@@ -427,7 +426,7 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
 
 function buildPrintHtml(report: ReportPayload, _emailDraft: EmailDraftPayload | null, logoSrc: string) {
   const visibleSections = report.sections
-    .filter((section) => section.id !== 'qrReviews' && hasRenderableSectionContent(section))
+    .filter(hasRenderableSectionContent)
     .sort((a, b) => (SECTION_ORDER[a.id] || 99) - (SECTION_ORDER[b.id] || 99));
 
   const coverDateRange = formatDateLongRange(report.period.start, report.period.end);
@@ -1519,7 +1518,7 @@ const MarketingReportsPage: React.FC = () => {
     );
   };
 
-  const visibleSections = report ? report.sections.filter((section) => section.id !== 'qrReviews' && hasRenderableSectionContent(section)) : [];
+  const visibleSections = report ? report.sections.filter(hasRenderableSectionContent) : [];
   const topHighlights = report ? getTopHighlights(report) : [];
 
   const renderTable = (rows: Array<Record<string, any>>) => {

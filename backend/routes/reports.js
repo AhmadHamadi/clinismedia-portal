@@ -12,10 +12,6 @@ const RetellCall = require('../models/RetellCall');
 const GoogleBusinessInsights = require('../models/GoogleBusinessInsights');
 const InstaUserInsight = require('../models/InstaUserInsight');
 const InstaMediaInsight = require('../models/InstaMediaInsight');
-const ReviewCampaign = require('../models/ReviewCampaign');
-const ReviewSession = require('../models/ReviewSession');
-const ConcernSubmission = require('../models/ConcernSubmission');
-const ReviewEvent = require('../models/ReviewEvent');
 const { findGoogleIntegrationAdminUser } = require('../utils/googleIntegrationAdminUser');
 const { syncInstagramInsightsForUser } = require('../utils/instagramInsightsSync');
 const {
@@ -377,8 +373,6 @@ async function buildMarketingReportPayload(req, customer, range) {
     })));
   }
 
-  sectionBuilders.push(buildQrReviewsSection(customer._id, range.start, range.end));
-
   if (customer.searchConsolePropertyUrl) {
     sectionBuilders.push(buildSearchConsoleSection(req, customer, range.start, range.end));
   }
@@ -429,7 +423,6 @@ async function buildMarketingReportPayload(req, customer, range) {
       instagram: !!customer.instagramAccountId,
       callTracking: !!customer.twilioPhoneNumber,
       aiReception: !!customer.aiReceptionistSettings?.enabled,
-      qrReviews: !!sectionMap.qrReviews,
       searchConsole: !!customer.searchConsolePropertyUrl,
     },
   };
@@ -1425,80 +1418,6 @@ async function buildGoogleAdsSection(req, customer, start, end) {
       `$${totals.spend.toFixed(2)} spend`,
     ],
     campaigns,
-  };
-}
-
-async function buildQrReviewsSection(customerId, start, end) {
-  const campaigns = await ReviewCampaign.find({ customerId, isActive: true }).lean();
-  if (!campaigns.length) {
-    return null;
-  }
-
-  const campaignSummaries = await Promise.all(
-    campaigns.map(async (campaign) => {
-      const campaignId = campaign._id;
-      const eventDateFilter = { createdAt: { $gte: start, $lte: end } };
-      const [scans, reviewsGenerated, copyClicks, googleClicks, concernSubmissions] = await Promise.all([
-        ReviewEvent.countDocuments({ campaignId, eventType: 'session_started', ...eventDateFilter }),
-        ReviewEvent.countDocuments({ campaignId, eventType: 'review_generated', ...eventDateFilter }),
-        ReviewEvent.countDocuments({ campaignId, eventType: 'review_copied', ...eventDateFilter }),
-        ReviewEvent.countDocuments({ campaignId, eventType: 'google_clicked', ...eventDateFilter }),
-        ReviewEvent.countDocuments({ campaignId, eventType: 'concern_submitted', ...eventDateFilter }),
-      ]);
-
-      const sessionDateFilter = { createdAt: { $gte: start, $lte: end } };
-      const fallbackScans = scans || await ReviewSession.countDocuments({ campaignId, ...sessionDateFilter });
-      const fallbackGenerated = reviewsGenerated || await ReviewSession.countDocuments({
-        campaignId,
-        ...sessionDateFilter,
-        status: { $in: ['review_generated', 'copied'] },
-      });
-      const fallbackCopied = copyClicks || await ReviewSession.countDocuments({ campaignId, ...sessionDateFilter, status: 'copied' });
-      const fallbackConcerns = concernSubmissions || await ConcernSubmission.countDocuments({ campaignId, createdAt: { $gte: start, $lte: end } });
-
-      return {
-        clinicName: campaign.clinicName,
-        slug: campaign.slug,
-        scans: fallbackScans,
-        reviewsGenerated: fallbackGenerated,
-        copyClicks: fallbackCopied,
-        googleClicks,
-        concernSubmissions: fallbackConcerns,
-      };
-    })
-  );
-
-  const summary = campaignSummaries.reduce(
-    (acc, campaign) => {
-      acc.scans += campaign.scans;
-      acc.reviewsGenerated += campaign.reviewsGenerated;
-      acc.copyClicks += campaign.copyClicks;
-      acc.googleClicks += campaign.googleClicks;
-      acc.concernSubmissions += campaign.concernSubmissions;
-      return acc;
-    },
-    { scans: 0, reviewsGenerated: 0, copyClicks: 0, googleClicks: 0, concernSubmissions: 0 }
-  );
-
-  // Conversion rates the customer dashboard renders.
-  summary.scanToGeneratePercent = summary.scans > 0
-    ? Number(((summary.reviewsGenerated / summary.scans) * 100).toFixed(1)) : 0;
-  summary.generateToCopyPercent = summary.reviewsGenerated > 0
-    ? Number(((summary.copyClicks / summary.reviewsGenerated) * 100).toFixed(1)) : 0;
-  summary.copyToGooglePercent = summary.copyClicks > 0
-    ? Number(((summary.googleClicks / summary.copyClicks) * 100).toFixed(1)) : 0;
-
-  return {
-    id: 'qrReviews',
-    title: 'QR Reviews',
-    summary,
-    highlights: [
-      `${summary.scans} QR review sessions`,
-      `${summary.reviewsGenerated} reviews generated`,
-      `${summary.googleClicks} Google review clicks`,
-      `${summary.concernSubmissions} concern submissions`,
-    ],
-    campaigns: campaignSummaries,
   };
 }
 
