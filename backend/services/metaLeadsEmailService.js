@@ -1098,6 +1098,9 @@ class MetaLeadsEmailService {
    * @param {number} daysBack - Number of days to look back (default: 1 for today only)
    */
   async checkForNewEmails(daysBack = 1) {
+    if (!this.isImapEnabled()) {
+      return this.buildImapDisabledResult();
+    }
     try {
       const activeMappedFolders = await this.getActiveMappedFolders();
       if (activeMappedFolders.length > 0) {
@@ -1221,6 +1224,9 @@ class MetaLeadsEmailService {
   }
 
   async checkSpecificFolders(folderNames = [], daysBack = null) {
+    if (!this.isImapEnabled()) {
+      return this.buildImapDisabledResult({ foldersChecked: [] });
+    }
     const finalizeCheck = (result) => {
       const nowIso = new Date().toISOString();
       this.lastCheckCompletedAt = nowIso;
@@ -1409,6 +1415,35 @@ class MetaLeadsEmailService {
     return !!(pass && String(pass).trim());
   }
 
+  /**
+   * Master switch for the legacy IMAP mailbox scraper. OFF by default.
+   *
+   * Meta leads now arrive via the per-customer Make webhook (see routes/leads.js),
+   * which is the supported path. The old leads@clinimedia.ca mailbox is no longer
+   * reliably reachable, and because this scraper falls back to the shared
+   * EMAIL_PASS (also used by outbound forms@ email), leaving it on makes it retry
+   * a dead mailbox every few minutes and spam errors. Set
+   * META_LEADS_IMAP_ENABLED=true only if a working leads mailbox is restored.
+   */
+  isImapEnabled() {
+    return String(process.env.META_LEADS_IMAP_ENABLED || '').trim().toLowerCase() === 'true';
+  }
+
+  /** Standard "skipped because disabled" result so callers/buttons get a clear message. */
+  buildImapDisabledResult(extra = {}) {
+    return {
+      emailsFound: 0,
+      emailsProcessed: 0,
+      leadsCreated: 0,
+      leadsUpdated: 0,
+      errors: [],
+      skipped: true,
+      imapDisabled: true,
+      message: 'IMAP email scraping is disabled (webhook-only mode). Leads now arrive via the Make webhook.',
+      ...extra
+    };
+  }
+
   async getActiveMappedFolders() {
     const mappedFolders = await MetaLeadFolderMapping.find({ isActive: true })
       .distinct('folderName');
@@ -1423,6 +1458,11 @@ class MetaLeadsEmailService {
    * (or EMAIL_PASS) is set in production environment so the always-on backend processes leads.
    */
   startMonitoring(intervalMinutes = 5) {
+    if (!this.isImapEnabled()) {
+      this.monitoringEnabled = false;
+      console.log('[Meta Leads] IMAP email monitoring is DISABLED (webhook-only mode). Leads arrive via the per-customer Make webhook. Set META_LEADS_IMAP_ENABLED=true only if a working leads mailbox is restored.');
+      return;
+    }
     if (!this.hasCredentials()) {
       this.monitoringEnabled = false;
       console.error('[Meta Leads] ❌ Email monitoring NOT started: no password set.');

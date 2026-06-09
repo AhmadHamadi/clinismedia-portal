@@ -227,4 +227,94 @@ describe('Make.com leads webhook', () => {
     expect(merged.leadInfo.fields.city).toBe('Hamilton');
     expect(merged.leadInfo.fields.full_name).toBe('Sam Existing');
   });
+
+  test('accepts the webhook token via x-webhook-token header', async () => {
+    const token = 'h'.repeat(64);
+    const customer = await createCustomer(token);
+
+    const res = await request(app)
+      .post(`/api/leads/webhook/${customer._id}`)
+      .set('x-webhook-token', token)
+      .send({ metaLeadId: 'meta-header-1', name: 'Header Lead' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.duplicate).toBe(false);
+    expect(await MetaLead.findOne({ customerId: customer._id, metaLeadId: 'meta-header-1' })).toBeTruthy();
+  });
+
+  test('returns 400 when metaLeadId is missing (Make must always send the lead id)', async () => {
+    const token = 'i'.repeat(64);
+    const customer = await createCustomer(token);
+
+    const res = await request(app)
+      .post(`/api/leads/webhook/${customer._id}?token=${token}`)
+      .send({ name: 'No Id', email: 'noid@example.com' });
+
+    expect(res.status).toBe(400);
+    expect(await MetaLead.countDocuments({ customerId: customer._id })).toBe(0);
+  });
+
+  test('does not deliver to a non-customer account even with a valid token', async () => {
+    const token = 'j'.repeat(64);
+    const employee = await User.create({
+      name: 'Employee',
+      username: `emp-${Date.now()}-${Math.random()}`,
+      email: `emp-${Date.now()}-${Math.random()}@example.com`,
+      password: 'password',
+      role: 'employee',
+      department: 'photography',
+      location: 'Toronto',
+      webhookToken: token,
+    });
+
+    const res = await request(app)
+      .post(`/api/leads/webhook/${employee._id}?token=${token}`)
+      .send({ metaLeadId: 'meta-emp-1', name: 'Nope' });
+
+    expect(res.status).toBe(404);
+    expect(await MetaLead.countDocuments({ customerId: employee._id })).toBe(0);
+  });
+
+  test('keeps leads isolated per clinic for the same person on the same day', async () => {
+    const tokenA = 'k'.repeat(64);
+    const tokenB = 'l'.repeat(64);
+    const clinicA = await createCustomer(tokenA);
+    const clinicB = await createCustomer(tokenB);
+
+    const person = {
+      name: 'Shared Person',
+      email: 'shared@example.com',
+      phone: '(905) 555-9999',
+      submittedAt: '2026-04-24T16:00:00Z',
+    };
+
+    const resA = await request(app)
+      .post(`/api/leads/webhook/${clinicA._id}?token=${tokenA}`)
+      .send({ ...person, metaLeadId: 'meta-clinicA-1' });
+    const resB = await request(app)
+      .post(`/api/leads/webhook/${clinicB._id}?token=${tokenB}`)
+      .send({ ...person, metaLeadId: 'meta-clinicB-1' });
+
+    expect(resA.status).toBe(200);
+    expect(resB.status).toBe(200);
+    expect(resA.body.duplicate).toBe(false);
+    expect(resB.body.duplicate).toBe(false);
+    expect(await MetaLead.countDocuments({ customerId: clinicA._id })).toBe(1);
+    expect(await MetaLead.countDocuments({ customerId: clinicB._id })).toBe(1);
+  });
+
+  test('a clinic cannot use another clinic\'s token (token is bound to the URL customer)', async () => {
+    const tokenA = 'm'.repeat(64);
+    const tokenB = 'n'.repeat(64);
+    const clinicA = await createCustomer(tokenA);
+    const clinicB = await createCustomer(tokenB);
+
+    // Post to clinic A's URL but present clinic B's token.
+    const res = await request(app)
+      .post(`/api/leads/webhook/${clinicA._id}?token=${tokenB}`)
+      .send({ metaLeadId: 'meta-cross-1', name: 'Cross' });
+
+    expect(res.status).toBe(401);
+    expect(await MetaLead.countDocuments({ customerId: clinicA._id })).toBe(0);
+  });
 });

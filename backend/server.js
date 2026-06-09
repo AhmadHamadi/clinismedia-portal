@@ -172,15 +172,17 @@ app.listen(PORT, () => {
   // Reminder sends stay on their daily schedule to avoid duplicate emails after deploy/restart.
   GoogleBusinessDataRefreshService.refreshAllBusinessProfiles();
   
-  // Start Meta Leads email monitoring (runs on THIS server - set LEADS_EMAIL_PASS/EMAIL_PASS in production so the always-on backend processes leads)
-  // Keep IMAP as a backup path. Five minutes is gentler on cPanel/Imunify than
-  // one-minute polling, while Make webhooks provide the primary instant delivery.
+  // Meta Leads delivery is webhook-only: Make POSTs each lead to the per-customer
+  // webhook (routes/leads.js). The legacy IMAP scraper of leads@clinimedia.ca is
+  // OFF by default and only starts if META_LEADS_IMAP_ENABLED=true (set this only
+  // if a working leads mailbox is restored). startMonitoring() self-guards on the
+  // flag, so calling it unconditionally is safe.
   const leadsCheckInterval = parseInt(process.env.META_LEADS_CHECK_INTERVAL, 10) || 5;
   metaLeadsEmailService.startMonitoring(leadsCheckInterval);
-  if (metaLeadsEmailService.hasCredentials()) {
-    console.log(`[Server] Meta Leads: email monitoring is active. Every lead that arrives at leads@ will be added to the portal automatically (runs every ${leadsCheckInterval} min).`);
+  if (metaLeadsEmailService.isImapEnabled()) {
+    console.log(`[Server] Meta Leads: legacy IMAP monitoring is ENABLED (every ${leadsCheckInterval} min). Webhook delivery remains the primary path.`);
   } else {
-    console.warn('[Server] Meta Leads: credentials missing - monitoring did not start. Set LEADS_EMAIL_PASS or EMAIL_PASS in production env so leads always appear in the portal.');
+    console.log('[Server] Meta Leads: webhook-only mode. Make delivers leads to the per-customer webhook; legacy IMAP scraper is disabled (set META_LEADS_IMAP_ENABLED=true to re-enable).');
   }
   
   // Start QuickBooks token refresh service (runs every 30 seconds - FULLY AUTOMATIC)
