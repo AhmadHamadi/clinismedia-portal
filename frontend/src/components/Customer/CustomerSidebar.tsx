@@ -175,14 +175,14 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
   };
 
   return (
-    <div className={`fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl ${sidebarOpen ? 'w-64' : 'w-16'} flex flex-col z-40 transition-all duration-300 overflow-hidden`}>
+    <div className={`portal-sidebar-shell fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl ${sidebarOpen ? 'w-64' : 'w-16'} flex flex-col z-40 transition-all duration-300 overflow-hidden`}>
       {/* Top: Logo */}
-      <div className={`${showLabels ? 'p-3' : 'p-1.5'} border-b border-gray-700 flex items-center justify-between gap-2`}>
+      <div className={`portal-sidebar-header ${showLabels ? 'p-3' : 'p-1.5'} border-b border-gray-700 flex items-center justify-between gap-2`}>
         {showLabels && (
           <img
             src={logo1}
             alt="CliniMedia Logo"
-            className="h-10 object-contain cursor-pointer hover:opacity-90 transition-opacity min-w-0"
+            className="portal-sidebar-logo h-10 object-contain cursor-pointer hover:opacity-90 transition-opacity min-w-0"
             onClick={() => navigate(allowedPages?.length ? `/customer/${allowedPages[0]}` : "/customer/dashboard")}
           />
         )}
@@ -203,7 +203,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
           {showLabels && <h3 className="portal-sidebar-heading text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             MAIN ACTIONS
           </h3>}
-          <ul className="space-y-0.5">
+          <ul className="portal-sidebar-list space-y-0.5">
             {filterItems(mainActionsItems).map((item) => (
               <li key={item.path}>
                 <button
@@ -244,7 +244,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
           {showLabels && <h3 className="portal-sidebar-heading text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             MARKETING & INSIGHTS
           </h3>}
-          <ul className="space-y-0.5">
+          <ul className="portal-sidebar-list space-y-0.5">
             {filterItems(marketingInsightsItems).map((item) => (
               <li key={item.path}>
                 <button
@@ -279,7 +279,7 @@ const CustomerSidebar: React.FC<CustomerSidebarProps> = ({ onLogout, allowedPage
           {showLabels && <h3 className="portal-sidebar-heading text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-2">
             TRACKING
           </h3>}
-          <ul className="space-y-0.5">
+          <ul className="portal-sidebar-list space-y-0.5">
             {filterItems(trackingItems).map((item) => (
               <li key={item.path}>
                 <button

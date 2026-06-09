@@ -114,14 +114,14 @@ const SidebarMenu = () => {
   };
 
   return (
-    <div className={`fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl z-40 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"} flex flex-col overflow-hidden`}>
+    <div className={`portal-sidebar-shell fixed top-0 left-0 h-screen bg-[#1e293b] shadow-xl z-40 transition-all duration-300 ${sidebarOpen ? "w-64" : "w-16"} flex flex-col overflow-hidden`}>
       {/* Top: Logo and Toggle */}
-      <div className={`${sidebarOpen ? 'p-3' : 'p-1.5'} border-b border-gray-700 flex-shrink-0 flex items-center justify-between`}>
+      <div className={`portal-sidebar-header ${sidebarOpen ? 'p-3' : 'p-1.5'} border-b border-gray-700 flex-shrink-0 flex items-center justify-between`}>
         {sidebarOpen && (
           <img
             src={logo1}
             alt="CliniMedia Logo"
-            className="h-10 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+            className="portal-sidebar-logo h-10 object-contain cursor-pointer hover:opacity-90 transition-opacity"
             onClick={() => navigate("/admin")}
           />
         )}
@@ -142,7 +142,7 @@ const SidebarMenu = () => {
               MAIN ACTIONS
             </h3>
           )}
-          <ul className="space-y-0.5">
+          <ul className="portal-sidebar-list space-y-0.5">
             {mainActionsItems.map((item) => (
               <li key={item.path}>
                 <button
@@ -185,7 +185,7 @@ const SidebarMenu = () => {
               INTEGRATIONS
             </h3>
           )}
-          <ul className="space-y-0.5">
+          <ul className="portal-sidebar-list space-y-0.5">
             {integrationsItems.map((item) => (
               <li key={item.path}>
                 <button
@@ -214,7 +214,7 @@ const SidebarMenu = () => {
               CONTENT
             </h3>
           )}
-          <ul className="space-y-0.5">
+          <ul className="portal-sidebar-list space-y-0.5">
             {contentItems.map((item) => (
               <li key={item.path}>
                 <button
