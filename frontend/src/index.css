@@ -227,10 +227,27 @@ body {
 
 .portal-sidebar-nav {
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Let the nav sections share the available height so the menu fills most of
+   the sidebar instead of clustering at the top (leaving a big gap above the
+   logout footer). Free space is only distributed when it exists, so on short
+   screens rows keep their min-height and nothing overflows differently. */
+.portal-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .portal-sidebar-list {
   margin: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
 }
 
 .portal-sidebar-row,
