@@ -10,6 +10,15 @@
 const User = require('../models/User');
 const axios = require('axios');
 
+// In-memory throttle for self-healing. When a refresh fails with a permanent
+// OAuth error we still flag the user for reauth (so the UI can prompt), but we
+// ALSO keep retrying the stored refresh token on a slow cadence instead of
+// excluding the user forever. A transient/racing invalid_grant then recovers
+// automatically (no manual reconnect), while a genuinely dead token is retried
+// at most every REAUTH_RETRY_MS — not every 30s — so we don't hammer Google.
+const REAUTH_RETRY_MS = 30 * 60 * 1000; // 30 minutes
+const reauthRetryAt = new Map(); // userId -> earliest next retry timestamp (ms)
+
 /**
  * Helper: Refresh Google Business Profile token
  */
@@ -96,15 +105,13 @@ class GoogleBusinessAdminTokenRefreshService {
       console.log('[GoogleBusinessAdminTokenRefresh] ========================================');
       console.log('[GoogleBusinessAdminTokenRefresh] Starting token refresh check...');
       
-      // Refresh for every user that has a Google Business refresh token AND
-      // is not already flagged as needing manual reconnection.
+      // Refresh for every admin that has a Google Business refresh token,
+      // INCLUDING those flagged needsReauth — those are retried on a slow
+      // throttle below so a transient/racing failure self-heals instead of
+      // requiring a manual reconnect.
       const users = await User.find({
         role: 'admin',
         googleBusinessRefreshToken: { $exists: true, $ne: null },
-        $or: [
-          { googleBusinessNeedsReauth: { $exists: false } },
-          { googleBusinessNeedsReauth: { $ne: true } },
-        ],
       });
 
       if (!users.length) {
@@ -120,6 +127,19 @@ class GoogleBusinessAdminTokenRefreshService {
 
       for (const user of users) {
         try {
+          const userId = String(user._id);
+
+          // For users already flagged for reauth, retry the stored refresh token
+          // only on the slow throttle so we don't spam Google with a known-bad
+          // token. If the failure was transient/racing, this attempt recovers it.
+          if (user.googleBusinessNeedsReauth) {
+            const nextTry = reauthRetryAt.get(userId) || 0;
+            if (Date.now() < nextTry) {
+              continue;
+            }
+            console.log(`[GoogleBusinessAdminTokenRefresh] 🔁 Self-heal retry for previously-flagged user ${userId}`);
+          }
+
           let expiryTime = user.googleBusinessTokenExpiry;
           if (expiryTime && !(expiryTime instanceof Date)) {
             expiryTime = new Date(expiryTime);
@@ -143,11 +163,13 @@ class GoogleBusinessAdminTokenRefreshService {
             continue;
           }
 
-          // Successful refresh — clear any prior reauth flag.
+          // Successful refresh — clear any prior reauth flag and throttle.
           if (freshUser.googleBusinessNeedsReauth) {
             freshUser.googleBusinessNeedsReauth = false;
+            console.log(`[GoogleBusinessAdminTokenRefresh] ✅ Self-healed user ${userId} — cleared reauth flag`);
           }
           await saveTokensForUser(freshUser, refreshed);
+          reauthRetryAt.delete(userId);
           refreshedCount += 1;
         } catch (userError) {
           console.error(`[GoogleBusinessAdminTokenRefresh] ❌ Failed refreshing user ${user._id}:`, userError.response?.data || userError.message);
@@ -156,13 +178,17 @@ class GoogleBusinessAdminTokenRefreshService {
           // the admin UI can prompt a reconnect, and stop spamming Google's
           // oauth2/token endpoint with a known-bad token every 30 seconds.
           if (isPermanentOAuthError(userError)) {
+            // Schedule the next self-heal retry on the slow throttle so we keep
+            // the stored refresh token and retry it, rather than excluding the
+            // user forever (which forced the manual reconnect).
+            reauthRetryAt.set(String(user._id), Date.now() + REAUTH_RETRY_MS);
             try {
               await User.findByIdAndUpdate(user._id, {
                 googleBusinessNeedsReauth: true,
                 googleBusinessAccessToken: null,
                 googleBusinessTokenExpiry: null,
               });
-              console.warn(`[GoogleBusinessAdminTokenRefresh] ⚠️ User ${user._id} flagged for reauth (permanent OAuth error)`);
+              console.warn(`[GoogleBusinessAdminTokenRefresh] ⚠️ User ${user._id} flagged for reauth (permanent OAuth error). Will self-heal retry in ${Math.round(REAUTH_RETRY_MS / 60000)} min.`);
             } catch (flagError) {
               console.error(`[GoogleBusinessAdminTokenRefresh] ❌ Failed flagging user ${user._id} for reauth:`, flagError.message);
             }
