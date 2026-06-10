@@ -9,6 +9,7 @@
 
 const User = require('../models/User');
 const axios = require('axios');
+const { ensureFreshAccessToken } = require('../utils/googleTokenManager');
 
 // In-memory throttle for self-healing. When a refresh fails with a permanent
 // OAuth error we still flag the user for reauth (so the UI can prompt), but we
@@ -155,22 +156,16 @@ class GoogleAdsTokenRefreshService {
           }
 
           console.log(`[GoogleAdsTokenRefresh] 🔄 Refreshing token for user ${user._id} (${user.email || user.role || 'unknown'})`);
-          const refreshed = await refreshGoogleAdsToken(user.googleAdsRefreshToken);
+          // Route through the shared single-flight manager so this background
+          // refresh can never race a per-request refresh on a rotated token.
+          const wasFlagged = !!user.googleAdsNeedsReauth;
+          const { refreshed: didRefresh } = await ensureFreshAccessToken('googleAds', user._id);
 
-          const freshUser = await User.findById(user._id);
-          if (!freshUser) {
-            console.error(`[GoogleAdsTokenRefresh] ❌ User ${user._id} not found after refresh`);
-            continue;
-          }
-
-          // Successful refresh — clear any prior reauth flag and throttle.
-          if (freshUser.googleAdsNeedsReauth) {
-            freshUser.googleAdsNeedsReauth = false;
+          if (wasFlagged) {
             console.log(`[GoogleAdsTokenRefresh] ✅ Self-healed user ${userId} — cleared reauth flag`);
           }
-          await saveTokensForUser(freshUser, refreshed);
           reauthRetryAt.delete(userId);
-          refreshedCount += 1;
+          if (didRefresh) refreshedCount += 1;
         } catch (userError) {
           console.error(`[GoogleAdsTokenRefresh] ❌ Failed refreshing user ${user._id}:`, userError.response?.data || userError.message);
 

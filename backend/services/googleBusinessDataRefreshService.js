@@ -2,6 +2,7 @@ const User = require('../models/User');
 const GoogleBusinessInsights = require('../models/GoogleBusinessInsights');
 const { google } = require('googleapis');
 const axios = require('axios');
+const { ensureFreshAccessToken } = require('../utils/googleTokenManager');
 
 // OAuth 2.0 configuration
 const backendPort = process.env.PORT || 5000;
@@ -117,52 +118,25 @@ class GoogleBusinessDataRefreshService {
       const expiresAt = tokenOwner.googleBusinessTokenExpiry ? new Date(tokenOwner.googleBusinessTokenExpiry).getTime() : 0;
       const refreshThreshold = 5 * 60 * 1000; // ✅ FIXED: Refresh 5 minutes before expiry (was 60 seconds) to ensure tokens never expire
 
-      // ✅ FIXED: Only refresh if we have a valid expiry date AND token expires soon
-      // If expiresAt is 0 (no expiry set), assume token is still valid and try to use it
-      if (!tokenOwner.googleBusinessAccessToken || !expiresAt || now > (expiresAt - refreshThreshold)) {
-        console.log(`🔄 Refreshing token for ${customer.name}...`);
-        try {
-          const refreshedTokens = await refreshGoogleBusinessToken(tokenOwner.googleBusinessRefreshToken);
-          
-          // ✅ FIXED: Always set expiry - default to 1 hour if expires_in is not provided
-          let newExpiry = null;
-          if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
-            newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
-          } else {
-            // Default to 1 hour if expires_in is not provided (Google tokens typically expire in 1 hour)
-            newExpiry = new Date(Date.now() + 3600 * 1000);
-            console.log(`⚠️ Token refresh did not return expires_in for ${customer.name}, defaulting to 1 hour expiry`);
-          }
-          
-          const updateData = {
-            googleBusinessAccessToken: refreshedTokens.access_token,
-            googleBusinessTokenExpiry: newExpiry, // ✅ FIXED: Always set expiry
-            googleBusinessNeedsReauth: false
-          };
-          
-          if (refreshedTokens.refresh_token) {
-            updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
-          }
-          
-          await User.findByIdAndUpdate(tokenOwner._id, updateData);
-          
-          oauth2Client.setCredentials({
-            access_token: refreshedTokens.access_token,
-            refresh_token: refreshedTokens.refresh_token || tokenOwner.googleBusinessRefreshToken
-          });
-          tokenOwner.googleBusinessAccessToken = refreshedTokens.access_token;
-          tokenOwner.googleBusinessRefreshToken = refreshedTokens.refresh_token || tokenOwner.googleBusinessRefreshToken;
-          tokenOwner.googleBusinessTokenExpiry = newExpiry;
-          
-          console.log(`✅ Token refreshed for ${customer.name}`);
-        } catch (refreshError) {
-          console.error(`❌ Token refresh failed for ${customer.name}:`, refreshError.message);
-          if (refreshError.response?.data?.error === 'invalid_grant' || 
-              refreshError.message?.includes('invalid_grant')) {
-            await markGoogleBusinessTokenOwnerForReauth(tokenOwner, customer);
-          }
-          throw refreshError;
+      // Always obtain a valid access token via the shared single-flight manager
+      // (it only hits Google when the token is actually expiring, and re-reads
+      // inside a critical section so it never races the 30s background service
+      // or a per-request refresh on a rotated token).
+      try {
+        const { accessToken } = await ensureFreshAccessToken('googleBusiness', tokenOwner._id);
+        oauth2Client.setCredentials({
+          access_token: accessToken,
+          refresh_token: tokenOwner.googleBusinessRefreshToken,
+        });
+        tokenOwner.googleBusinessAccessToken = accessToken;
+        console.log(`✅ Valid access token ready for ${customer.name}`);
+      } catch (refreshError) {
+        console.error(`❌ Token refresh failed for ${customer.name}:`, refreshError.message);
+        if (refreshError.response?.data?.error === 'invalid_grant' ||
+            refreshError.message?.includes('invalid_grant')) {
+          await markGoogleBusinessTokenOwnerForReauth(tokenOwner, customer);
         }
+        throw refreshError;
       }
 
       if (usingAdminTokens && customer.googleBusinessNeedsReauth) {
@@ -343,63 +317,29 @@ class GoogleBusinessDataRefreshService {
           const expiresAt = tokenOwner.googleBusinessTokenExpiry ? new Date(tokenOwner.googleBusinessTokenExpiry).getTime() : 0;
           const refreshThreshold = 5 * 60 * 1000; // ✅ FIXED: Refresh 5 minutes before expiry (was 60 seconds) to ensure tokens never expire
 
-          // ✅ FIXED: Only refresh if we have a valid expiry date AND token expires soon
-          // If expiresAt is 0 (no expiry set), assume token is still valid and try to use it
-          if (!tokenOwner.googleBusinessAccessToken || !expiresAt || now > (expiresAt - refreshThreshold)) {
-            console.log(`🔄 Refreshing token for ${customer.name}...`);
-            try {
-              // Use direct token refresh (like Google Ads) - doesn't require redirect URI match
-              const refreshedTokens = await refreshGoogleBusinessToken(tokenOwner.googleBusinessRefreshToken);
-              
-              // ✅ FIXED: Always set expiry - default to 1 hour if expires_in is not provided
-              let newExpiry = null;
-              if (refreshedTokens.expires_in && !isNaN(Number(refreshedTokens.expires_in)) && refreshedTokens.expires_in > 0) {
-                newExpiry = new Date(Date.now() + refreshedTokens.expires_in * 1000);
-              } else {
-                // Default to 1 hour if expires_in is not provided (Google tokens typically expire in 1 hour)
-                newExpiry = new Date(Date.now() + 3600 * 1000);
-                console.log(`⚠️ Token refresh did not return expires_in for ${customer.name}, defaulting to 1 hour expiry`);
-              }
-              
-              const updateData = {
-                googleBusinessAccessToken: refreshedTokens.access_token,
-                googleBusinessTokenExpiry: newExpiry, // ✅ FIXED: Always set expiry
-                googleBusinessNeedsReauth: false
-              };
-              
-              // Preserve refresh token if provided (Google may rotate it)
-              if (refreshedTokens.refresh_token) {
-                updateData.googleBusinessRefreshToken = refreshedTokens.refresh_token;
-              }
-              
-              await User.findByIdAndUpdate(tokenOwner._id, updateData);
-              
-              // Update our local OAuth client credentials for API calls
-              oauth2Client.setCredentials({
-                access_token: refreshedTokens.access_token,
-                refresh_token: refreshedTokens.refresh_token || tokenOwner.googleBusinessRefreshToken
-              });
-              tokenOwner.googleBusinessAccessToken = refreshedTokens.access_token;
-              tokenOwner.googleBusinessRefreshToken = refreshedTokens.refresh_token || tokenOwner.googleBusinessRefreshToken;
-              tokenOwner.googleBusinessTokenExpiry = newExpiry;
-              
-              console.log(`✅ Token refreshed for ${customer.name} using direct API call`);
-            } catch (refreshError) {
-              console.error(`❌ Token refresh failed for ${customer.name}:`, refreshError.message);
-              console.error(`❌ Refresh error details:`, refreshError.response?.data || refreshError.message);
-              
-              // Handle invalid_grant error (expired/revoked refresh token)
-              if (refreshError.response?.data?.error === 'invalid_grant' || 
-                  refreshError.message?.includes('invalid_grant')) {
-                await markGoogleBusinessTokenOwnerForReauth(tokenOwner, customer);
-                errorCount++;
-              } else {
-                // Other errors (network, API, etc.)
-                console.error(`⚠️ Token refresh failed for ${customer.name} due to: ${refreshError.message}`);
-                errorCount++;
-              }
-              continue; // Skip this customer
+          // Obtain a valid access token via the shared single-flight manager so
+          // this daily bulk refresh (one entry per customer, all sharing the same
+          // admin token) can never race the 30s background service or a
+          // per-request refresh on a rotated token.
+          try {
+            const { accessToken } = await ensureFreshAccessToken('googleBusiness', tokenOwner._id);
+            oauth2Client.setCredentials({
+              access_token: accessToken,
+              refresh_token: tokenOwner.googleBusinessRefreshToken,
+            });
+            tokenOwner.googleBusinessAccessToken = accessToken;
+            console.log(`✅ Valid access token ready for ${customer.name}`);
+          } catch (refreshError) {
+            console.error(`❌ Token refresh failed for ${customer.name}:`, refreshError.message);
+            console.error(`❌ Refresh error details:`, refreshError.response?.data || refreshError.message);
+
+            // Handle invalid_grant error (expired/revoked refresh token)
+            if (refreshError.response?.data?.error === 'invalid_grant' ||
+                refreshError.message?.includes('invalid_grant')) {
+              await markGoogleBusinessTokenOwnerForReauth(tokenOwner, customer);
             }
+            errorCount++;
+            continue; // Skip this customer
           }
 
           if (usingAdminTokens && customer.googleBusinessNeedsReauth) {

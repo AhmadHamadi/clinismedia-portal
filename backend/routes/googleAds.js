@@ -6,6 +6,7 @@ const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
 const authorizeRole = require('../middleware/authorizeRole');
 const { findGoogleIntegrationAdminUser } = require('../utils/googleIntegrationAdminUser');
+const { ensureFreshAccessToken } = require('../utils/googleTokenManager');
 
 // Constants
 const MCC_CUSTOMER_ID = '4037087680';
@@ -321,69 +322,24 @@ router.get('/callback', async (req, res) => {
 // Helper: Get fresh access token from refresh token (checks expiry first, saves tokens after refresh)
 // ✅ FIXED: Now checks expiry before refreshing and saves new tokens to database
 async function getAccessToken(adminUser, forceRefresh = false) {
-  // Check if token is expired before refreshing
-  const now = Date.now();
-  const expiresAt = adminUser.googleAdsTokenExpiry ? new Date(adminUser.googleAdsTokenExpiry).getTime() : 0;
-  const refreshThreshold = 5 * 60 * 1000; // Refresh 5 minutes before expiry
-  
-  // If token is still valid, return it without refreshing
-  if (!forceRefresh && expiresAt > 0 && now < (expiresAt - refreshThreshold)) {
-    // ✅ SAFETY CHECK: If access token is missing even though expiry says it's valid, refresh anyway
-    if (!adminUser.googleAdsAccessToken) {
-      console.log(`[Google Ads] Token expiry says valid but access token is missing, refreshing...`);
-    } else {
-      const minutesUntilExpiry = Math.floor((expiresAt - now) / 60000);
-      console.log(`[Google Ads] Token still valid, expires in ${minutesUntilExpiry} minutes`);
-      return adminUser.googleAdsAccessToken;
-    }
-  }
-  
-  // Token expired or expiring soon - refresh it
-  console.log(`[Google Ads] Token expired or expiring soon, refreshing...`);
-  
-  if (!adminUser.googleAdsRefreshToken) {
-    throw new Error('No refresh token available for Google Ads');
-  }
-  
-  let response;
+  // Race-safe: all refreshes for this admin (this handler, the 30s background
+  // service, reports.js, etc.) funnel through one single-flight in the token
+  // manager, which re-reads the user inside the critical section. This prevents
+  // two concurrent refreshes from racing on a rotated refresh token (which
+  // would invalidate one of them and force a reconnect).
   try {
-    response = await axios.post('https://oauth2.googleapis.com/token', {
-      client_id: process.env.GOOGLE_ADS_CLIENT_ID,
-      client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
-      refresh_token: adminUser.googleAdsRefreshToken,
-      grant_type: 'refresh_token',
-    });
+    const { accessToken } = await ensureFreshAccessToken('googleAds', adminUser._id, { forceRefresh });
+    return accessToken;
   } catch (error) {
+    if (error.code === 'NO_REFRESH_TOKEN') {
+      throw new Error('No refresh token available for Google Ads');
+    }
     if (isPermanentGoogleOAuthError(error)) {
       await markGoogleAdsAdminForReauth(adminUser);
       error.requiresReauth = true;
     }
     throw error;
   }
-  
-  const { access_token, refresh_token, expires_in } = response.data;
-
-  if (!access_token) {
-    throw new Error('Google Ads token refresh returned no access_token');
-  }
-  
-  // ✅ FIXED: Save the new tokens and expiry time to database
-  const updateData = {
-    googleAdsAccessToken: access_token,
-    googleAdsTokenExpiry: new Date(Date.now() + (expires_in || 3600) * 1000),
-    googleAdsNeedsReauth: false,
-  };
-  
-  // ✅ FIXED: Save new refresh token if Google provides one (they may rotate it)
-  if (refresh_token) {
-    updateData.googleAdsRefreshToken = refresh_token;
-    console.log(`[Google Ads] ✅ New refresh token received and saved`);
-  }
-  
-  await User.findByIdAndUpdate(adminUser._id, updateData);
-  console.log(`[Google Ads] ✅ Token refreshed and saved. Expires in ${expires_in || 3600} seconds`);
-  
-  return access_token;
 }
 
 // Helper: Make GAQL query to Google Ads API

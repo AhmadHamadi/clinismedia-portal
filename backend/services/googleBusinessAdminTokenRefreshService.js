@@ -9,6 +9,7 @@
 
 const User = require('../models/User');
 const axios = require('axios');
+const { ensureFreshAccessToken } = require('../utils/googleTokenManager');
 
 // In-memory throttle for self-healing. When a refresh fails with a permanent
 // OAuth error we still flag the user for reauth (so the UI can prompt), but we
@@ -155,22 +156,17 @@ class GoogleBusinessAdminTokenRefreshService {
           }
 
           console.log(`[GoogleBusinessAdminTokenRefresh] 🔄 Refreshing token for user ${user._id} (${user.email || user.role || 'unknown'})`);
-          const refreshed = await refreshGoogleBusinessToken(user.googleBusinessRefreshToken);
+          // Route through the shared single-flight manager so this background
+          // refresh can never race a per-request or data-service refresh on a
+          // rotated token.
+          const wasFlagged = !!user.googleBusinessNeedsReauth;
+          const { refreshed: didRefresh } = await ensureFreshAccessToken('googleBusiness', user._id);
 
-          const freshUser = await User.findById(user._id);
-          if (!freshUser) {
-            console.error(`[GoogleBusinessAdminTokenRefresh] ❌ User ${user._id} not found after refresh`);
-            continue;
-          }
-
-          // Successful refresh — clear any prior reauth flag and throttle.
-          if (freshUser.googleBusinessNeedsReauth) {
-            freshUser.googleBusinessNeedsReauth = false;
+          if (wasFlagged) {
             console.log(`[GoogleBusinessAdminTokenRefresh] ✅ Self-healed user ${userId} — cleared reauth flag`);
           }
-          await saveTokensForUser(freshUser, refreshed);
           reauthRetryAt.delete(userId);
-          refreshedCount += 1;
+          if (didRefresh) refreshedCount += 1;
         } catch (userError) {
           console.error(`[GoogleBusinessAdminTokenRefresh] ❌ Failed refreshing user ${user._id}:`, userError.response?.data || userError.message);
 
